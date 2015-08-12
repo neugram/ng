@@ -1,8 +1,9 @@
 // Copyright 2015 The Numgrad Authors. All rights reserved.
-// Use of this source code is governed by a license that
-// can be found in the LICENSE file.
+// See the LICENSE file for rights to use this source code.
 
 package parser
+
+import "fmt"
 
 //go:generate stringer -type=Token
 
@@ -11,7 +12,6 @@ type Token int
 
 const (
 	Unknown Token = iota
-	EOF
 	Comment
 
 	// Constants
@@ -53,6 +53,17 @@ const (
 	PowAssign // ^=
 	Define    // :=
 
+	LeftParen    // (
+	LeftBracket  // [
+	LeftBrace    // {
+	RightParen   // )
+	RightBracket // ]
+	RightBrace   // }
+	Comma        // ,
+	Period       // .
+	Semicolon    // ;
+	Colon        // :
+
 	// Keywords
 
 	Package
@@ -84,3 +95,84 @@ const (
 	Struct
 	Type
 )
+
+var tokens = map[string]Token{
+	"Unknown":      Unknown,
+	"Comment":      Comment,
+	"Ident":        Ident,
+	"Int":          Int,
+	"Float":        Float,
+	"Imaginary":    Imaginary,
+	"string":       String,
+	"Add":          Add,
+	"Sub":          Sub,
+	"Mul":          Mul,
+	"Div":          Div,
+	"Rem":          Rem,
+	"Pow":          Pow,
+	"And":          And,
+	"Or":           Or,
+	"Equal":        Equal,
+	"Less":         Less,
+	"Greater":      Greater,
+	"Assign":       Assign,
+	"Not":          Not,
+	"NotEqual":     NotEqual,
+	"LessEqual":    LessEqual,
+	"GreaterEqual": GreaterEqual,
+	"Inc":          Inc,
+	"Dec":          Dec,
+	"AddAssign":    AddAssign,
+	"SubAssign":    SubAssign,
+	"MulAssign":    MulAssign,
+	"DivAssign":    DivAssign,
+	"RemAssign":    RemAssign,
+	"PowAssign":    PowAssign,
+	"Define":       Define,
+	"LeftParen":    LeftParen,
+	"LeftBracket":  LeftBracket,
+	"LeftBrace":    LeftBrace,
+	"RightParen":   RightParen,
+	"RightBracket": RightBracket,
+	"RightBrace":   RightBrace,
+	"Comma":        Comma,
+	"Period":       Period,
+	"Semicolon":    Semicolon,
+	"Colon":        Colon,
+	"package":      Package,
+	"import":       Import,
+	"func":         Func,
+	"return":       Return,
+	"switch":       Switch,
+	"case":         Case,
+	"default":      Default,
+	"fallthrough":  Fallthrough,
+	"const":        Const,
+	"if":           If,
+	"else":         Else,
+	"for":          For,
+	"range":        Range,
+	"continue":     Continue,
+	"break":        Break,
+	"goto":         Goto,
+	"go":           Go,
+	"frame":        Frame,
+	"map":          Map,
+	"struct":       Struct,
+	"type":         Type,
+}
+
+var tokenStrings = make(map[Token]string, len(tokens))
+
+func init() {
+	for s, t := range tokens {
+		tokenStrings[t] = s
+	}
+}
+
+func (t Token) String() string {
+	if s := tokenStrings[t]; s != "" {
+		return s
+	}
+	return fmt.Sprintf("parser.Token(%d)", t)
+}
