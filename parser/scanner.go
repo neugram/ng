@@ -161,11 +161,11 @@ func (s *Scanner) Next() error {
 		lit := s.scanIdentifier()
 		s.Token, ok = tokens[lit]
 		if !ok {
-			s.Token = Ident
+			s.Token = Identifier
 			s.Literal = lit
 		}
 		switch s.Token {
-		case Ident, Break, Continue, Fallthrough, Return:
+		case Identifier, Break, Continue, Fallthrough, Return:
 			s.semi = true
 		}
 		return s.err

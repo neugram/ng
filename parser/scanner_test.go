@@ -17,7 +17,7 @@ type scannerTest struct {
 }
 
 var scannerTests = []scannerTest{
-	{"foo", Ident, "foo"},
+	{"foo", Identifier, "foo"},
 	{"9", Int, big.NewInt(9)},
 	{"+", Add, nil},
 	{"+=", AddAssign, nil},

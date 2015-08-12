@@ -16,11 +16,11 @@ const (
 
 	// Constants
 
-	Ident     // funcName
-	Int       // 1001
-	Float     // 10.01
-	Imaginary // 10.01i
-	String    // "a string"
+	Identifier // funcName
+	Int        // 1001
+	Float      // 10.01
+	Imaginary  // 10.01i
+	String     // "a string"
 
 	// Expression Operators
 
@@ -99,7 +99,7 @@ const (
 var tokens = map[string]Token{
 	"Unknown":      Unknown,
 	"Comment":      Comment,
-	"Ident":        Ident,
+	"Identifier":   Identifier,
 	"Int":          Int,
 	"Float":        Float,
 	"Imaginary":    Imaginary,
