@@ -5,8 +5,6 @@ package parser
 
 import "fmt"
 
-//go:generate stringer -type=Token
-
 // Token is a numgrad lexical token.
 type Token int
 
@@ -30,8 +28,9 @@ const (
 	Div          // /
 	Rem          // %
 	Pow          // ^
-	And          // &&
-	Or           // ||
+	Ref          // &
+	LogicalAnd   // &&
+	LogicalOr    // ||
 	Equal        // ==
 	Less         // <
 	Greater      // >
@@ -110,8 +109,8 @@ var tokens = map[string]Token{
 	"Div":          Div,
 	"Rem":          Rem,
 	"Pow":          Pow,
-	"And":          And,
-	"Or":           Or,
+	"LogicalAnd":   LogicalAnd,
+	"LogicalOr":    LogicalOr,
 	"Equal":        Equal,
 	"Less":         Less,
 	"Greater":      Greater,
@@ -175,4 +174,20 @@ func (t Token) String() string {
 		return s
 	}
 	return fmt.Sprintf("parser.Token(%d)", t)
+}
+
+func (t Token) Precedence() int {
+	switch t {
+	case LogicalOr:
+		return 1
+	case LogicalAnd:
+		return 2
+	case Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual:
+		return 3
+	case Add, Sub:
+		return 4
+	case Mul, Div, Rem:
+		return 5
+	}
+	return 0
 }
