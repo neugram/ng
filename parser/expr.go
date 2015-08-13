@@ -9,6 +9,15 @@ type BinaryExpr struct {
 	Right Expr
 }
 
+type UnaryExpr struct {
+	Op   Token // Not, Mul (deref), Ref, LeftParen
+	Expr Expr
+}
+
+type BadExpr struct {
+	Error error
+}
+
 type BasicLiteral struct {
 	Value interface{} // string, *big.Int, *big.Float
 }
