@@ -149,7 +149,42 @@ exponent:
 	return tok, value
 }
 
+func (s *Scanner) scanComment() string {
+	off := s.Offset - 1 // already ate the first '/'
+
+	if s.r == '/' {
+		// single line "// comment"
+		s.next()
+		for s.r > 0 && s.r != '\n' {
+			s.next()
+		}
+	} else {
+		// multi-line "/* comment */"
+		s.next()
+		terminated := false
+		for s.r > 0 {
+			r := s.r
+			s.next()
+			if r == '*' && s.r == '/' {
+				s.next()
+				terminated = true
+				break
+			}
+		}
+		if !terminated {
+			s.err = fmt.Errorf("multi-line comment not terminated") // TODO offset
+		}
+	}
+
+	lit := s.src[off:s.Offset]
+	// TODO remove any \r in comments?
+	return string(lit)
+}
+
 func (s *Scanner) Next() error {
+	defer func() {
+		//fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d\n", s.Token, s.Offset, s.off)
+	}()
 	s.skipWhitespace()
 	//fmt.Printf("Next: s.r=%v (%s)\n", s.r, string(s.r))
 
@@ -204,6 +239,54 @@ func (s *Scanner) Next() error {
 		default:
 			s.Token = Add
 		}
+	case '-':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = SubAssign
+		case '-':
+			s.next()
+			s.Token = Dec
+		default:
+			s.Token = Sub
+		}
+	case '*':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = MulAssign
+		default:
+			s.Token = Mul
+		}
+	case '/':
+		switch s.r {
+		case '/', '*': // comment
+			// TODO if s.semi and no more tokens on this line, insert newline
+			s.Literal = s.scanComment()
+			s.Token = Comment
+		case '=':
+			s.next()
+			s.Token = DivAssign
+		default:
+			s.Token = Div
+		}
+	case '%':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = RemAssign
+		default:
+			s.Token = Rem
+		}
+	case '^':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = PowAssign
+		default:
+			s.Token = Pow
+		}
 	}
+
 	return s.err
 }

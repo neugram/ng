@@ -16,38 +16,31 @@ type scannerTest struct {
 	literal interface{}
 }
 
-var scannerTests = []scannerTest{
+var scannerBothTests = []scannerTest{
 	{"foo", Identifier, "foo"},
-	{"9", Int, big.NewInt(9)},
 	{"+", Add, nil},
+	{"*", Mul, nil},
+	{"bar", Identifier, "bar"},
+	{"9", Int, big.NewInt(9)},
 	{"+=", AddAssign, nil},
 	{"++", Inc, nil},
 	{"break", Break, nil},
+	{"/* a block comment */", Comment, "/* a block comment */"},
 	{"(", LeftParen, nil},
 	{"4.62e12", Float, big.NewFloat(4.62e12)},
 	{")", RightParen, nil},
+	{"//final", Comment, "//final"},
 }
 
-func eq(lit0, lit1 interface{}) bool {
-	//fmt.Printf("lit0=%v (%T), lit1=%v (%T)\n", lit0, lit0, lit1, lit1)
-	if lit0 == lit1 {
-		return true
-	}
-	switch lit0 := lit0.(type) {
-	case *big.Int:
-		if lit1, ok := lit1.(*big.Int); ok {
-			return lit0.Cmp(lit1) == 0
-		}
-	case *big.Float:
-		if lit1, ok := lit1.(*big.Float); ok {
-			return lit0.Cmp(lit1) == 0
-		}
-	}
-	return false
-}
+var scannerSepTests = append([]scannerTest{
+	{"// a line comment", Comment, "// a line comment"},
+	{"      // spaced ", Comment, "// spaced "},
+}, scannerBothTests...)
 
-func TestScannerInTheSmall(t *testing.T) {
-	for _, test := range scannerTests {
+var scannerJoinTests = append([]scannerTest{}, scannerBothTests...)
+
+func TestScannerSep(t *testing.T) {
+	for _, test := range scannerSepTests {
 		s := NewScanner([]byte(test.input))
 		if err := s.Next(); err != nil {
 			t.Errorf("scanning %q: %v", test.input, err)
@@ -56,7 +49,7 @@ func TestScannerInTheSmall(t *testing.T) {
 		if s.Token != test.token {
 			t.Errorf("%q: got %s, want %s", test.input, s.Token, test.token)
 		}
-		if !eq(s.Literal, test.literal) {
+		if !equalLiteral(s.Literal, test.literal) {
 			t.Errorf("%q literal: got %s, want %s", test.input, s.Literal, test.literal)
 		}
 		if err := s.Next(); err != io.EOF {
@@ -65,20 +58,20 @@ func TestScannerInTheSmall(t *testing.T) {
 	}
 }
 
-func TestScannerJoinedSeq(t *testing.T) {
+func TestScannerJoin(t *testing.T) {
 	var input []string
-	for _, test := range scannerTests {
+	for _, test := range scannerJoinTests {
 		input = append(input, test.input)
 	}
 	s := NewScanner([]byte(strings.Join(input, " ")))
-	for _, test := range scannerTests {
+	for _, test := range scannerJoinTests {
 		if err := s.Next(); err != nil {
 			t.Fatalf("scanning for %q: %v", test.input, err)
 		}
 		if s.Token != test.token {
 			t.Errorf("%q: got %s, want %s", test.input, s.Token, test.token)
 		}
-		if !eq(s.Literal, test.literal) {
+		if !equalLiteral(s.Literal, test.literal) {
 			t.Errorf("%q literal: got %s, want %s", test.input, s.Literal, test.literal)
 		}
 	}
