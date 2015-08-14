@@ -96,12 +96,17 @@ func (d *Memory) Get(x, y int, dst ...interface{}) error {
 	}
 	return nil
 }
-func (d *Memory) Size() (width, height int) { return d.Width, d.Height }
-func (d *Memory) Cols() []string            { return d.ColName }
 
-func (d *Memory) Set(x, y int, value interface{}) error {
+func (d *Memory) Cols() []string { return d.ColName }
+
+func (d *Memory) Len() (int, error) { return d.Height, nil }
+
+func (d *Memory) Set(x, y int, vals ...interface{}) error {
 	// TODO check for valid types
-	d.Data[d.offset(x, y)] = value
+	if len(vals)+x > d.Width {
+		return fmt.Errorf("memframe.Set(%d, y, len=%d) called for frame width %d", x, len(vals), d.Width)
+	}
+	copy(d.Data[d.offset(x, y):], vals)
 	return nil
 }
 

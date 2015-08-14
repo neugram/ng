@@ -1,6 +1,15 @@
+// Copyright 2015 The Numgrad Authors. All rights reserved.
+// See the LICENSE file for rights to use this source code.
+
 package frame
 
-import "numgrad.io/parser"
+import (
+	"errors"
+	"fmt"
+	"io"
+
+	"numgrad.io/parser"
+)
 
 // A Frame is a two-dimensional data set.
 //
@@ -23,11 +32,12 @@ import "numgrad.io/parser"
 //	ColumnType(x int) Type
 //	Permute(cols []int) Frame
 //	Slice(x, xlen, y, ylen int) Frame
-//	Set(x, y int, value interface{}) error
+//	Set(x, y int, vals ...interface{}) error
 //	Transpose() Frame
 //	CopyFrom(src Frame) (n int, err error)
+//	CopyTo(dst Frame) (n int, err error)
 //	Accumulate(g Grouping) (Frame, error)
-//	Height() (int, error)
+//	Len() (int, error)
 //
 // Maybe TODO:
 //	Slice(Rectangle) Frame
@@ -46,9 +56,45 @@ func Copy(dst, src Frame) (n int, err error) {
 	if ok {
 		return dstf.CopyFrom(src)
 	}
-	// TODO src.CopyTo? on common forms like memframe, only implement CopyTo
-	// on the assumption future clever frames will special-case them.
-	panic("TODO")
+	srcf, ok := src.(interface {
+		CopyTo(dst Frame) (n int, err error)
+	})
+	if ok {
+		return srcf.CopyTo(dst)
+	}
+
+	set, ok := dst.(interface {
+		Set(x, y int, vals ...interface{}) error
+	})
+	if !ok {
+		return 0, errors.New("frame.Copy: dst Frame does not implement Set")
+	}
+
+	cols := len(src.Cols())
+	if dstCols := len(dst.Cols()); dstCols != cols {
+		return 0, fmt.Errorf("frame.Copy: dst has %d columns, src has %d", dstCols, cols)
+	}
+
+	row := make([]interface{}, cols)
+	rowp := make([]interface{}, len(row))
+	for i := range row {
+		rowp[i] = &row[i]
+	}
+	y := 0
+	for {
+		err := src.Get(0, y, rowp...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return y, err
+		}
+		if err := set.Set(0, y, row...); err != nil {
+			return y, err
+		}
+		y++
+	}
+	return y, nil
 }
 
 func Slice(f Frame, x, xlen, y, ylen int) Frame {

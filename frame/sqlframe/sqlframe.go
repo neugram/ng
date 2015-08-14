@@ -51,7 +51,7 @@ func (f *Frame) Get(x, y int, dst ...interface{}) error {
 	panic("TODO")
 }
 
-func (f *Frame) Height() (int, error) {
+func (f *Frame) Len() (int, error) {
 	if f.count == nil {
 		var err error
 		f.count, err = f.DB.Prepare("SELECT COUNT(*) FROM " + f.Table + ";")

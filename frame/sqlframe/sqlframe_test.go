@@ -37,7 +37,7 @@ var memPresidents = memframe.NewLiteral(
 	},
 )
 
-func TestSQLBasics(t *testing.T) {
+func TestLoad(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +45,7 @@ func TestSQLBasics(t *testing.T) {
 	defer db.Close()
 
 	txt := `
+	drop table if exists presidents;
 	create table presidents (
 		ID integer not null primary key,
 		Name text,
@@ -59,7 +60,7 @@ func TestSQLBasics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := f.Height()
+	h, err := f.Len()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,5 +70,18 @@ func TestSQLBasics(t *testing.T) {
 
 	if _, err := frame.Copy(f, memPresidents); err != nil {
 		t.Fatal(err)
+	}
+
+	numPres, err := memPresidents.Len()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, err = f.Len()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h != numPres {
+		t.Errorf("f.Len() = %d, want %d", h, numPres)
 	}
 }
