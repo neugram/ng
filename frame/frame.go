@@ -1,6 +1,10 @@
 package frame
 
-import "numgrad.io/parser"
+import (
+	"fmt"
+
+	"numgrad.io/parser"
+)
 
 // A Frame is a two-dimensional data set.
 //
@@ -19,7 +23,7 @@ import "numgrad.io/parser"
 // the common frame package functions. Users should not use these
 // directly, instead preferring the frame.Fn(f) version for any Fn:
 //
-//	ColumnName(x int) string
+//	ColumnNames() []string
 //	ColumnType(x int) Type
 //	Permute(cols []int) Frame
 //	Slice(x, xlen, y, ylen int) Frame
@@ -34,6 +38,21 @@ import "numgrad.io/parser"
 type Frame interface {
 	Get(x, y int) (interface{}, error)
 	Size() (width, height int)
+}
+
+func ColumnNames(f Frame) []string {
+	fr, ok := f.(interface {
+		ColumnNames() []string
+	})
+	if ok {
+		return fr.ColumnNames()
+	}
+	w, _ := f.Size()
+	names := make([]string, w)
+	for i := range names {
+		names[i] = fmt.Sprintf("_%d", i)
+	}
+	return names
 }
 
 func Slice(f Frame, x, xlen, y, ylen int) Frame {

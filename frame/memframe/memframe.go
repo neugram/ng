@@ -3,7 +3,11 @@
 
 package memframe
 
-import "numgrad.io/frame"
+import (
+	"fmt"
+
+	"numgrad.io/frame"
+)
 
 /*
 type Int struct {
@@ -38,10 +42,22 @@ func New(width, height int) *Memory {
 	}
 }
 
+func NewLiteral(colName []string, data [][]interface{}) *Memory {
+	d := New(len(colName), len(data))
+	d.ColName = append([]string{}, colName...)
+	for i, row := range data {
+		if len(row) != len(colName) {
+			panic(fmt.Sprintf("memframe.NewLiteral: row %d length is %d, want %d", i, len(row), len(colName)))
+		}
+		copy(d.Data[i*d.Stride:], row)
+	}
+	return d
+}
+
 func (d *Memory) offset(x, y int) int               { return y*d.Stride + x }
 func (d *Memory) Get(x, y int) (interface{}, error) { return d.Data[d.offset(x, y)], nil }
 func (d *Memory) Size() (width, height int)         { return d.Width, d.Height }
-func (d *Memory) ColumnName(x int) string           { return d.ColName[x] }
+func (d *Memory) ColumnNames() []string             { return d.ColName }
 
 func (d *Memory) Set(x, y int, value interface{}) error {
 	d.Data[d.offset(x, y)] = value
