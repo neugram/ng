@@ -80,6 +80,10 @@ func (p *printer) printExpr(expr Expr) {
 	if p.err != nil {
 		return
 	}
+	if expr == nil {
+		p.printf("<nilexpr>")
+		return
+	}
 	switch expr := expr.(type) {
 	case *BinaryExpr:
 		p.printf("BinaryExpr{\n")
@@ -111,8 +115,24 @@ func (p *printer) printExpr(expr Expr) {
 		}
 	case *Ident:
 		p.printf("Ident{Name: %q}", expr.Name)
+	case *CallExpr:
+		p.printf("CallExpr{\n")
+		p.numIndent++
+		p.printf("Func: ")
+		p.printExpr(expr.Func)
+		p.printf("\nArgs: [")
+		p.numIndent++
+		for _, expr := range expr.Args {
+			p.printf("\n")
+			p.printExpr(expr)
+		}
+		p.numIndent--
+		p.printf("\n]")
+		p.numIndent--
+		p.printf("\n}")
+
 	default:
-		p.printf("Unknown Expr (%T)", expr)
+		p.err = fmt.Errorf("Unknown Expr (%T)", expr)
 	}
 }
 
@@ -148,6 +168,9 @@ func Diff(x, y Expr) string {
 		return "diff print rhs error: " + err.Error()
 	}
 	defer os.Remove(fy)
+
+	b, _ := ioutil.ReadFile(fx)
+	fmt.Printf("fx: %s\n", b)
 
 	data, err := exec.Command("diff", "-U100", "-u", fx, fy).CombinedOutput()
 	if err != nil && len(data) == 0 {

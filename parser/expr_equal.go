@@ -1,6 +1,9 @@
 package parser
 
-import "math/big"
+import (
+	"fmt"
+	"math/big"
+)
 
 func EqualExpr(x, y Expr) bool {
 	switch x := x.(type) {
@@ -34,8 +37,25 @@ func EqualExpr(x, y Expr) bool {
 			return false
 		}
 		return x.Name == y.Name
+	case *CallExpr:
+		y, ok := y.(*CallExpr)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Func, y.Func) {
+			return false
+		}
+		if len(x.Args) != len(y.Args) {
+			return false
+		}
+		for i, xarg := range x.Args {
+			if !EqualExpr(xarg, y.Args[i]) {
+				return false
+			}
+		}
+		return true
 	default:
-		return false // unknown expr
+		panic(fmt.Sprintf("unknown expr type %T: %#+v", x, x))
 	}
 }
 

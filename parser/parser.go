@@ -93,6 +93,34 @@ func (p *parser) parseUnaryExpr(lhs bool) Expr {
 	}
 }
 
+func (p *parser) expectCommaOr(otherwise Token, msg string) bool {
+	switch {
+	case p.s.Token == Comma:
+		return true
+	case p.s.Token != otherwise:
+		p.error("missing ',' in " + msg + " (got " + p.s.Token.String() + ")")
+		return true // fake it
+	default:
+		return false
+	}
+}
+
+func (p *parser) parseArgs() []Expr {
+	p.expect(LeftParen)
+	p.next()
+	var args []Expr
+	for p.s.Token != RightParen && p.s.r > 0 {
+		args = append(args, p.parseExpr(false))
+		if !p.expectCommaOr(RightParen, "arguments") {
+			break
+		}
+		p.next()
+	}
+	p.expect(RightParen)
+	p.next()
+	return args
+}
+
 func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 	x := p.parseOperand(lhs)
 	for {
@@ -110,7 +138,8 @@ func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 		case LeftBracket:
 			panic("TODO array index")
 		case LeftParen:
-			panic("TODO parse call")
+			args := p.parseArgs()
+			return &CallExpr{Func: x, Args: args}
 		case LeftBrace:
 			panic("TODO could be composite literal")
 			return x

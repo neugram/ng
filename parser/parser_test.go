@@ -39,8 +39,6 @@ var parserTests = []parserTest{
 			},
 		},
 	},
-	{"y * /* comment */ z", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
-	{"y * z//comment", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
 	{
 		"x + y * z",
 		&BinaryExpr{
@@ -49,17 +47,40 @@ var parserTests = []parserTest{
 			&BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}},
 		},
 	},
+	{"y * /* comment */ z", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
+	{"y * z//comment", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
+	{
+		"quit()",
+		&CallExpr{Func: &Ident{Name: "quit"}},
+	},
+	{
+		"foo(4)",
+		&CallExpr{
+			Func: &Ident{Name: "foo"},
+			Args: []Expr{&BasicLiteral{Value: big.NewInt(4)}},
+		},
+	},
+	{
+		"min(1, 2)",
+		&CallExpr{
+			Func: &Ident{Name: "min"},
+			Args: []Expr{
+				&BasicLiteral{Value: big.NewInt(1)},
+				&BasicLiteral{Value: big.NewInt(2)},
+			},
+		},
+	},
 }
 
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
 		got, err := ParseExpr([]byte(test.input))
 		if err != nil {
-			t.Errorf("%q: %v", test.input, err)
+			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
 			continue
 		}
 		if !EqualExpr(got, test.want) {
-			t.Errorf("%q:\n%v", test.input, Diff(test.want, got))
+			t.Errorf("ParseExpr(%q):\n%v", test.input, Diff(test.want, got))
 		}
 	}
 }

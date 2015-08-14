@@ -25,3 +25,8 @@ type BasicLiteral struct {
 type Ident struct {
 	Name string
 }
+
+type CallExpr struct {
+	Func Expr
+	Args []Expr
+}
