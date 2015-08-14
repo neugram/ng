@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"io"
 	"strings"
 
 	"numgrad.io/frame"
@@ -22,7 +23,7 @@ func NewFromFrame(db *sql.DB, table string, src frame.Frame) (*Frame, error) {
 	f := &Frame{
 		DB:      db,
 		Table:   table,
-		ColName: frame.ColumnNames(src),
+		ColName: append([]string{}, src.Cols()...),
 	}
 	if _, err := db.Exec(f.createStmt()); err != nil {
 		return nil, err
@@ -33,23 +34,93 @@ func NewFromFrame(db *sql.DB, table string, src frame.Frame) (*Frame, error) {
 type Frame struct {
 	DB      *sql.DB
 	Table   string
-	ColName []string
+	ColName []string // TODO unexport ColName?
+	// TODO ColType
 	ColExpr []parser.Expr
 	Where   []parser.Expr
 	GroupBy []string
 	Offset  int
 	Limit   int
 
-	cache interface{} // TODO
+	insert *sql.Stmt
+	count  *sql.Stmt
+	cache  interface{} // TODO
 }
 
-func (f *Frame) Get(x, y int) (interface{}, error) {
+func (f *Frame) Get(x, y int, dst ...interface{}) error {
 	panic("TODO")
 }
-func (f *Frame) Size() (width, height int) {
-	return 0, 0
+
+func (f *Frame) Height() (int, error) {
+	if f.count == nil {
+		var err error
+		f.count, err = f.DB.Prepare("SELECT COUNT(*) FROM " + f.Table + ";")
+		if err != nil {
+			return 0, fmt.Errorf("sqlframe: %v", err)
+		}
+	}
+	rows, err := f.count.Query()
+	if err != nil {
+		return 0, err
+	}
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, fmt.Errorf("sqlframe: %v", err)
+		}
+		return 0, fmt.Errorf("sqlframe: table %q returned no count", f.Table)
+	}
+	count := 0
+	if err := rows.Scan(&count); err != nil {
+		return 0, fmt.Errorf("sqlframe: %v", err)
+	}
+	return count, rows.Close()
 }
-func (f *Frame) ColumnNames() []string { return f.ColName }
+
+func (f *Frame) CopyFrom(src frame.Frame) (n int, err error) {
+	if f.insert == nil {
+		buf := new(bytes.Buffer)
+		fmt.Fprintf(buf, "INSERT INTO %s (", f.Table)
+		fmt.Fprintf(buf, strings.Join(f.ColName, ", "))
+		fmt.Fprintf(buf, ") VALUES (")
+		for i := range f.ColName {
+			if i > 0 {
+				fmt.Fprintf(buf, ", ")
+			}
+			fmt.Fprintf(buf, "?")
+		}
+		fmt.Fprintf(buf, ");")
+		var err error
+		f.insert, err = f.DB.Prepare(buf.String())
+		if err != nil {
+			return 0, fmt.Errorf("sqlframe: %v", err)
+		}
+	}
+
+	// TODO: fast path for src.(*Frame): insert from select
+
+	row := make([]interface{}, len(f.ColName))
+	rowp := make([]interface{}, len(row))
+	for i := range row {
+		rowp[i] = &row[i]
+	}
+	y := 0
+	for {
+		err := src.Get(0, y, rowp...)
+		if err == io.EOF {
+			break // last row, all is good
+		}
+		if err != nil {
+			return y, err
+		}
+		if _, err := f.insert.Exec(row...); err != nil {
+			return y, fmt.Errorf("sqlframe: %v", err)
+		}
+		y++
+	}
+	return y, nil
+}
+
+func (f *Frame) Cols() []string { return f.ColName }
 
 func (f *Frame) Accumulate(g frame.Grouping) (Frame, error) {
 	panic("TODO")

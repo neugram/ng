@@ -1,10 +1,6 @@
 package frame
 
-import (
-	"fmt"
-
-	"numgrad.io/parser"
-)
+import "numgrad.io/parser"
 
 // A Frame is a two-dimensional data set.
 //
@@ -29,30 +25,30 @@ import (
 //	Slice(x, xlen, y, ylen int) Frame
 //	Set(x, y int, value interface{}) error
 //	Transpose() Frame
-//	CopyFrom(src Frame) error
+//	CopyFrom(src Frame) (n int, err error)
 //	Accumulate(g Grouping) (Frame, error)
+//	Height() (int, error)
 //
 // Maybe TODO:
 //	Slice(Rectangle) Frame
 //	Read(dst interface{}, col, off int) error // dst is []T.
 type Frame interface {
-	Get(x, y int) (interface{}, error)
-	Size() (width, height int)
+	Cols() []string
+
+	// TODO io.EOF for y out of range, io.ErrUnexpectedEOF for x out of range?
+	Get(x, y int, dst ...interface{}) error
 }
 
-func ColumnNames(f Frame) []string {
-	fr, ok := f.(interface {
-		ColumnNames() []string
+func Copy(dst, src Frame) (n int, err error) {
+	dstf, ok := dst.(interface {
+		CopyFrom(src Frame) (n int, err error)
 	})
 	if ok {
-		return fr.ColumnNames()
+		return dstf.CopyFrom(src)
 	}
-	w, _ := f.Size()
-	names := make([]string, w)
-	for i := range names {
-		names[i] = fmt.Sprintf("_%d", i)
-	}
-	return names
+	// TODO src.CopyTo? on common forms like memframe, only implement CopyTo
+	// on the assumption future clever frames will special-case them.
+	panic("TODO")
 }
 
 func Slice(f Frame, x, xlen, y, ylen int) Frame {

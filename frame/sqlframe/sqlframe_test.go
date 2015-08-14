@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"numgrad.io/frame"
 	"numgrad.io/frame/memframe"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -58,7 +59,15 @@ func TestSQLBasics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w, _ := f.Size(); w != 4 {
-		t.Errorf("want width 4, got %d", w)
+	h, err := f.Height()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h != 0 {
+		t.Errorf("want zero height, got %d", h)
+	}
+
+	if _, err := frame.Copy(f, memPresidents); err != nil {
+		t.Fatal(err)
 	}
 }

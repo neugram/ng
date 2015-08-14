@@ -27,8 +27,8 @@ func sqliteLoad(db *sql.DB, table string) (*Frame, error) {
 		if err := rows.Scan(&num, &name, &ty, &empty, &empty, &empty); err != nil {
 			return nil, fmt.Errorf("sqlframe.Load: %v", err)
 		}
-		fmt.Printf("%d: %s\n", num, name)
+		f.ColName = append(f.ColName, name)
 	}
 
-	return f, fmt.Errorf("sqlframe.Load: TODO")
+	return f, nil
 }
