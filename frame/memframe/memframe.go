@@ -102,6 +102,12 @@ func (d *Memory) Cols() []string { return d.ColName }
 func (d *Memory) Len() (int, error) { return d.Height, nil }
 
 func (d *Memory) Set(x, y int, vals ...interface{}) error {
+	if y >= d.Height { // Grow
+		data := make([]interface{}, d.Stride*(y+1))
+		copy(data, d.Data)
+		d.Data = data
+		d.Height = y + 1
+	}
 	// TODO check for valid types
 	if len(vals)+x > d.Width {
 		return fmt.Errorf("memframe.Set(%d, y, len=%d) called for frame width %d", x, len(vals), d.Width)
@@ -111,6 +117,12 @@ func (d *Memory) Set(x, y int, vals ...interface{}) error {
 }
 
 func (d *Memory) Slice(x, xlen, y, ylen int) frame.Frame {
+	if x == 0 && xlen == 0 {
+		x, xlen = 0, d.Width
+	}
+	if y == 0 && ylen == 0 {
+		y, ylen = 0, d.Height
+	}
 	return &Memory{
 		ColName: d.ColName[x : x+xlen],
 		Data:    d.Data[d.offset(x, y):],

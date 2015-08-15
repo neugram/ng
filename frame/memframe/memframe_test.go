@@ -1,16 +1,23 @@
 // Copyright 2015 The Numgrad Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
-package memframe
+package memframe_test
 
 import (
 	"testing"
 
 	"numgrad.io/frame"
+	"numgrad.io/frame/internal/frametest"
+	"numgrad.io/frame/memframe"
 )
 
+func TestLoadPresidents(t *testing.T) {
+	f := memframe.NewLiteral([]string{"ID", "Name", "Term1", "Term2"}, nil)
+	frametest.LoadPresidents(t, f)
+}
+
 func TestMemory(t *testing.T) {
-	fm := New(6, 4)
+	fm := memframe.New(6, 4)
 	var f frame.Frame = fm
 	h, err := fm.Len()
 	if err != nil {
@@ -34,7 +41,7 @@ func TestMemory(t *testing.T) {
 	}
 
 	f = frame.Slice(f, 2, 3, 1, 1)
-	fm, ok := f.(*Memory)
+	fm, ok := f.(*memframe.Memory)
 	if !ok {
 		t.Fatalf("slice produced wrong type: %T", f)
 	}

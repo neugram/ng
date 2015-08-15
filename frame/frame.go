@@ -80,6 +80,7 @@ func Copy(dst, src Frame) (n int, err error) {
 	for i := range row {
 		rowp[i] = &row[i]
 	}
+	// TODO if src provides a Len, set backwards to allow impls to create space efficiently
 	y := 0
 	for {
 		err := src.Get(0, y, rowp...)
@@ -97,6 +98,10 @@ func Copy(dst, src Frame) (n int, err error) {
 	return y, nil
 }
 
+// Slice slices the Frame.
+//
+// A pos/len pair of 0 means ignore this dimension. That is, on a 2x2
+// Frame Slice(f2x2, 0, 0, 1, 1) produces a 2x1 Frame.
 func Slice(f Frame, x, xlen, y, ylen int) Frame {
 	fr, ok := f.(interface {
 		Slice(x, xlen, y, ylen int) Frame
