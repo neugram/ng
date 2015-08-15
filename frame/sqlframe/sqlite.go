@@ -6,28 +6,46 @@ package sqlframe
 import (
 	"database/sql"
 	"fmt"
+
+	"numgrad.io/frame"
 )
 
-func sqliteLoad(db *sql.DB, table string) (*Frame, error) {
+func sqliteLoad(db *sql.DB, table string) (frame.Frame, error) {
 	// TODO validate table name
-	f := &Frame{
-		DB:    db,
-		Table: table,
+	f := &sqlFrame{
+		db:    db,
+		table: table,
 	}
 	rows, err := db.Query("pragma table_info('" + table + "');")
 	if err != nil {
 		return nil, fmt.Errorf("sqlframe.Load: %v", err)
 	}
+	pkComponents := make(map[int]string)
 	defer rows.Close()
 	for rows.Next() {
 		var num int
 		var name string
 		var ty string
 		var empty interface{}
-		if err := rows.Scan(&num, &name, &ty, &empty, &empty, &empty); err != nil {
+		var pk int
+		if err := rows.Scan(&num, &name, &ty, &empty, &empty, &pk); err != nil {
 			return nil, fmt.Errorf("sqlframe.Load: %v", err)
 		}
-		f.ColName = append(f.ColName, name)
+		f.sliceCols = append(f.sliceCols, name)
+		if pk > 0 {
+			pkComponents[pk-1] = name
+		}
+	}
+	if len(pkComponents) == 0 {
+		// An SQLite table without a primary key has a hidden primary
+		// key column called rowid. Add it to the list of all columns
+		// (but explicitly not the slice columns) and use it.
+		f.primaryKey = []string{"rowid"}
+	} else {
+		f.primaryKey = make([]string, len(pkComponents))
+		for pos, name := range pkComponents {
+			f.primaryKey[pos] = name
+		}
 	}
 
 	return f, nil

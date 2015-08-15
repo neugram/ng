@@ -5,6 +5,8 @@ package sqlframe
 
 import (
 	"database/sql"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"numgrad.io/frame"
@@ -37,30 +39,31 @@ var memPresidents = memframe.NewLiteral(
 	},
 )
 
-func TestLoad(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+func createDB(t *testing.T) (db *sql.DB, cleanup func()) {
+	dbfile, err := ioutil.TempFile("", "sqlframe-sqlite-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	dbfile.Close()
+	os.Remove(dbfile.Name())
 
-	txt := `
-	drop table if exists presidents;
-	create table presidents (
-		ID integer not null primary key,
-		Name text,
-		Term1 int,
-		Term2 int
-	);`
-	if _, err = db.Exec(txt); err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := Load(db, "presidents")
+	db, err = sql.Open("sqlite3", dbfile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := f.Len()
+
+	return db, func() {
+		db.Close()
+		os.Remove(dbfile.Name())
+	}
+}
+
+func testLoadAndGet(t *testing.T, db *sql.DB) {
+	f, err := Load(db, "Presidents")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := frame.Len(f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,16 +75,83 @@ func TestLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	numPres, err := memPresidents.Len()
+	numPres, err := frame.Len(memPresidents)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h, err = f.Len()
+	h, err = frame.Len(f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if h != numPres {
 		t.Errorf("f.Len() = %d, want %d", h, numPres)
 	}
+
+	getTests := []struct {
+		y    int
+		name string
+	}{
+		{0, "George Washington"},
+		{1, "John Adams"},
+		{15, "Abraham Lincoln"},
+		{3, "James Madison"},
+		{0, "George Washington"},
+		{17, "Ulysses S. Grant"},
+	}
+	for _, test := range getTests {
+		var id, term1, term2 int
+		var name string
+		if err := f.Get(0, test.y, &id, &name, &term1, &term2); err != nil {
+			t.Errorf("Get(0, %d) error: %v", test.y, err)
+			continue
+		}
+		if test.name != name {
+			t.Errorf("Get(0, %d): %q, want %q", test.y, name, test.name)
+		}
+	}
+
+	var term2 int
+	if err := f.Get(3, 2, &term2); err != nil {
+		t.Errorf("Get(3, 1) error: %v", err)
+	}
+	if term2 != 1804 {
+		t.Errorf("Get(3, 1) Jefferson second term %d, want 1804", term2)
+	}
+}
+
+func TestLoadAndGet(t *testing.T) {
+	db, cleanup := createDB(t)
+	defer cleanup()
+
+	txt := `
+	create table Presidents (
+		ID integer not null primary key,
+		Name text,
+		Term1 int,
+		Term2 int
+	);`
+	if _, err := db.Exec(txt); err != nil {
+		t.Fatal(err)
+	}
+
+	testLoadAndGet(t, db)
+}
+
+func TestLoadAndGetNoPK(t *testing.T) {
+	db, cleanup := createDB(t)
+	defer cleanup()
+
+	txt := `
+	create table Presidents (
+		ID integer,
+		Name text,
+		Term1 int,
+		Term2 int
+	);`
+	if _, err := db.Exec(txt); err != nil {
+		t.Fatal(err)
+	}
+
+	testLoadAndGet(t, db)
 }

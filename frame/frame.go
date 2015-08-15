@@ -134,6 +134,28 @@ func Accumulate(f Frame, g Grouping) (Frame, error) {
 	panic("TODO Aggregate")
 }
 
+func Len(f Frame) (int, error) {
+	fr, ok := f.(interface {
+		Len() (int, error)
+	})
+	if ok {
+		return fr.Len()
+	}
+	y := 0
+	for {
+		var v interface{}
+		err := f.Get(0, y, &v)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		y++
+	}
+	return y, nil
+}
+
 // Want:
 // SQL-like powers over frames.
 // Filtering by expression.
