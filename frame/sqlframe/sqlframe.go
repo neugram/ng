@@ -13,6 +13,42 @@ import (
 	"numgrad.io/frame"
 )
 
+/*
+TODO composition of filters
+
+Slice, Filter, and Accumulate interact oddly.
+
+Given a filter, f.Filter("term1 < 1808"), we may get the query
+	select name, term1 from presidents where term1 < 1808;
+which gives us
+	{1, "George Washington", 1789, 1792},
+	{2, "John Adams", 1797, 0},
+	{3, "Thomas Jefferson", 1800, 1804},
+this could be sliced: f.Filter("term1 < 1808").Slice(0, 2, 0, 2) into
+	{1, "George Washington", 1789, 1792},
+	{2, "John Adams", 1797, 0},
+by adding to the query:
+	select name, term1 from presidents where term1 < 1808 limit 2;
+so far so good.
+
+However, if we first applied an offset slice, then the filter cannot
+simply be added. That is,
+	f.Slice(0, 2, 2, 5).Filter("term1 < 1808")
+needs to produce
+	{3, "Thomas Jefferson", 1800, 1804},
+which is the query:
+	select name, term1 from (
+		select name, term1 from presidents offset 2 limit 5;
+	) where term1 < 1808;
+.
+
+So we need to introduce a new kind of subFrame that can correctly
+compose these restrictions. Or at the very least realize when they
+don't compose, and punt to the default impl.
+*/
+
+// TODO: Set always returns an error on an accumulation
+
 func Load(db *sql.DB, table string) (frame.Frame, error) {
 	// TODO: if sqlite. find out by lookiing at db.Driver()?
 	return sqliteLoad(db, table)
@@ -225,6 +261,7 @@ func (f *sqlFrame) createStmt() string {
 }
 
 func (f *sqlFrame) queryForGet() string {
+	f.validate()
 	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, "SELECT ")
 	col := 0
