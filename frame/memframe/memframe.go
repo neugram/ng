@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 
 	"numgrad.io/frame"
 )
@@ -64,8 +65,6 @@ func assign(dst, src interface{}) error {
 		return nil
 	}
 
-	fmt.Printf("memframe.assign: dst=%#+v, %T\n", dst, dst)
-
 	switch src := src.(type) {
 	case string:
 		switch dst := dst.(type) {
@@ -77,10 +76,70 @@ func assign(dst, src interface{}) error {
 			return nil
 		}
 		// TODO case []byte?
+	case int:
+		switch dst := dst.(type) {
+		case *int:
+			if dst == nil {
+				return errPtrNil
+			}
+			*dst = src
+			return nil
+		case *int64:
+			if dst == nil {
+				return errPtrNil
+			}
+			*dst = int64(src)
+			return nil
+		case *big.Int:
+			if dst == nil {
+				return errPtrNil
+			}
+			dst.SetInt64(int64(src))
+			return nil
+		}
+	case float64:
+		switch dst := dst.(type) {
+		case *float64:
+			if dst == nil {
+				return errPtrNil
+			}
+			*dst = src
+			return nil
+		case *big.Float:
+			if dst == nil {
+				return errPtrNil
+			}
+			dst.SetFloat64(src)
+			return nil
+		}
+	case *big.Int:
+		switch dst := dst.(type) {
+		case *big.Int:
+			if dst == nil {
+				return errPtrNil
+			}
+			dst.Set(src)
+			return nil
+		case *big.Float:
+			if dst == nil {
+				return errPtrNil
+			}
+			dst.SetInt(src)
+			return nil
+		}
+	case *big.Float:
+		switch dst := dst.(type) {
+		case *big.Float:
+			if dst == nil {
+				return errPtrNil
+			}
+			dst.Set(src)
+			return nil
+		}
 	case nil:
 	}
 
-	return fmt.Errorf("memframe assign TODO")
+	return fmt.Errorf("assign: dst:%T, src:%T\n", dst, src)
 }
 
 func (d *Memory) offset(x, y int) int { return y*d.Stride + x }
