@@ -110,4 +110,23 @@ func LoadPresidents(t *testing.T, f frame.Frame) {
 	if term2 != 1804 {
 		t.Errorf("Get(3, 1) Jefferson second term %d, want 1804", term2)
 	}
+
+	fs := frame.Slice(f, 1, 2, 9, 3)
+	if got, want := fs.Cols(), []string{"Name", "Term1"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Slice cols=%v, want %v", got, want)
+	}
+	var term1 int
+	if err := fs.Get(0, 0, &name, &term1); err != nil {
+		t.Errorf("Slice Get(0, 0) error: %v", err)
+	}
+	if want := "John Tyler"; name != want {
+		t.Errorf("Slice Get(0, 0) name=%q, want %q", name, want)
+	}
+
+	/*
+		{10, "John Tyler", 1840, 0},
+		{11, "James K. Polk", 1844, 0},
+		{12, "Zachary Taylor", 1848, 0},
+	*/
+
 }

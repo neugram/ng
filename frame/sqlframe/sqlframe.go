@@ -39,8 +39,8 @@ type sqlFrame struct {
 	// TODO colExpr    []parser.Expr
 	// TODO where      []parser.Expr
 	// TODO groupBy    []string
-	// TODO offset     int
-	// TODO limit      int
+	offset int
+	limit  int // -1 for no limit
 
 	// TODO colType
 
@@ -128,21 +128,16 @@ func (f *sqlFrame) Len() (int, error) {
 			return 0, fmt.Errorf("sqlframe: %v", err)
 		}
 	}
-	rows, err := f.count.Query()
-	if err != nil {
-		return 0, err
-	}
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return 0, fmt.Errorf("sqlframe: %v", err)
-		}
-		return 0, fmt.Errorf("sqlframe: table %q returned no count", f.table)
-	}
+	row := f.count.QueryRow()
 	count := 0
-	if err := rows.Scan(&count); err != nil {
-		return 0, fmt.Errorf("sqlframe: %v", err)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("sqlframe: count %v", err)
 	}
-	return count, rows.Close()
+	count -= f.offset
+	if f.limit >= 0 && count > f.limit {
+		count = f.limit
+	}
+	return count, nil
 }
 
 func (f *sqlFrame) CopyFrom(src frame.Frame) (n int, err error) {
@@ -191,6 +186,25 @@ func (f *sqlFrame) CopyFrom(src frame.Frame) (n int, err error) {
 
 func (f *sqlFrame) Cols() []string { return f.sliceCols }
 
+func (d *sqlFrame) Slice(x, xlen, y, ylen int) frame.Frame {
+	n := &sqlFrame{
+		db:         d.db,
+		table:      d.table,
+		sliceCols:  d.sliceCols[x : x+xlen],
+		primaryKey: d.primaryKey,
+		count:      d.count,
+		offset:     d.offset + y,
+		limit:      ylen,
+	}
+	if len(d.cache.rowPKs) > y {
+		n.cache.rowPKs = d.cache.rowPKs[y:]
+		if len(n.cache.rowPKs) > ylen {
+			n.cache.rowPKs = n.cache.rowPKs[:ylen]
+		}
+	}
+	return n
+}
+
 func (f *sqlFrame) Accumulate(g frame.Grouping) (frame.Frame, error) {
 	panic("TODO")
 }
@@ -228,7 +242,14 @@ func (f *sqlFrame) queryForGet() string {
 		col++
 		fmt.Fprintf(buf, "%s as _pk%d", c, i)
 	}
-	fmt.Fprintf(buf, " FROM %s;", f.table)
+	fmt.Fprintf(buf, " FROM %s", f.table)
+	if f.limit >= 0 {
+		fmt.Fprintf(buf, " LIMIT %d", f.limit)
+	}
+	if f.offset > 0 {
+		fmt.Fprintf(buf, " OFFSET %d", f.offset)
+	}
+	fmt.Fprintf(buf, ";")
 	// TODO where
 	// TODO groupBy
 	// TODO offset

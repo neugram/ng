@@ -176,11 +176,8 @@ func (d *Memory) Set(x, y int, vals ...interface{}) error {
 }
 
 func (d *Memory) Slice(x, xlen, y, ylen int) frame.Frame {
-	if x == 0 && xlen == 0 {
-		x, xlen = 0, d.Width
-	}
-	if y == 0 && ylen == 0 {
-		y, ylen = 0, d.Height
+	if ylen == -1 {
+		ylen = d.Height
 	}
 	return &Memory{
 		ColName: d.ColName[x : x+xlen],

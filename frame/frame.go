@@ -100,8 +100,11 @@ func Copy(dst, src Frame) (n int, err error) {
 
 // Slice slices the Frame.
 //
-// A pos/len pair of 0 means ignore this dimension. That is, on a 2x2
-// Frame Slice(f2x2, 0, 0, 1, 1) produces a 2x1 Frame.
+// A ylen of -1 means maximize the length. That is, on a 2x2 Frame,
+// Slice(f2x2, 0, 2, 1, -1) produces a 2x1 Frame. This is not intended
+// to be an implementation of Python's negative indexes, it is simply
+// necessary as it can be expensive or impossible to determine the Len
+// of a frame.
 func Slice(f Frame, x, xlen, y, ylen int) Frame {
 	fr, ok := f.(interface {
 		Slice(x, xlen, y, ylen int) Frame

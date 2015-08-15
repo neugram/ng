@@ -15,6 +15,7 @@ func sqliteLoad(db *sql.DB, table string) (frame.Frame, error) {
 	f := &sqlFrame{
 		db:    db,
 		table: table,
+		limit: -1,
 	}
 	rows, err := db.Query("pragma table_info('" + table + "');")
 	if err != nil {
