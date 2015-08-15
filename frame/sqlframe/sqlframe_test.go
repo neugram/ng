@@ -88,6 +88,21 @@ func testLoadAndGet(t *testing.T, db *sql.DB) {
 		t.Errorf("f.Len() = %d, want %d", h, numPres)
 	}
 
+	var term2 int
+	if err := f.Get(3, 0, &term2); err != nil {
+		t.Errorf("Get(3, 0) error: %v", err)
+	}
+	if term2 != 1792 {
+		t.Errorf("Get(3, 0) Washington second term %d, want 1792", term2)
+	}
+	var name string
+	if err := f.Get(1, 0, &name); err != nil {
+		t.Errorf("Get(1, 0) error: %v", err)
+	}
+	if want := "George Washington"; name != want {
+		t.Errorf("Get(1, 0) = %q, want %q", name, want)
+	}
+
 	getTests := []struct {
 		y    int
 		name string
@@ -111,7 +126,7 @@ func testLoadAndGet(t *testing.T, db *sql.DB) {
 		}
 	}
 
-	var term2 int
+	// Test padding on cached path.
 	if err := f.Get(3, 2, &term2); err != nil {
 		t.Errorf("Get(3, 1) error: %v", err)
 	}

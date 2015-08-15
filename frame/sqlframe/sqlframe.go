@@ -56,6 +56,20 @@ type sqlFrame struct {
 
 func (f *sqlFrame) Get(x, y int, dst ...interface{}) (err error) {
 	//fmt.Printf("Get(%d, %d): len(f.cache.rowPKs)=%d\n", x, y, len(f.cache.rowPKs))
+	var empty interface{}
+	if x > 0 {
+		dst = append(make([]interface{}, x), dst...)
+		for i := 0; i < x; i++ {
+			dst[i] = &empty
+		}
+	}
+	if w := len(dst); w < len(f.sliceCols) {
+		dst = append(dst, make([]interface{}, len(f.sliceCols)-len(dst))...)
+		for i := w; i < len(dst); i++ {
+			dst[i] = &empty
+		}
+	}
+
 	if y < len(f.cache.rowPKs) {
 		// Previously visited row.
 		// Extract it from the DB using the primary key.
@@ -77,13 +91,6 @@ func (f *sqlFrame) Get(x, y int, dst ...interface{}) (err error) {
 			}
 		}
 		row := f.rowForPK.QueryRow(f.cache.rowPKs[y]...)
-		if x > 0 {
-			var empty interface{}
-			dst = append(make([]interface{}, x), dst...)
-			for i := 0; i < x; i++ {
-				dst[i] = &empty
-			}
-		}
 		return row.Scan(dst...)
 	}
 	if f.cache.curGet == nil {
