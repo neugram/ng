@@ -151,7 +151,7 @@ func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 	return x
 }
 
-func (p *parser) parseParameters() (params []*Field) {
+func (p *parser) parseIn() (params []*Field) {
 	for p.s.Token > 0 && p.s.Token != RightParen {
 		f := &Field{
 			Name: p.parseIdent(),
@@ -160,6 +160,32 @@ func (p *parser) parseParameters() (params []*Field) {
 		if f.Type != nil {
 			for i := len(params) - 1; i >= 0 && params[i].Type == nil; i-- {
 				params[i].Type = f.Type
+			}
+		}
+		if p.s.Token == Comma {
+			p.next()
+		}
+		params = append(params, f)
+	}
+	return params
+}
+
+func (p *parser) parseOut() (params []*Field) {
+	params = p.parseIn()
+	named := false
+	for _, param := range params {
+		if param.Type != nil {
+			named = true
+			break
+		}
+	}
+	if !named {
+		// In an output list, a sequence (a, b, c) is a list
+		// of types, not names.
+		for _, param := range params {
+			if ident, ok := param.Type.(*Ident); ok {
+				param.Name = ident
+				param.Type = nil
 			}
 		}
 	}
@@ -175,13 +201,14 @@ func (p *parser) maybeParseIdentOrType() Expr {
 			sel := p.parseIdent()
 			return &SelectorExpr{ident, sel}
 		}
+		return ident
 	case Struct:
 	case Mul: // pointer type
 	case Func:
 	case Map:
-	case Val:
-		return &ValType{}
 	case LeftParen:
+	default:
+		fmt.Printf("maybeParseIdentOrType: token=%s\n", p.s.Token)
 	}
 	// TODO many more kinds of types
 	return nil
@@ -220,7 +247,7 @@ func (p *parser) parseFuncType() *FuncType {
 	p.expect(LeftParen)
 	p.next()
 	if p.s.Token != RightParen {
-		f.In = p.parseParameters()
+		f.In = p.parseIn()
 	}
 	p.expect(RightParen)
 	p.next()
@@ -229,7 +256,7 @@ func (p *parser) parseFuncType() *FuncType {
 		p.expect(LeftParen)
 		p.next()
 		if p.s.Token != RightParen {
-			f.Out = p.parseParameters()
+			f.Out = p.parseOut()
 		}
 		p.expect(RightParen)
 		p.next()
@@ -301,6 +328,7 @@ func (p *parser) error(msg string) error {
 		Offset: p.s.Offset,
 		Msg:    msg,
 	}
+	fmt.Printf("%v\n", err) // debug
 	p.err = append(p.err, err)
 	return err
 }

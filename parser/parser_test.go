@@ -73,9 +73,30 @@ var parserTests = []parserTest{
 	{
 		"func() int { return 7 }",
 		&FuncLiteral{
-			Type: &FuncType{},
+			Type: &FuncType{Out: []*Field{{Type: &Ident{"int"}}}},
 			Body: []Stmt{
 				&ReturnStmt{Exprs: []Expr{&BasicLiteral{big.NewInt(7)}}},
+			},
+		},
+	},
+	{
+		"func(x, y val) (r0 val, r1 val) { return x, y }",
+		&FuncLiteral{
+			Type: &FuncType{
+				In: []*Field{
+					&Field{Name: &Ident{"x"}, Type: &Ident{"val"}},
+					&Field{Name: &Ident{"y"}, Type: &Ident{"val"}},
+				},
+				Out: []*Field{
+					&Field{Name: &Ident{"r0"}, Type: &Ident{"val"}},
+					&Field{Name: &Ident{"r1"}, Type: &Ident{"val"}},
+				},
+			},
+			Body: []Stmt{
+				&ReturnStmt{Exprs: []Expr{
+					&Ident{Name: "x"},
+					&Ident{Name: "y"},
+				}},
 			},
 		},
 	},

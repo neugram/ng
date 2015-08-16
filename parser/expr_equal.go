@@ -42,7 +42,19 @@ func EqualExpr(x, y Expr) bool {
 		if !ok {
 			return false
 		}
-		return x.Name == y.Name
+		if x == nil {
+			if y == nil {
+				return true
+			} else {
+				return false
+			}
+		} else {
+			if y == nil {
+				return false
+			} else {
+				return x.Name == y.Name
+			}
+		}
 	case *CallExpr:
 		y, ok := y.(*CallExpr)
 		if !ok {
@@ -77,14 +89,18 @@ func equalFields(f0, f1 []*Field) bool {
 		return false
 	}
 	for i := range f0 {
-		if f0[i].Name.Name != f1[i].Name.Name {
-			return false
-		}
-		if !EqualExpr(f0[i].Type, f1[i].Type) {
+		if !equalField(f0[i], f1[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+func equalField(f0, f1 *Field) bool {
+	if !EqualExpr(f0.Name, f1.Name) {
+		return false
+	}
+	return EqualExpr(f0.Type, f1.Type)
 }
 
 func equalFuncLiteral(f0, f1 *FuncLiteral) bool {

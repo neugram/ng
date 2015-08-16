@@ -40,8 +40,6 @@ type Field struct {
 	Type Expr
 }
 
-type ValType struct{}
-
 type FuncType struct {
 	In  []*Field
 	Out []*Field
@@ -74,6 +72,7 @@ func (e *BadExpr) String() string      { return fmt.Sprintf("(BAD %v)", e.Error)
 func (e *BasicLiteral) String() string { return fmt.Sprintf("(%s %T)", e.Value, e.Value) }
 func (e *Ident) String() string        { return fmt.Sprintf("%s", e.Name) }
 func (e *CallExpr) String() string     { return fmt.Sprintf("(call %s %s)", e.Func, exprsStr(e.Args)) }
+func (e *ReturnStmt) String() string   { return fmt.Sprintf("(return %s", exprsStr(e.Exprs)) }
 func (e *FuncLiteral) String() string {
 	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, "(func %s (", e.Type)
@@ -84,6 +83,21 @@ func (e *FuncLiteral) String() string {
 		fmt.Fprintf(buf, "%s", s)
 	}
 	fmt.Fprintf(buf, "))")
+	return buf.String()
+}
+
+func (e *FuncType) String() string {
+	return fmt.Sprintf("((in %s) (out %s))", fieldsStr(e.In), fieldsStr(e.Out))
+}
+
+func fieldsStr(fields []*Field) string {
+	buf := new(bytes.Buffer)
+	for i, f := range fields {
+		if i > 0 {
+			buf.WriteRune(' ')
+		}
+		fmt.Fprintf(buf, "(%s %s)", f.Name, f.Type)
+	}
 	return buf.String()
 }
 

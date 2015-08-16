@@ -76,8 +76,12 @@ func (p *printer) printf(format string, a ...interface{}) {
 	}
 }
 
-func (p *printer) printFields(f []*Field) {
-	p.printf("Fields TODO")
+func (p *printer) printFields(fields []*Field) {
+	for _, f := range fields {
+		p.printf("Field{Name: %q, Type: ", f.Name)
+		p.printExpr(f.Type)
+		p.printf("}\n")
+	}
 }
 
 func (p *printer) printStmt(s Stmt) {
@@ -161,12 +165,19 @@ func (p *printer) printExpr(expr Expr) {
 			p.printf("\nType: FuncType{")
 			p.numIndent++
 			if len(expr.Type.In) > 0 {
-				p.printf("\nIn: ")
+				p.printf("\nIn:  ")
+				p.numIndent++
 				p.printFields(expr.Type.In)
+				p.numIndent--
+				p.printf("\n]")
+
 			}
 			if len(expr.Type.Out) > 0 {
-				p.printf("\nOut: ")
+				p.printf("\nOut: [\n")
+				p.numIndent++
 				p.printFields(expr.Type.Out)
+				p.numIndent--
+				p.printf("\n]")
 			}
 			p.numIndent--
 			p.printf("\n}")
