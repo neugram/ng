@@ -34,20 +34,26 @@ func Eval(s *Scope, expr parser.Expr) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		return binOp(expr.Op, lhs, rhs)
+		v, err := binOp(expr.Op, lhs, rhs)
+		if err != nil {
+			return nil, fmt.Errorf("eval: %v evaluating %s", err, expr)
+		}
+		return v, nil
 	case *parser.UnaryExpr:
 		sub, err := Eval(s, expr.Expr)
 		if err != nil {
 			return nil, err
 		}
-		_ = sub // TODO
 		switch expr.Op {
 		case parser.Not:
 		case parser.Mul: // deref
 		case parser.Ref:
 		case parser.LeftParen:
+			return sub, nil
 		}
 	case *parser.CallExpr:
+	case *parser.BasicLiteral:
+		return expr.Value, nil
 	}
 	return nil, fmt.Errorf("eval TODO %#+v, %T", expr, expr)
 }
@@ -62,19 +68,95 @@ func binOp(op parser.Token, x, y interface{}) (interface{}, error) {
 				z := big.NewInt(0)
 				return z.Add(x, y), nil
 			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				z := big.NewFloat(0)
+				return z.Add(x, y), nil
+			}
 		}
 	case parser.Sub:
+		switch x := x.(type) {
+		case *big.Int:
+			switch y := y.(type) {
+			case *big.Int:
+				z := big.NewInt(0)
+				return z.Sub(x, y), nil
+			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				z := big.NewFloat(0)
+				return z.Sub(x, y), nil
+			}
+		}
 	case parser.Mul:
+		switch x := x.(type) {
+		case *big.Int:
+			switch y := y.(type) {
+			case *big.Int:
+				z := big.NewInt(0)
+				return z.Mul(x, y), nil
+			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				z := big.NewFloat(0)
+				return z.Mul(x, y), nil
+			}
+		}
 	case parser.Div:
 	case parser.Rem:
 	case parser.Pow:
 	case parser.LogicalAnd:
+		// TODO shortcut eval
+		if x, ok := x.(bool); ok {
+			if y, ok := y.(bool); ok {
+				return x && y, nil
+			}
+		}
 	case parser.LogicalOr:
+		// TODO shortcut eval
+		if x, ok := x.(bool); ok {
+			if y, ok := y.(bool); ok {
+				return x || y, nil
+			}
+		}
 	case parser.Equal:
+		if x == y {
+			return true, nil
+		}
+		switch x := x.(type) {
+		case *big.Int:
+			switch y := y.(type) {
+			case *big.Int:
+				return x.Cmp(y) == 0, nil
+			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				return x.Cmp(y) == 0, nil
+			}
+		}
 	case parser.NotEqual:
+		if x == y {
+			return false, nil
+		}
+		switch x := x.(type) {
+		case *big.Int:
+			switch y := y.(type) {
+			case *big.Int:
+				return x.Cmp(y) != 0, nil
+			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				return x.Cmp(y) != 0, nil
+			}
+		}
 	case parser.Less:
 	case parser.Greater:
-		return nil, fmt.Errorf("eval: unknown binop: %s", op)
+		return nil, fmt.Errorf("unknown binop %s", op)
 	}
-	panic("TODO")
+	return nil, fmt.Errorf("type mismatch Left: %T, Right: %T", x, y)
 }

@@ -4,6 +4,7 @@
 package eval
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -17,11 +18,7 @@ func TestTrivialEval(t *testing.T) {
 			"y": big.NewInt(5),
 		},
 	}
-	expr := &parser.BinaryExpr{
-		Op:    parser.Add,
-		Left:  &parser.Ident{"x"},
-		Right: &parser.Ident{"y"},
-	}
+	expr := mustParse("2+3*(x+y-2)")
 	res, err := Eval(s, expr)
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +27,15 @@ func TestTrivialEval(t *testing.T) {
 	if !ok {
 		t.Fatalf("Eval(%s) want *big.Int, got: %s (%T)", expr, got, got)
 	}
-	if want := big.NewInt(9); want.Cmp(got) != 0 {
+	if want := big.NewInt(23); want.Cmp(got) != 0 {
 		t.Errorf("Eval(%s)=%s, want %s", expr, got, want)
 	}
+}
+
+func mustParse(src string) parser.Expr {
+	expr, err := parser.ParseExpr([]byte(src))
+	if err != nil {
+		panic(fmt.Sprintf("mustParse: %v", err))
+	}
+	return expr
 }
