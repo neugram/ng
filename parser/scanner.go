@@ -214,6 +214,7 @@ func (s *Scanner) Next() error {
 		return s.err
 	}
 
+	s.semi = false
 	s.next()
 	switch r {
 	case -1:
@@ -242,6 +243,14 @@ func (s *Scanner) Next() error {
 		s.Token = Comma
 	case ';':
 		s.Token = Semicolon
+	case ':':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = Define
+		default:
+			s.Token = Colon
+		}
 	case '+':
 		switch s.r {
 		case '=':

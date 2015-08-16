@@ -62,6 +62,11 @@ type CallExpr struct {
 type Stmt interface {
 }
 
+type AssignStmt struct {
+	Left  []Expr
+	Right []Expr
+}
+
 type ReturnStmt struct {
 	Exprs []Expr
 }
@@ -73,6 +78,9 @@ func (e *BasicLiteral) String() string { return fmt.Sprintf("(%s %T)", e.Value, 
 func (e *Ident) String() string        { return fmt.Sprintf("%s", e.Name) }
 func (e *CallExpr) String() string     { return fmt.Sprintf("(call %s %s)", e.Func, exprsStr(e.Args)) }
 func (e *ReturnStmt) String() string   { return fmt.Sprintf("(return %s", exprsStr(e.Exprs)) }
+func (e *AssignStmt) String() string {
+	return fmt.Sprintf("(assign (%s) (%s))", exprsStr(e.Left), exprsStr(e.Right))
+}
 func (e *FuncLiteral) String() string {
 	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, "(func %s (", e.Type)

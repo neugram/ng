@@ -93,6 +93,27 @@ func (p *printer) printStmt(s Stmt) {
 		return
 	}
 	switch s := s.(type) {
+	case *AssignStmt:
+		p.printf("AssignStmt{\n")
+		p.numIndent++
+		p.printf("\nLeft: [")
+		p.numIndent++
+		for _, expr := range s.Left {
+			p.printf("\n")
+			p.printExpr(expr)
+		}
+		p.numIndent--
+		p.printf("\n]")
+		p.printf("\nRight: [")
+		p.numIndent++
+		for _, expr := range s.Right {
+			p.printf("\n")
+			p.printExpr(expr)
+		}
+		p.numIndent--
+		p.printf("\n]")
+		p.numIndent--
+		p.printf("\n}")
 	case *ReturnStmt:
 		p.printf("ReturnStmt{")
 		switch len(s.Exprs) {
@@ -209,7 +230,6 @@ func (p *printer) printExpr(expr Expr) {
 		p.printf("\n]")
 		p.numIndent--
 		p.printf("\n}")
-
 	default:
 		p.err = fmt.Errorf("Unknown Expr (%T)", expr)
 	}

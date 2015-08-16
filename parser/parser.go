@@ -223,13 +223,33 @@ func (p *parser) parseExprs() []Expr {
 	return exprs
 }
 
+func (p *parser) parseSimpleStmt() Stmt {
+	exprs := p.parseExprs()
+	switch p.s.Token {
+	case Define, Assign, AddAssign, SubAssign, MulAssign, DivAssign, RemAssign:
+		p.next()
+		// TODO: if p.s.Token == Range
+		right := p.parseExprs()
+		return &AssignStmt{Left: exprs, Right: right}
+	}
+
+	panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
+}
+
 func (p *parser) parseStmt() Stmt {
 	switch p.s.Token {
 	// TODO: many many kinds of statements
 	//case If:
+	case Identifier:
+		// A "simple" statement, no control flow.
+		s := p.parseSimpleStmt()
+		p.parseSemi()
+		return s
 	case Return:
 		p.next()
-		return &ReturnStmt{Exprs: p.parseExprs()}
+		s := &ReturnStmt{Exprs: p.parseExprs()}
+		p.parseSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
@@ -339,6 +359,14 @@ func (p *parser) expect(t Token) bool {
 		p.error(fmt.Sprintf("expected %q, found %q", t, p.s.Token))
 	}
 	return met
+}
+
+func (p *parser) parseSemi() {
+	if p.s.Token == RightBrace {
+		return
+	}
+	p.expect(Semicolon)
+	p.next()
 }
 
 func (p *parser) parseIdent() *Ident {

@@ -100,6 +100,22 @@ var parserTests = []parserTest{
 			},
 		},
 	},
+	{
+		`func() int {
+			x := 7
+			return x
+		}`,
+		&FuncLiteral{
+			Type: &FuncType{Out: []*Field{{Type: &Ident{"int"}}}},
+			Body: []Stmt{
+				&AssignStmt{
+					Left:  []Expr{&Ident{"x"}},
+					Right: []Expr{&BasicLiteral{big.NewInt(7)}},
+				},
+				&ReturnStmt{Exprs: []Expr{&Ident{"x"}}},
+			},
+		},
+	},
 }
 
 func TestParseExpr(t *testing.T) {
