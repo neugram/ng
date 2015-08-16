@@ -31,6 +31,12 @@ func EqualExpr(x, y Expr) bool {
 			return false
 		}
 		return equalLiteral(x.Value, y.Value)
+	case *FuncLiteral:
+		y, ok := y.(*FuncLiteral)
+		if !ok {
+			return false
+		}
+		return equalFuncLiteral(x, y)
 	case *Ident:
 		y, ok := y.(*Ident)
 		if !ok {
@@ -45,18 +51,74 @@ func EqualExpr(x, y Expr) bool {
 		if !EqualExpr(x.Func, y.Func) {
 			return false
 		}
-		if len(x.Args) != len(y.Args) {
+		if !equalExprs(x.Args, y.Args) {
 			return false
-		}
-		for i, xarg := range x.Args {
-			if !EqualExpr(xarg, y.Args[i]) {
-				return false
-			}
 		}
 		return true
 	default:
 		panic(fmt.Sprintf("unknown expr type %T: %#+v", x, x))
 	}
+}
+
+func equalExprs(x, y []Expr) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if !EqualExpr(x[i], y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalFields(f0, f1 []*Field) bool {
+	if len(f0) != len(f1) {
+		return false
+	}
+	for i := range f0 {
+		if f0[i].Name.Name != f1[i].Name.Name {
+			return false
+		}
+		if !EqualExpr(f0[i].Type, f1[i].Type) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalFuncLiteral(f0, f1 *FuncLiteral) bool {
+	if !equalFields(f0.Type.In, f1.Type.In) {
+		return false
+	}
+	if !equalFields(f0.Type.Out, f1.Type.Out) {
+		return false
+	}
+	if len(f0.Body) != len(f1.Body) {
+		return false
+	}
+	for i := range f0.Body {
+		if !equalStmt(f0.Body[i], f1.Body[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStmt(x, y Stmt) bool {
+	switch x := x.(type) {
+	case *ReturnStmt:
+		y, ok := y.(*ReturnStmt)
+		if !ok {
+			return false
+		}
+		if !equalExprs(x.Exprs, y.Exprs) {
+			return false
+		}
+	default:
+		panic(fmt.Sprintf("unknown stmt type %T: %#+v", x, x))
+	}
+	return true
 }
 
 func equalLiteral(lit0, lit1 interface{}) bool {

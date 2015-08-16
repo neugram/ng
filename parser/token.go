@@ -93,6 +93,7 @@ const (
 	Map
 	Struct
 	Type
+	Val
 )
 
 var tokens = map[string]Token{
@@ -159,6 +160,7 @@ var tokens = map[string]Token{
 	"map":          Map,
 	"struct":       Struct,
 	"type":         Type,
+	"val":          Val,
 }
 
 var tokenStrings = make(map[Token]string, len(tokens))

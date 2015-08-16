@@ -151,6 +151,97 @@ func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 	return x
 }
 
+func (p *parser) parseParameters() (params []*Field) {
+	for p.s.Token > 0 && p.s.Token != RightParen {
+		f := &Field{
+			Name: p.parseIdent(),
+			Type: p.maybeParseIdentOrType(),
+		}
+		if f.Type != nil {
+			for i := len(params) - 1; i >= 0 && params[i].Type == nil; i-- {
+				params[i].Type = f.Type
+			}
+		}
+	}
+	return params
+}
+
+func (p *parser) maybeParseIdentOrType() Expr {
+	switch p.s.Token {
+	case Identifier:
+		ident := p.parseIdent()
+		if p.s.Token == Period {
+			p.next()
+			sel := p.parseIdent()
+			return &SelectorExpr{ident, sel}
+		}
+	case Struct:
+	case Mul: // pointer type
+	case Func:
+	case Map:
+	case Val:
+		return &ValType{}
+	case LeftParen:
+	}
+	// TODO many more kinds of types
+	return nil
+}
+
+func (p *parser) parseExprs() []Expr {
+	exprs := []Expr{p.parseExpr(false)}
+	for p.s.Token == Comma {
+		p.next()
+		exprs = append(exprs, p.parseExpr(false))
+	}
+	return exprs
+}
+
+func (p *parser) parseStmt() Stmt {
+	switch p.s.Token {
+	// TODO: many many kinds of statements
+	//case If:
+	case Return:
+		p.next()
+		return &ReturnStmt{Exprs: p.parseExprs()}
+	}
+	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *parser) parseStmts() (stmts []Stmt) {
+	// TODO there are other kinds of blocks to exit from
+	for p.s.Token > 0 && p.s.Token != RightBrace {
+		stmts = append(stmts, p.parseStmt())
+	}
+	return stmts
+}
+
+func (p *parser) parseFuncType() *FuncType {
+	f := &FuncType{}
+	p.expect(LeftParen)
+	p.next()
+	if p.s.Token != RightParen {
+		f.In = p.parseParameters()
+	}
+	p.expect(RightParen)
+	p.next()
+
+	if p.s.Token == LeftParen {
+		p.expect(LeftParen)
+		p.next()
+		if p.s.Token != RightParen {
+			f.Out = p.parseParameters()
+		}
+		p.expect(RightParen)
+		p.next()
+	} else {
+		typ := p.maybeParseIdentOrType()
+		if typ != nil {
+			f.Out = []*Field{{Type: typ}}
+		}
+	}
+	return f
+}
+
 func (p *parser) parseOperand(lhs bool) Expr {
 	switch p.s.Token {
 	case Identifier:
@@ -164,6 +255,20 @@ func (p *parser) parseOperand(lhs bool) Expr {
 		expr := p.parseExpr(false) // TODO or a type?
 		p.expect(RightParen)
 		return &UnaryExpr{Op: LeftParen, Expr: expr}
+	case Func:
+		p.next()
+		ty := p.parseFuncType()
+		if p.s.Token != LeftBrace {
+			p.next()
+			return &BadExpr{p.error("TODO just a function type")}
+		}
+		p.next()
+		body := p.parseStmts()
+		p.expect(RightBrace)
+		return &FuncLiteral{
+			Type: ty,
+			Body: body,
+		}
 	}
 	// TODO: other cases, eventually Func, etc
 

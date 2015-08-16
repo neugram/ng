@@ -76,6 +76,47 @@ func (p *printer) printf(format string, a ...interface{}) {
 	}
 }
 
+func (p *printer) printFields(f []*Field) {
+	p.printf("Fields TODO")
+}
+
+func (p *printer) printStmt(s Stmt) {
+	if p.err != nil {
+		return
+	}
+	if s == nil {
+		p.printf("<nilstmt>")
+		return
+	}
+	switch s := s.(type) {
+	case *ReturnStmt:
+		p.printf("ReturnStmt{")
+		switch len(s.Exprs) {
+		case 0:
+		case 1:
+			p.printf("Exprs: [")
+			p.printExpr(s.Exprs[0])
+			p.printf("]")
+		default:
+			p.printf("\n")
+			p.numIndent++
+			p.printf("\nExprs: [")
+			p.numIndent++
+			for _, expr := range s.Exprs {
+				p.printf("\n")
+				p.printExpr(expr)
+			}
+			p.numIndent--
+			p.printf("\n]")
+			p.numIndent--
+			p.printf("\n")
+		}
+		p.printf("}")
+	default:
+		p.err = fmt.Errorf("Unknown Stmt (%T)", s)
+	}
+}
+
 func (p *printer) printExpr(expr Expr) {
 	if p.err != nil {
 		return
@@ -113,6 +154,33 @@ func (p *printer) printExpr(expr Expr) {
 		default:
 			p.printf("BasicLiteral{Value: Unknown Type=%T: %#v}", expr.Value, expr.Value)
 		}
+	case *FuncLiteral:
+		p.printf("FuncLiteral{")
+		p.numIndent++
+		if len(expr.Type.In) > 0 || len(expr.Type.Out) > 0 {
+			p.printf("\nType: FuncType{")
+			p.numIndent++
+			if len(expr.Type.In) > 0 {
+				p.printf("\nIn: ")
+				p.printFields(expr.Type.In)
+			}
+			if len(expr.Type.Out) > 0 {
+				p.printf("\nOut: ")
+				p.printFields(expr.Type.Out)
+			}
+			p.numIndent--
+			p.printf("\n}")
+		}
+		p.printf("\nBody: [")
+		p.numIndent++
+		for _, s := range expr.Body {
+			p.printf("\n")
+			p.printStmt(s)
+		}
+		p.numIndent--
+		p.printf("\n]")
+		p.numIndent--
+		p.printf("\n}")
 	case *Ident:
 		p.printf("Ident{Name: %q}", expr.Name)
 	case *CallExpr:

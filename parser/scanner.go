@@ -183,7 +183,11 @@ func (s *Scanner) scanComment() string {
 
 func (s *Scanner) Next() error {
 	defer func() {
-		//fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d\n", s.Token, s.Offset, s.off)
+		fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d", s.Token, s.Offset, s.off)
+		if s.Literal != nil {
+			fmt.Printf(" Literal=%s", s.Literal)
+		}
+		fmt.Printf("\n")
 	}()
 	s.skipWhitespace()
 	//fmt.Printf("Next: s.r=%v (%s)\n", s.r, string(s.r))
@@ -224,6 +228,16 @@ func (s *Scanner) Next() error {
 	case ')':
 		s.semi = true
 		s.Token = RightParen
+	case '[':
+		s.Token = LeftBracket
+	case ']':
+		s.semi = true
+		s.Token = RightBracket
+	case '{':
+		s.Token = LeftBrace
+	case '}':
+		s.semi = true
+		s.Token = RightBrace
 	case ',':
 		s.Token = Comma
 	case ';':
@@ -286,6 +300,9 @@ func (s *Scanner) Next() error {
 		default:
 			s.Token = Pow
 		}
+	default:
+		s.Token = Unknown
+		s.err = fmt.Errorf("parser: unknown r=%v", r)
 	}
 
 	return s.err

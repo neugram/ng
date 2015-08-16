@@ -70,6 +70,15 @@ var parserTests = []parserTest{
 			},
 		},
 	},
+	{
+		"func() int { return 7 }",
+		&FuncLiteral{
+			Type: &FuncType{},
+			Body: []Stmt{
+				&ReturnStmt{Exprs: []Expr{&BasicLiteral{big.NewInt(7)}}},
+			},
+		},
+	},
 }
 
 func TestParseExpr(t *testing.T) {
