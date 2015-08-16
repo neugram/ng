@@ -1,1 +1,186 @@
-# Numgrad is a data processing package.
+# Numengrad is a data processing package.
+
+Numengrad is a numerical processing library written in Go. Because in
+practice numerical processing is all about finding an moving data
+around, and often doing parts of the processing elsewhere (for example,
+inside an SQL query's WHERE clause), the library includes a small
+interpreted programming language. The langauge is starting as a subset
+of Go with a couple of key numerical features added.
+
+The key data structure is the data frame. A frame has a small (known)
+number of named columns and many rows.
+
+Very imporant: it's easy to import Go packages and call Go from inside
+Numengrad. Serious work should be implemented in Go, Numengrad is the
+numerical glue.
+
+# Types
+
+Start with Go's types.
+- remove channels
+- remove embedding
+- remove ability to define interface types (TODO: revisit)
+- add frame
+- TODO: keep slices, or make everything use frames?
+- limit numeric types:
+	int64
+	integer (*big.Int)
+	float32
+	float64
+	float (*big.Float)
+	TODO: what precision is float?
+- remove unsigned types (and arithmetic)
+- keep byte, mostly a placeholder for passing to Go code
+- later: introduce imaginary numbers
+
+- problem: want to be able to write:
+	func min(x, y) {
+		if x < y {
+			return x
+		}
+		return y
+	}
+  what types does it have?
+  this is really calling for type parameters:
+	func [T] min(x, y T) T {
+		if x < y {
+			return x
+		}
+		return y
+	}
+  this is possible, but it will have to be pervasive:
+	type [T] Point struct {
+		X, Y T
+	}
+	func [T] min(a, b Point[T]) Point[T] {
+		if sqrt(a.X*a.X + a.Y*a.Y) < sqrt(b.X*b.X + b.Y*b.Y) {
+			return a
+		}
+		return b
+	}
+	func [T] sqrt(x, y T) T {
+		// newton's method
+	}
+  Besides being useful, this has the usual problem type parameters
+  have: it makes programming more complex. Work like this should
+  really be done in Go and called from Numengrad.
+
+- extremely tempting, dynamic types:
+	func min(x, y val) val {
+		if x < y {
+			return x
+		}
+		return y
+	}
+  Interpreter would initially box all types, a JIT could unbox and specialize
+  the important types, int64/float{32,64}, and in the future possibly custom
+  user types.
+
+  IMPORTANT:
+	x, y := int64(4), float64(5)
+	min(x, y) // fails, dynamic check in (<) operator
+  Avoid nasty implicit type conversions.
+  Possible implicit conversions we could introduce later:
+	- int64 -> int
+	- float32 -> float
+	- float64 -> float
+  These are "safe" promotions.
+
+- problem: frames are dynamically typed, with runtime basic types
+  attached to each column. there are three potential concepts worth
+  encoding in the type system:
+	frame<<float64>> all fields are of type float64, dynamic cols/rows
+  this is a dynamically sized matrix.
+	frame<string, float64, int> three columns, types specified
+	frame<float64|4:5> a 4x5 matrix
+  all of these have uses, but do any of them have enough uses to justify
+  The most compelling case is matricies, but that can be dealt with by
+  introducing a matrix type with a type parameter. the specific-size
+  matricies can be built by hand out of structs.
+
+  The type implications of Permute and Slice become incredibly complex
+  if we allow per-column types. It can probably be type checked, but
+  would you want to program with them?
+
+
+- current thoughts on these problems:
+	- a frame is always dynamic in its types
+	- keep the door open on type parameters, but not yet
+	- use dynamic types
+	- rename interface{} to val
+	- allow numeric ops to work on val type
+
+# Syntax
+
+Almost entirely derived from Go. 
+
+New keywords: frame, val
+
+TODO: literal syntax for frames is giving me a headache. For now, using the composite literal syntax for the fake struct record:
+
+type frame struct {
+	Names []string
+	Rows [][]interface{}
+}
+
+Must do better, but I really hate syntax.
+
+## Frames
+
+The Go type frame.Frame has an innocently named optional method Slice
+that gets a ton of fun syntax:
+
+Given x:
+
+ Col0 Col1 Col2
+0 0.0  0.1  0.2
+1 1.0  1.1  1.2
+2 2.0  2.1  2.2
+
+or
+
+x = frame{
+	Names: {"Col0", "Col1", "Col2"},
+	Rows: {
+		{0.0, 0.1, 0.2},
+		{1.0, 1.1, 1.2},
+		{2.0, 2.1  2.2},
+	},
+}
+
+x[1] == x["Col1"] == frame{
+	Names: {"Col1"},
+	Rows: {
+		{0.1},
+		{1.1},
+		{2.1},
+	},
+}
+
+x[,2] == frame{
+	Names: {"Col0", "Col1", "Col2"},
+	Rows: {
+		{2.0, 2.1  2.2},
+	},
+}
+
+x[0|2] == x["Col0"|"Col2"] == frame{
+	Names: {"Col0", "Col2"},
+	Rows: {
+		{0.0, 0.2},
+		{1.0, 1.2},
+		{2.0, 2.2},
+	},
+}
+
+x[0:1] == x[0|1] == x["Col0"|"Col1"]
+
+x[1,0:1] == frame{
+	Names: {"Col1"},
+	Rows: {
+		{0.1},
+		{1.1},
+	},
+}
+
+x[1,1] == 1.1 // all slicing variants return a frame, except this one
