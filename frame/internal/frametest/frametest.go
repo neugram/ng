@@ -4,6 +4,7 @@
 package frametest
 
 import (
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -65,13 +66,21 @@ func LoadPresidents(t *testing.T, f frame.Frame) {
 		t.Errorf("f.Len() = %d, want %d", h, numPres)
 	}
 
-	var term2 int
+	var term2 int64
 	if err := f.Get(3, 0, &term2); err != nil {
 		t.Errorf("Get(3, 0) error: %v", err)
 	}
 	if term2 != 1792 {
 		t.Errorf("Get(3, 0) Washington second term %d, want 1792", term2)
 	}
+	term2Big := big.NewInt(0)
+	if err := f.Get(3, 0, term2Big); err != nil {
+		t.Errorf("Get(3, 0) error: %v", err)
+	}
+	if term2Big.Cmp(big.NewInt(1792)) != 0 {
+		t.Errorf("Get(3, 0) Washington second term (big.Int) %d, want 1792", term2Big)
+	}
+
 	var name string
 	if err := f.Get(1, 0, &name); err != nil {
 		t.Errorf("Get(1, 0) error: %v", err)
@@ -92,7 +101,7 @@ func LoadPresidents(t *testing.T, f frame.Frame) {
 		{17, "Ulysses S. Grant"},
 	}
 	for _, test := range getTests {
-		var id, term1, term2 int
+		var id, term1, term2 int64
 		var name string
 		if err := f.Get(0, test.y, &id, &name, &term1, &term2); err != nil {
 			t.Errorf("Get(0, %d) error: %v", test.y, err)
@@ -115,7 +124,7 @@ func LoadPresidents(t *testing.T, f frame.Frame) {
 	if got, want := fs.Cols(), []string{"Name", "Term1"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Slice cols=%v, want %v", got, want)
 	}
-	var term1 int
+	var term1 int64
 	if err := fs.Get(0, 0, &name, &term1); err != nil {
 		t.Errorf("Slice Get(0, 0) error: %v", err)
 	}

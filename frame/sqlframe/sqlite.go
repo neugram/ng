@@ -6,6 +6,7 @@ package sqlframe
 import (
 	"database/sql"
 	"fmt"
+	"math/big"
 
 	"numgrad.io/frame"
 )
@@ -50,4 +51,36 @@ func sqliteLoad(db *sql.DB, table string) (frame.Frame, error) {
 	}
 
 	return f, nil
+}
+
+func sqliteScanBegin(frameDst []interface{}) ([]interface{}, error) {
+	sqlDst := make([]interface{}, len(frameDst))
+	for i, d := range frameDst {
+		switch d.(type) {
+		case *int64, *float32, *float64, *string:
+			sqlDst[i] = d
+		case *big.Int:
+			sqlDst[i] = new(int64)
+		case *big.Float:
+			sqlDst[i] = new(float64)
+		default:
+			return nil, fmt.Errorf("sqlframe: unsupported Get parameter type %T", d)
+		}
+	}
+	return sqlDst, nil
+}
+
+func sqliteScanEnd(frameDst, sqlDst []interface{}) {
+	for i, d := range frameDst {
+		switch d := d.(type) {
+		case *int64, *float32, *float64, *string:
+			// do nothing
+		case *big.Int:
+			d.SetInt64(*sqlDst[i].(*int64))
+		case *big.Float:
+			d.SetFloat64(*sqlDst[i].(*float64))
+		default:
+			panic(fmt.Sprintf("sqlframe: unsupported Get parameter type %T", d))
+		}
+	}
 }

@@ -91,7 +91,23 @@ type sqlFrame struct {
 }
 
 func (f *sqlFrame) Get(x, y int, dst ...interface{}) (err error) {
-	//fmt.Printf("Get(%d, %d): len(f.cache.rowPKs)=%d\n", x, y, len(f.cache.rowPKs))
+	// Frame argument types don't quite line up with sql database types,
+	// so we do a per-driver transformation. In particular, a *big.Int
+	// and *big.Float are perfectly valid dst arguments, which
+	// database/sql does not understand.
+	frameDst := dst
+	sqlDst, err := sqliteScanBegin(frameDst)
+	if err != nil {
+		return err
+	}
+	dst = sqlDst
+	defer func() {
+		if err == nil {
+			sqliteScanEnd(frameDst, sqlDst)
+		}
+	}()
+
+	// Pad dst to handle slicing.
 	var empty interface{}
 	if x > 0 {
 		dst = append(make([]interface{}, x), dst...)
