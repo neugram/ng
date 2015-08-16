@@ -62,6 +62,21 @@ func binOp(op parser.Token, x, y interface{}) (interface{}, error) {
 	switch op {
 	case parser.Add:
 		switch x := x.(type) {
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x + y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x + y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x + y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -77,6 +92,21 @@ func binOp(op parser.Token, x, y interface{}) (interface{}, error) {
 		}
 	case parser.Sub:
 		switch x := x.(type) {
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x - y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x - y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x - y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
