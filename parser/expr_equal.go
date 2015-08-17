@@ -142,6 +142,19 @@ func equalStmt(x, y Stmt) bool {
 		if !equalExprs(x.Right, y.Right) {
 			return false
 		}
+	case *BlockStmt:
+		y, ok := y.(*BlockStmt)
+		if !ok {
+			return false
+		}
+		if len(x.Stmts) != len(y.Stmts) {
+			return false
+		}
+		for i := range x.Stmts {
+			if !equalStmt(x.Stmts[i], y.Stmts[i]) {
+				return false
+			}
+		}
 	case *IfStmt:
 		y, ok := y.(*IfStmt)
 		if !ok {

@@ -94,7 +94,7 @@ func (p *printer) printStmt(s Stmt) {
 	}
 	switch s := s.(type) {
 	case *AssignStmt:
-		p.printf("AssignStmt{\n")
+		p.printf("AssignStmt{")
 		p.numIndent++
 		p.printf("\nLeft: [")
 		p.numIndent++
@@ -112,6 +112,15 @@ func (p *printer) printStmt(s Stmt) {
 		}
 		p.numIndent--
 		p.printf("\n]")
+		p.numIndent--
+		p.printf("\n}")
+	case *BlockStmt:
+		p.printf("BlockStmt{\n")
+		p.numIndent++
+		for _, stmt := range s.Stmts {
+			p.printf("\n")
+			p.printStmt(stmt)
+		}
 		p.numIndent--
 		p.printf("\n}")
 	case *IfStmt:

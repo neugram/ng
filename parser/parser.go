@@ -263,11 +263,7 @@ func (p *parser) parseStmt() Stmt {
 				s.Init = nil
 			}
 		}
-		p.expect(LeftBrace)
-		p.next()
-		s.Body = p.parseStmts()
-		p.expect(RightBrace)
-		p.next()
+		s.Body = p.parseBlock()
 		if p.s.Token == Else {
 			p.next()
 			s.Else = p.parseStmt()
@@ -283,8 +279,21 @@ func (p *parser) parseStmt() Stmt {
 		s := &ReturnStmt{Exprs: p.parseExprs()}
 		p.parseSemi()
 		return s
+	case LeftBrace:
+		s := p.parseBlock()
+		p.parseSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *parser) parseBlock() Stmt {
+	p.expect(LeftBrace)
+	p.next()
+	s := &BlockStmt{Stmts: p.parseStmts()}
+	p.expect(RightBrace)
+	p.next()
+	return s
 }
 
 func (p *parser) parseStmts() (stmts []Stmt) {

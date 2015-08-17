@@ -127,10 +127,27 @@ var parserTests = []parserTest{
 		&FuncLiteral{
 			Type: &FuncType{Out: []*Field{{Type: &Ident{"int64"}}}},
 			Body: []Stmt{&IfStmt{
-				Init: nil,
-				Cond: nil,
-				Body: nil,
-				Else: nil,
+				Init: &AssignStmt{
+					Left:  []Expr{&Ident{"x"}},
+					Right: []Expr{&BasicLiteral{big.NewInt(9)}},
+				},
+				Cond: &BinaryExpr{
+					Op:    Greater,
+					Left:  &Ident{"x"},
+					Right: &BasicLiteral{big.NewInt(3)},
+				},
+				Body: &BlockStmt{Stmts: []Stmt{
+					&ReturnStmt{Exprs: []Expr{&Ident{"x"}}},
+				}},
+				Else: &BlockStmt{Stmts: []Stmt{
+					&ReturnStmt{Exprs: []Expr{
+						&BinaryExpr{
+							Op:    Sub,
+							Left:  &BasicLiteral{big.NewInt(1)},
+							Right: &Ident{"x"},
+						},
+					}},
+				}},
 			}},
 		},
 	},

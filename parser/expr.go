@@ -67,10 +67,14 @@ type AssignStmt struct {
 	Right []Expr
 }
 
+type BlockStmt struct {
+	Stmts []Stmt
+}
+
 type IfStmt struct {
 	Init Stmt
 	Cond Expr
-	Body Stmt
+	Body Stmt // always *BlockStmt
 	Else Stmt
 }
 
