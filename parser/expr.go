@@ -67,6 +67,13 @@ type AssignStmt struct {
 	Right []Expr
 }
 
+type IfStmt struct {
+	Init Stmt
+	Cond Expr
+	Body Stmt
+	Else Stmt
+}
+
 type ReturnStmt struct {
 	Exprs []Expr
 }
@@ -81,6 +88,10 @@ func (e *ReturnStmt) String() string   { return fmt.Sprintf("(return %s", exprsS
 func (e *AssignStmt) String() string {
 	return fmt.Sprintf("(assign (%s) (%s))", exprsStr(e.Left), exprsStr(e.Right))
 }
+func (e *IfStmt) String() string {
+	return fmt.Sprintf("(if %s %s %s %s)", e.Init, e.Cond, e.Body, e.Else)
+}
+
 func (e *FuncLiteral) String() string {
 	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, "(func %s (", e.Type)
@@ -118,4 +129,14 @@ func exprsStr(e []Expr) string {
 		fmt.Fprintf(buf, "%s", arg)
 	}
 	return buf.String()
+}
+
+// TODO consider adding a method to Expr interface so we can test with it.
+func isExpr(e Expr) bool {
+	switch e.(type) {
+	case BinaryExpr, UnaryExpr, BadExpr, SelectorExpr, BasicLiteral, FuncLiteral, Ident, CallExpr:
+		return true
+	default:
+		return false
+	}
 }

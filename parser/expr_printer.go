@@ -114,6 +114,19 @@ func (p *printer) printStmt(s Stmt) {
 		p.printf("\n]")
 		p.numIndent--
 		p.printf("\n}")
+	case *IfStmt:
+		p.printf("AssignStmt{\n")
+		p.numIndent++
+		p.printf("\nInit: ")
+		p.printStmt(s.Init)
+		p.printf("\nCond: ")
+		p.printExpr(s.Cond)
+		p.printf("\nBody: ")
+		p.printStmt(s.Body)
+		p.printf("\nElse: ")
+		p.printStmt(s.Else)
+		p.numIndent--
+		p.printf("\n}")
 	case *ReturnStmt:
 		p.printf("ReturnStmt{")
 		switch len(s.Exprs) {

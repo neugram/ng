@@ -141,7 +141,8 @@ func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 			args := p.parseArgs()
 			return &CallExpr{Func: x, Args: args}
 		case LeftBrace:
-			panic("TODO could be composite literal")
+			// TODO could be composite literal, check type
+			// If not a composite literal, end of statement.
 			return x
 		default:
 			return x
@@ -233,13 +234,45 @@ func (p *parser) parseSimpleStmt() Stmt {
 		return &AssignStmt{Left: exprs, Right: right}
 	}
 
-	panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
+	return exprs[0]
+	//panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
 }
 
 func (p *parser) parseStmt() Stmt {
 	switch p.s.Token {
 	// TODO: many many kinds of statements
-	//case If:
+	case If:
+		s := &IfStmt{}
+		p.next()
+		if p.s.Token == Semicolon {
+			// Blank Init statement.
+			p.next()
+			s.Cond = p.parseExpr(true)
+		} else {
+			s.Init = p.parseSimpleStmt()
+			if p.s.Token == Semicolon {
+				p.next()
+				s.Cond = p.parseExpr(false)
+			} else {
+				// No Init statement, make it the condition
+				if isExpr(s.Init) {
+					s.Cond = s.Init.(Expr)
+				} else {
+					s.Cond = &BadExpr{p.error("expected boolean expression, found statement")}
+				}
+				s.Init = nil
+			}
+		}
+		p.expect(LeftBrace)
+		p.next()
+		s.Body = p.parseStmts()
+		p.expect(RightBrace)
+		p.next()
+		if p.s.Token == Else {
+			p.next()
+			s.Else = p.parseStmt()
+		}
+		return s
 	case Identifier:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()

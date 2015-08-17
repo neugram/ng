@@ -142,6 +142,23 @@ func equalStmt(x, y Stmt) bool {
 		if !equalExprs(x.Right, y.Right) {
 			return false
 		}
+	case *IfStmt:
+		y, ok := y.(*IfStmt)
+		if !ok {
+			return false
+		}
+		if !equalStmt(x.Init, y.Init) {
+			return false
+		}
+		if !EqualExpr(x.Cond, y.Cond) {
+			return false
+		}
+		if !equalStmt(x.Body, y.Body) {
+			return false
+		}
+		if !equalStmt(x.Else, y.Else) {
+			return false
+		}
 	default:
 		panic(fmt.Sprintf("unknown stmt type %T: %#+v", x, x))
 	}

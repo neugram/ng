@@ -101,12 +101,12 @@ var parserTests = []parserTest{
 		},
 	},
 	{
-		`func() int {
+		`func() int64 {
 			x := 7
 			return x
 		}`,
 		&FuncLiteral{
-			Type: &FuncType{Out: []*Field{{Type: &Ident{"int"}}}},
+			Type: &FuncType{Out: []*Field{{Type: &Ident{"int64"}}}},
 			Body: []Stmt{
 				&AssignStmt{
 					Left:  []Expr{&Ident{"x"}},
@@ -114,6 +114,24 @@ var parserTests = []parserTest{
 				},
 				&ReturnStmt{Exprs: []Expr{&Ident{"x"}}},
 			},
+		},
+	},
+	{
+		`func() int64 {
+			if x := 9; x > 3 {
+				return x
+			} else {
+				return 1-x
+			}
+		}`,
+		&FuncLiteral{
+			Type: &FuncType{Out: []*Field{{Type: &Ident{"int64"}}}},
+			Body: []Stmt{&IfStmt{
+				Init: nil,
+				Cond: nil,
+				Body: nil,
+				Else: nil,
+			}},
 		},
 	},
 }

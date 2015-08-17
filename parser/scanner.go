@@ -192,6 +192,7 @@ func (s *Scanner) Next() error {
 	s.skipWhitespace()
 	//fmt.Printf("Next: s.r=%v (%s)\n", s.r, string(s.r))
 
+	s.semi = false
 	s.Literal = nil
 	r := s.r
 	switch {
@@ -214,7 +215,6 @@ func (s *Scanner) Next() error {
 		return s.err
 	}
 
-	s.semi = false
 	s.next()
 	switch r {
 	case -1:
@@ -308,6 +308,22 @@ func (s *Scanner) Next() error {
 			s.Token = PowAssign
 		default:
 			s.Token = Pow
+		}
+	case '>':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = GreaterEqual
+		default:
+			s.Token = Greater
+		}
+	case '<':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = LessEqual
+		default:
+			s.Token = Less
 		}
 	default:
 		s.Token = Unknown
