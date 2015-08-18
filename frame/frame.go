@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 
+	"numgrad.io/eval"
 	"numgrad.io/parser"
 )
 
@@ -162,6 +163,16 @@ func Len(f Frame) (int, error) {
 		y++
 	}
 	return y, nil
+}
+
+func Filter(f Frame, s *eval.Scope, e *parser.Expr) (Frame, error) {
+	fr, ok := f.(interface {
+		Filter(s *eval.Scope, e *parser.Expr) (Frame, error)
+	})
+	if ok {
+		return fr.Filter(s, e)
+	}
+	panic("TODO Filter")
 }
 
 // Want:
