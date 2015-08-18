@@ -259,6 +259,7 @@ func (s *Scanner) Next() error {
 		case '+':
 			s.next()
 			s.Token = Inc
+			s.semi = true
 		default:
 			s.Token = Add
 		}
@@ -270,8 +271,17 @@ func (s *Scanner) Next() error {
 		case '-':
 			s.next()
 			s.Token = Dec
+			s.semi = true
 		default:
 			s.Token = Sub
+		}
+	case '=':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = Equal
+		default:
+			s.Token = Assign
 		}
 	case '*':
 		switch s.r {

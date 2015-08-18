@@ -204,7 +204,7 @@ func (p *printer) printExpr(expr Expr) {
 	case *FuncLiteral:
 		p.printf("FuncLiteral{")
 		p.numIndent++
-		if len(expr.Type.In) > 0 || len(expr.Type.Out) > 0 {
+		if expr.Type != nil {
 			p.printf("\nType: FuncType{")
 			p.numIndent++
 			if len(expr.Type.In) > 0 {
@@ -279,6 +279,9 @@ func printToFile(x Expr) (path string, err error) {
 }
 
 func Diff(x, y Expr) string {
+	if EqualExpr(x, y) {
+		return ""
+	}
 	fx, err := printToFile(x)
 	if err != nil {
 		return "diff print lhs error: " + err.Error()
@@ -301,5 +304,9 @@ func Diff(x, y Expr) string {
 	res := string(data)
 	res = strings.Replace(res, fx, "/x", 1)
 	res = strings.Replace(res, fy, "/y", 1)
+
+	if res == "" {
+		return fmt.Sprintf("expressions not equal but empty diff: %s and %s", x, y)
+	}
 	return res
 }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 )
 
 func ParseExpr(src []byte) (expr Expr, err error) {
@@ -232,6 +233,21 @@ func (p *parser) parseSimpleStmt() Stmt {
 		// TODO: if p.s.Token == Range
 		right := p.parseExprs()
 		return &AssignStmt{Left: exprs, Right: right}
+	case Inc, Dec:
+		// TODO: do we want to introduce a specialized statement for this?
+		op := Add
+		if p.s.Token == Dec {
+			op = Sub
+		}
+		p.next()
+		return &AssignStmt{
+			Left: []Expr{exprs[0]},
+			Right: []Expr{&BinaryExpr{
+				Op:    op,
+				Left:  exprs[0],
+				Right: &BasicLiteral{big.NewInt(1)},
+			}},
+		}
 	}
 
 	return exprs[0]
@@ -258,6 +274,7 @@ func (p *parser) parseStmt() Stmt {
 				if isExpr(s.Init) {
 					s.Cond = s.Init.(Expr)
 				} else {
+					fmt.Printf("expected boolean expression, found statement: %T: %s", s.Init, s.Init)
 					s.Cond = &BadExpr{p.error("expected boolean expression, found statement")}
 				}
 				s.Init = nil
@@ -267,6 +284,8 @@ func (p *parser) parseStmt() Stmt {
 		if p.s.Token == Else {
 			p.next()
 			s.Else = p.parseStmt()
+		} else {
+			p.parseSemi()
 		}
 		return s
 	case Identifier:
@@ -343,6 +362,7 @@ func (p *parser) parseOperand(lhs bool) Expr {
 		p.next()
 		expr := p.parseExpr(false) // TODO or a type?
 		p.expect(RightParen)
+		p.next()
 		return &UnaryExpr{Op: LeftParen, Expr: expr}
 	case Func:
 		p.next()
@@ -354,6 +374,7 @@ func (p *parser) parseOperand(lhs bool) Expr {
 		p.next()
 		body := p.parseStmts()
 		p.expect(RightBrace)
+		p.next()
 		return &FuncLiteral{
 			Type: ty,
 			Body: body,

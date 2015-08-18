@@ -104,11 +104,16 @@ func equalField(f0, f1 *Field) bool {
 }
 
 func equalFuncLiteral(f0, f1 *FuncLiteral) bool {
-	if !equalFields(f0.Type.In, f1.Type.In) {
-		return false
-	}
-	if !equalFields(f0.Type.Out, f1.Type.Out) {
-		return false
+	if f0.Type != nil || f1.Type != nil {
+		if f0.Type == nil || f1.Type == nil {
+			return false
+		}
+		if !equalFields(f0.Type.In, f1.Type.In) {
+			return false
+		}
+		if !equalFields(f0.Type.Out, f1.Type.Out) {
+			return false
+		}
 	}
 	if len(f0.Body) != len(f1.Body) {
 		return false

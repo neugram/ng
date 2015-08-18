@@ -151,6 +151,37 @@ var parserTests = []parserTest{
 			}},
 		},
 	},
+	{
+		"func(x val) val { return 3+x }(1)",
+		&CallExpr{
+			Func: &FuncLiteral{
+				Type: &FuncType{
+					In:  []*Field{{Name: &Ident{"x"}, Type: &Ident{"val"}}},
+					Out: []*Field{{Type: &Ident{"val"}}},
+				},
+				Body: []Stmt{
+					&ReturnStmt{Exprs: []Expr{
+						&BinaryExpr{
+							Op:    Add,
+							Left:  &BasicLiteral{big.NewInt(3)},
+							Right: &Ident{"x"},
+						},
+					}},
+				},
+			},
+			Args: []Expr{&BasicLiteral{big.NewInt(1)}},
+		},
+	},
+	{
+		"func() { x = -x }",
+		&FuncLiteral{
+			Type: &FuncType{},
+			Body: []Stmt{&AssignStmt{
+				Left:  []Expr{&Ident{"x"}},
+				Right: []Expr{&UnaryExpr{Op: Sub, Expr: &Ident{"x"}}},
+			}},
+		},
+	},
 }
 
 func TestParseExpr(t *testing.T) {

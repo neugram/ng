@@ -88,7 +88,16 @@ func (e *BadExpr) String() string      { return fmt.Sprintf("(BAD %v)", e.Error)
 func (e *BasicLiteral) String() string { return fmt.Sprintf("(%s %T)", e.Value, e.Value) }
 func (e *Ident) String() string        { return fmt.Sprintf("%s", e.Name) }
 func (e *CallExpr) String() string     { return fmt.Sprintf("(call %s %s)", e.Func, exprsStr(e.Args)) }
-func (e *ReturnStmt) String() string   { return fmt.Sprintf("(return %s", exprsStr(e.Exprs)) }
+func (e *BlockStmt) String() string {
+	buf := new(bytes.Buffer)
+	fmt.Fprintf(buf, "(block")
+	for _, s := range e.Stmts {
+		fmt.Fprintf(buf, " %s", s)
+	}
+	fmt.Fprintf(buf, ")")
+	return buf.String()
+}
+func (e *ReturnStmt) String() string { return fmt.Sprintf("(return %s", exprsStr(e.Exprs)) }
 func (e *AssignStmt) String() string {
 	return fmt.Sprintf("(assign (%s) (%s))", exprsStr(e.Left), exprsStr(e.Right))
 }
@@ -110,7 +119,7 @@ func (e *FuncLiteral) String() string {
 }
 
 func (e *FuncType) String() string {
-	return fmt.Sprintf("((in %s) (out %s))", fieldsStr(e.In), fieldsStr(e.Out))
+	return fmt.Sprintf("(functype (in %s) (out %s))", fieldsStr(e.In), fieldsStr(e.Out))
 }
 
 func fieldsStr(fields []*Field) string {
@@ -138,7 +147,7 @@ func exprsStr(e []Expr) string {
 // TODO consider adding a method to Expr interface so we can test with it.
 func isExpr(e Expr) bool {
 	switch e.(type) {
-	case BinaryExpr, UnaryExpr, BadExpr, SelectorExpr, BasicLiteral, FuncLiteral, Ident, CallExpr:
+	case *BinaryExpr, *UnaryExpr, *BadExpr, *SelectorExpr, *BasicLiteral, *FuncLiteral, *Ident, *CallExpr:
 		return true
 	default:
 		return false
