@@ -47,11 +47,12 @@ func (s If) stmt()     {}
 func (s Return) stmt() {}
 func (s Simple) stmt() {}
 
-func (e *Block) Sexp() string {
+func (s *Block) Sexp() string {
 	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, "(block")
-	for _, s := range e.Stmts {
-		fmt.Fprintf(buf, " %s", s.Sexp())
+	for _, s := range s.Stmts {
+		buf.WriteRune(' ')
+		buf.WriteString(stmtSexp(s))
 	}
 	fmt.Fprintf(buf, ")")
 	return buf.String()
@@ -65,9 +66,23 @@ func (e *Assign) Sexp() string {
 	return fmt.Sprintf("(assign%s (%s) (%s))", decl, exprsStr(e.Left), exprsStr(e.Right))
 }
 func (e *If) Sexp() string {
-	return fmt.Sprintf("(if %s %s %s %s)", e.Init.Sexp(), e.Cond.Sexp(), e.Body.Sexp(), e.Else.Sexp())
+	return fmt.Sprintf("(if %s %s %s %s)", stmtSexp(e.Init), exprSexp(e.Cond), stmtSexp(e.Body), stmtSexp(e.Else))
 }
-func (e *Simple) Sexp() string { return fmt.Sprintf("(simple %s)", e.Expr.Sexp()) }
+func (e *Simple) Sexp() string { return fmt.Sprintf("(simple %s)", exprSexp(e.Expr)) }
+
+func stmtSexp(s Stmt) string {
+	if s == nil {
+		return "nilstmt"
+	}
+	return s.Sexp()
+}
+
+func exprSexp(e expr.Expr) string {
+	if e == nil {
+		return "nilexpr"
+	}
+	return e.Sexp()
+}
 
 func exprsStr(e []expr.Expr) string {
 	buf := new(bytes.Buffer)
@@ -75,7 +90,7 @@ func exprsStr(e []expr.Expr) string {
 		if i > 0 {
 			buf.WriteRune(' ')
 		}
-		buf.WriteString(arg.Sexp())
+		buf.WriteString(exprSexp(arg))
 	}
 	return buf.String()
 }

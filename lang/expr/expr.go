@@ -77,14 +77,42 @@ func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
 
 func (e *Binary) Sexp() string {
-	return fmt.Sprintf("(%s %s %s)", e.Op, e.Left.Sexp(), e.Right.Sexp())
+	if e == nil {
+		return "nilbin"
+	}
+	return fmt.Sprintf("(%s %s %s)", e.Op, exprSexp(e.Left), exprSexp(e.Right))
 }
-func (e *Unary) Sexp() string        { return fmt.Sprintf("(%s %s)", e.Op, e.Expr.Sexp()) }
-func (e *Bad) Sexp() string          { return fmt.Sprintf("(bad %v)", e.Error) }
-func (e *Selector) Sexp() string     { return fmt.Sprintf("(sel %s %s)", e.Left.Sexp(), e.Right.Sexp()) }
-func (e *BasicLiteral) Sexp() string { return fmt.Sprintf("(lit %T %s)", e.Value, e.Value) }
-func (e *Ident) Sexp() string        { return fmt.Sprintf("%s", e.Name) }
-func (e *Call) Sexp() string         { return fmt.Sprintf("(call %s %s)", e.Func.Sexp(), exprsStr(e.Args)) }
+func (e *Unary) Sexp() string {
+	if e == nil {
+		return "nilunary"
+	}
+	return fmt.Sprintf("(%s %s)", e.Op, exprSexp(e.Expr))
+}
+func (e *Bad) Sexp() string { return fmt.Sprintf("(bad %v)", e.Error) }
+func (e *Selector) Sexp() string {
+	if e == nil {
+		return "nilsel"
+	}
+	return fmt.Sprintf("(sel %s %s)", exprSexp(e.Left), exprSexp(e.Right))
+}
+func (e *BasicLiteral) Sexp() string {
+	if e == nil {
+		return "nillit"
+	}
+	return fmt.Sprintf("(lit %T %s)", e.Value, e.Value)
+}
+func (e *Ident) Sexp() string {
+	if e == nil {
+		return "nilident"
+	}
+	return fmt.Sprintf("%s", e.Name)
+}
+func (e *Call) Sexp() string {
+	if e == nil {
+		return "nilcall"
+	}
+	return fmt.Sprintf("(call %s %s)", exprSexp(e.Func), exprsStr(e.Args))
+}
 func (e *FuncLiteral) Sexp() string {
 	body := "nilbody"
 	if e.Body != nil {
@@ -97,7 +125,21 @@ func (e *FuncLiteral) Sexp() string {
 			body = fmt.Sprintf("badbody:%T", e.Body)
 		}
 	}
-	return fmt.Sprintf("(func %s %s)", e.Type.Sexp(), body)
+	return fmt.Sprintf("(func %s %s)", tipeSexp(e.Type), body)
+}
+
+func tipeSexp(t tipe.Type) string {
+	if t == nil {
+		return "niltype"
+	}
+	return t.Sexp()
+}
+
+func exprSexp(e Expr) string {
+	if e == nil {
+		return "nilexpr"
+	}
+	return e.Sexp()
 }
 
 func exprsStr(e []Expr) string {
@@ -106,7 +148,7 @@ func exprsStr(e []Expr) string {
 		if i > 0 {
 			buf.WriteRune(' ')
 		}
-		buf.WriteString(arg.Sexp())
+		buf.WriteString(exprSexp(arg))
 	}
 	return buf.String()
 }
