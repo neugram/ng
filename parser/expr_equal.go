@@ -3,42 +3,46 @@ package parser
 import (
 	"fmt"
 	"math/big"
+
+	"numgrad.io/lang/expr"
+	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/tipe"
 )
 
-func EqualExpr(x, y Expr) bool {
+func EqualExpr(x, y expr.Expr) bool {
 	switch x := x.(type) {
-	case *BinaryExpr:
-		y, ok := y.(*BinaryExpr)
+	case *expr.Binary:
+		y, ok := y.(*expr.Binary)
 		if !ok {
 			return false
 		}
 		return x.Op == y.Op && EqualExpr(x.Left, y.Left) && EqualExpr(x.Right, y.Right)
-	case *UnaryExpr:
-		y, ok := y.(*UnaryExpr)
+	case *expr.Unary:
+		y, ok := y.(*expr.Unary)
 		if !ok {
 			return false
 		}
 		return x.Op == y.Op && EqualExpr(x.Expr, y.Expr)
-	case *BadExpr:
-		y, ok := y.(*BadExpr)
+	case *expr.Bad:
+		y, ok := y.(*expr.Bad)
 		if !ok {
 			return false
 		}
 		return x.Error == y.Error
-	case *BasicLiteral:
-		y, ok := y.(*BasicLiteral)
+	case *expr.BasicLiteral:
+		y, ok := y.(*expr.BasicLiteral)
 		if !ok {
 			return false
 		}
 		return equalLiteral(x.Value, y.Value)
-	case *FuncLiteral:
-		y, ok := y.(*FuncLiteral)
+	case *expr.FuncLiteral:
+		y, ok := y.(*expr.FuncLiteral)
 		if !ok {
 			return false
 		}
 		return equalFuncLiteral(x, y)
-	case *Ident:
-		y, ok := y.(*Ident)
+	case *expr.Ident:
+		y, ok := y.(*expr.Ident)
 		if !ok {
 			return false
 		}
@@ -55,8 +59,8 @@ func EqualExpr(x, y Expr) bool {
 				return x.Name == y.Name
 			}
 		}
-	case *CallExpr:
-		y, ok := y.(*CallExpr)
+	case *expr.Call:
+		y, ok := y.(*expr.Call)
 		if !ok {
 			return false
 		}
@@ -72,7 +76,7 @@ func EqualExpr(x, y Expr) bool {
 	}
 }
 
-func equalExprs(x, y []Expr) bool {
+func equalExprs(x, y []expr.Expr) bool {
 	if len(x) != len(y) {
 		return false
 	}
@@ -84,7 +88,7 @@ func equalExprs(x, y []Expr) bool {
 	return true
 }
 
-func equalFields(f0, f1 []*Field) bool {
+func equalFields(f0, f1 []*tipe.Field) bool {
 	if len(f0) != len(f1) {
 		return false
 	}
@@ -96,48 +100,74 @@ func equalFields(f0, f1 []*Field) bool {
 	return true
 }
 
-func equalField(f0, f1 *Field) bool {
-	if !EqualExpr(f0.Name, f1.Name) {
+func equalField(f0, f1 *tipe.Field) bool {
+	if f0.Name != f1.Name {
 		return false
 	}
-	return EqualExpr(f0.Type, f1.Type)
+	return equalType(f0.Type, f1.Type)
 }
 
-func equalFuncLiteral(f0, f1 *FuncLiteral) bool {
-	if f0.Type != nil || f1.Type != nil {
-		if f0.Type == nil || f1.Type == nil {
-			return false
-		}
-		if !equalFields(f0.Type.In, f1.Type.In) {
-			return false
-		}
-		if !equalFields(f0.Type.Out, f1.Type.Out) {
-			return false
-		}
+func equalType(t0, t1 tipe.Type) bool {
+	if t0 == nil && t1 == nil {
+		return true
 	}
-	if len(f0.Body) != len(f1.Body) {
+	if t0 == nil || t1 == nil {
 		return false
 	}
-	for i := range f0.Body {
-		if !equalStmt(f0.Body[i], f1.Body[i]) {
+	switch t0 := t0.(type) {
+	case *tipe.Func:
+		t1, ok := t1.(*tipe.Func)
+		if !ok {
+			panic("not both tipe.Func")
 			return false
 		}
+		if !equalFields(t0.In, t1.In) {
+			panic("!equalFields(t0.In, t1.In)")
+			return false
+		}
+		if !equalFields(t0.Out, t1.Out) {
+			panic("!equalFields(t0.Out, t1.Out)")
+			return false
+		}
+	case *tipe.Struct:
+		panic("TODO")
 	}
 	return true
 }
 
-func equalStmt(x, y Stmt) bool {
+func equalFuncLiteral(f0, f1 *expr.FuncLiteral) bool {
+	if !equalType(f0.Type, f1.Type) {
+		return false
+	}
+	if f0.Body != nil || f1.Body != nil {
+		if f0.Body == nil || f1.Body == nil {
+			return false
+		}
+		b0, ok := f0.Body.(*stmt.Block)
+		if !ok {
+			return false
+		}
+		b1, ok := f1.Body.(*stmt.Block)
+		if !ok {
+			return false
+		}
+		return equalStmt(b0, b1)
+	}
+	return true
+}
+
+func equalStmt(x, y stmt.Stmt) bool {
 	switch x := x.(type) {
-	case *ReturnStmt:
-		y, ok := y.(*ReturnStmt)
+	case *stmt.Return:
+		y, ok := y.(*stmt.Return)
 		if !ok {
 			return false
 		}
 		if !equalExprs(x.Exprs, y.Exprs) {
 			return false
 		}
-	case *AssignStmt:
-		y, ok := y.(*AssignStmt)
+	case *stmt.Assign:
+		y, ok := y.(*stmt.Assign)
 		if !ok {
 			return false
 		}
@@ -147,8 +177,8 @@ func equalStmt(x, y Stmt) bool {
 		if !equalExprs(x.Right, y.Right) {
 			return false
 		}
-	case *BlockStmt:
-		y, ok := y.(*BlockStmt)
+	case *stmt.Block:
+		y, ok := y.(*stmt.Block)
 		if !ok {
 			return false
 		}
@@ -160,8 +190,8 @@ func equalStmt(x, y Stmt) bool {
 				return false
 			}
 		}
-	case *IfStmt:
-		y, ok := y.(*IfStmt)
+	case *stmt.If:
+		y, ok := y.(*stmt.If)
 		if !ok {
 			return false
 		}

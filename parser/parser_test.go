@@ -6,98 +6,103 @@ package parser
 import (
 	"math/big"
 	"testing"
+
+	"numgrad.io/lang/expr"
+	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/tipe"
+	"numgrad.io/lang/token"
 )
 
 type parserTest struct {
 	input string
-	want  Expr
+	want  expr.Expr
 }
 
 var parserTests = []parserTest{
-	{"foo", &Ident{"foo"}},
-	{"x + y", &BinaryExpr{Add, &Ident{"x"}, &Ident{"y"}}},
+	{"foo", &expr.Ident{"foo"}},
+	{"x + y", &expr.Binary{token.Add, &expr.Ident{"x"}, &expr.Ident{"y"}}},
 	{
 		"x + y + 9",
-		&BinaryExpr{
-			Add,
-			&BinaryExpr{Add, &Ident{"x"}, &Ident{"y"}},
-			&BasicLiteral{big.NewInt(9)},
+		&expr.Binary{
+			token.Add,
+			&expr.Binary{token.Add, &expr.Ident{"x"}, &expr.Ident{"y"}},
+			&expr.BasicLiteral{big.NewInt(9)},
 		},
 	},
 	{
 		"x + (y + 7)",
-		&BinaryExpr{
-			Add,
-			&Ident{"x"},
-			&UnaryExpr{
-				Op: LeftParen,
-				Expr: &BinaryExpr{
-					Add,
-					&Ident{"y"},
-					&BasicLiteral{big.NewInt(7)},
+		&expr.Binary{
+			token.Add,
+			&expr.Ident{"x"},
+			&expr.Unary{
+				Op: token.LeftParen,
+				Expr: &expr.Binary{
+					token.Add,
+					&expr.Ident{"y"},
+					&expr.BasicLiteral{big.NewInt(7)},
 				},
 			},
 		},
 	},
 	{
 		"x + y * z",
-		&BinaryExpr{
-			Add,
-			&Ident{"x"},
-			&BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}},
+		&expr.Binary{
+			token.Add,
+			&expr.Ident{"x"},
+			&expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}},
 		},
 	},
-	{"y * /* comment */ z", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
-	{"y * z//comment", &BinaryExpr{Mul, &Ident{"y"}, &Ident{"z"}}},
+	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
+	{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	{
 		"quit()",
-		&CallExpr{Func: &Ident{Name: "quit"}},
+		&expr.Call{Func: &expr.Ident{Name: "quit"}},
 	},
 	{
 		"foo(4)",
-		&CallExpr{
-			Func: &Ident{Name: "foo"},
-			Args: []Expr{&BasicLiteral{Value: big.NewInt(4)}},
+		&expr.Call{
+			Func: &expr.Ident{Name: "foo"},
+			Args: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(4)}},
 		},
 	},
 	{
 		"min(1, 2)",
-		&CallExpr{
-			Func: &Ident{Name: "min"},
-			Args: []Expr{
-				&BasicLiteral{Value: big.NewInt(1)},
-				&BasicLiteral{Value: big.NewInt(2)},
+		&expr.Call{
+			Func: &expr.Ident{Name: "min"},
+			Args: []expr.Expr{
+				&expr.BasicLiteral{Value: big.NewInt(1)},
+				&expr.BasicLiteral{Value: big.NewInt(2)},
 			},
 		},
 	},
 	{
 		"func() int { return 7 }",
-		&FuncLiteral{
-			Type: &FuncType{Out: []*Field{{Type: &Ident{"int"}}}},
-			Body: []Stmt{
-				&ReturnStmt{Exprs: []Expr{&BasicLiteral{big.NewInt(7)}}},
-			},
+		&expr.FuncLiteral{
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int"}}}},
+			Body: &stmt.Block{[]stmt.Stmt{
+				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
+			}},
 		},
 	},
 	{
 		"func(x, y val) (r0 val, r1 val) { return x, y }",
-		&FuncLiteral{
-			Type: &FuncType{
-				In: []*Field{
-					&Field{Name: &Ident{"x"}, Type: &Ident{"val"}},
-					&Field{Name: &Ident{"y"}, Type: &Ident{"val"}},
+		&expr.FuncLiteral{
+			Type: &tipe.Func{
+				In: []*tipe.Field{
+					&tipe.Field{Name: "x", Type: &tipe.Unresolved{"val"}},
+					&tipe.Field{Name: "y", Type: &tipe.Unresolved{"val"}},
 				},
-				Out: []*Field{
-					&Field{Name: &Ident{"r0"}, Type: &Ident{"val"}},
-					&Field{Name: &Ident{"r1"}, Type: &Ident{"val"}},
+				Out: []*tipe.Field{
+					&tipe.Field{Name: "r0", Type: &tipe.Unresolved{"val"}},
+					&tipe.Field{Name: "r1", Type: &tipe.Unresolved{"val"}},
 				},
 			},
-			Body: []Stmt{
-				&ReturnStmt{Exprs: []Expr{
-					&Ident{Name: "x"},
-					&Ident{Name: "y"},
+			Body: &stmt.Block{[]stmt.Stmt{
+				&stmt.Return{Exprs: []expr.Expr{
+					&expr.Ident{Name: "x"},
+					&expr.Ident{Name: "y"},
 				}},
-			},
+			}},
 		},
 	},
 	{
@@ -105,15 +110,15 @@ var parserTests = []parserTest{
 			x := 7
 			return x
 		}`,
-		&FuncLiteral{
-			Type: &FuncType{Out: []*Field{{Type: &Ident{"int64"}}}},
-			Body: []Stmt{
-				&AssignStmt{
-					Left:  []Expr{&Ident{"x"}},
-					Right: []Expr{&BasicLiteral{big.NewInt(7)}},
+		&expr.FuncLiteral{
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int64"}}}},
+			Body: &stmt.Block{[]stmt.Stmt{
+				&stmt.Assign{
+					Left:  []expr.Expr{&expr.Ident{"x"}},
+					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
 				},
-				&ReturnStmt{Exprs: []Expr{&Ident{"x"}}},
-			},
+				&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"x"}}},
+			}},
 		},
 	},
 	{
@@ -124,62 +129,62 @@ var parserTests = []parserTest{
 				return 1-x
 			}
 		}`,
-		&FuncLiteral{
-			Type: &FuncType{Out: []*Field{{Type: &Ident{"int64"}}}},
-			Body: []Stmt{&IfStmt{
-				Init: &AssignStmt{
-					Left:  []Expr{&Ident{"x"}},
-					Right: []Expr{&BasicLiteral{big.NewInt(9)}},
+		&expr.FuncLiteral{
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int64"}}}},
+			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
+				Init: &stmt.Assign{
+					Left:  []expr.Expr{&expr.Ident{"x"}},
+					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(9)}},
 				},
-				Cond: &BinaryExpr{
-					Op:    Greater,
-					Left:  &Ident{"x"},
-					Right: &BasicLiteral{big.NewInt(3)},
+				Cond: &expr.Binary{
+					Op:    token.Greater,
+					Left:  &expr.Ident{"x"},
+					Right: &expr.BasicLiteral{big.NewInt(3)},
 				},
-				Body: &BlockStmt{Stmts: []Stmt{
-					&ReturnStmt{Exprs: []Expr{&Ident{"x"}}},
+				Body: &stmt.Block{Stmts: []stmt.Stmt{
+					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"x"}}},
 				}},
-				Else: &BlockStmt{Stmts: []Stmt{
-					&ReturnStmt{Exprs: []Expr{
-						&BinaryExpr{
-							Op:    Sub,
-							Left:  &BasicLiteral{big.NewInt(1)},
-							Right: &Ident{"x"},
+				Else: &stmt.Block{Stmts: []stmt.Stmt{
+					&stmt.Return{Exprs: []expr.Expr{
+						&expr.Binary{
+							Op:    token.Sub,
+							Left:  &expr.BasicLiteral{big.NewInt(1)},
+							Right: &expr.Ident{"x"},
 						},
 					}},
 				}},
-			}},
+			}}},
 		},
 	},
 	{
 		"func(x val) val { return 3+x }(1)",
-		&CallExpr{
-			Func: &FuncLiteral{
-				Type: &FuncType{
-					In:  []*Field{{Name: &Ident{"x"}, Type: &Ident{"val"}}},
-					Out: []*Field{{Type: &Ident{"val"}}},
+		&expr.Call{
+			Func: &expr.FuncLiteral{
+				Type: &tipe.Func{
+					In:  []*tipe.Field{{Name: "x", Type: &tipe.Unresolved{"val"}}},
+					Out: []*tipe.Field{{Type: &tipe.Unresolved{"val"}}},
 				},
-				Body: []Stmt{
-					&ReturnStmt{Exprs: []Expr{
-						&BinaryExpr{
-							Op:    Add,
-							Left:  &BasicLiteral{big.NewInt(3)},
-							Right: &Ident{"x"},
+				Body: &stmt.Block{[]stmt.Stmt{
+					&stmt.Return{Exprs: []expr.Expr{
+						&expr.Binary{
+							Op:    token.Add,
+							Left:  &expr.BasicLiteral{big.NewInt(3)},
+							Right: &expr.Ident{"x"},
 						},
 					}},
-				},
+				}},
 			},
-			Args: []Expr{&BasicLiteral{big.NewInt(1)}},
+			Args: []expr.Expr{&expr.BasicLiteral{big.NewInt(1)}},
 		},
 	},
 	{
 		"func() { x = -x }",
-		&FuncLiteral{
-			Type: &FuncType{},
-			Body: []Stmt{&AssignStmt{
-				Left:  []Expr{&Ident{"x"}},
-				Right: []Expr{&UnaryExpr{Op: Sub, Expr: &Ident{"x"}}},
-			}},
+		&expr.FuncLiteral{
+			Type: &tipe.Func{},
+			Body: &stmt.Block{[]stmt.Stmt{&stmt.Assign{
+				Left:  []expr.Expr{&expr.Ident{"x"}},
+				Right: []expr.Expr{&expr.Unary{Op: token.Sub, Expr: &expr.Ident{"x"}}},
+			}}},
 		},
 	},
 }

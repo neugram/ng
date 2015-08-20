@@ -9,6 +9,8 @@ import (
 	"math/big"
 	"unicode"
 	"unicode/utf8"
+
+	"numgrad.io/lang/token"
 )
 
 const bom = 0xFEFF // byte order marker
@@ -23,7 +25,7 @@ type Scanner struct {
 	// Current Token
 	Line    int
 	Offset  int
-	Token   Token
+	Token   token.Token
 	Literal interface{} // string, *big.Int, *big.Float
 
 	// Scanner state
@@ -41,7 +43,7 @@ func (s *Scanner) errorf(format string, a ...interface{}) {
 func (s *Scanner) next() {
 	if s.off >= len(s.src) {
 		s.Offset = len(s.src)
-		s.Token = Unknown
+		s.Token = token.Unknown
 		s.Literal = nil
 		s.r = -1
 		return
@@ -88,13 +90,13 @@ func (s *Scanner) scanMantissa() {
 	}
 }
 
-func (s *Scanner) scanNumber(seenDot bool) (Token, interface{}) {
+func (s *Scanner) scanNumber(seenDot bool) (token.Token, interface{}) {
 	off := s.Offset
-	tok := Int
+	tok := token.Int
 
 	if seenDot {
 		off--
-		tok = Float
+		tok = token.Float
 		s.scanMantissa()
 		goto exponent
 	}
@@ -103,14 +105,14 @@ func (s *Scanner) scanNumber(seenDot bool) (Token, interface{}) {
 
 	// fraction
 	if s.r == '.' {
-		tok = Float
+		tok = token.Float
 		s.next()
 		s.scanMantissa()
 	}
 
 exponent:
 	if s.r == 'e' || s.r == 'E' {
-		tok = Float
+		tok = token.Float
 		s.next()
 		if s.r == '-' || s.r == '+' {
 			s.next()
@@ -119,30 +121,30 @@ exponent:
 	}
 
 	if s.r == 'i' {
-		tok = Imaginary
+		tok = token.Imaginary
 		s.next()
 	}
 
 	str := string(s.src[off:s.Offset])
 	var value interface{}
 	switch tok {
-	case Int:
+	case token.Int:
 		i, ok := big.NewInt(0).SetString(str, 10)
 		if ok {
 			value = i
 		} else {
 			s.errorf("bad int literal: %q", str)
-			tok = Unknown
+			tok = token.Unknown
 		}
-	case Float:
+	case token.Float:
 		f, ok := big.NewFloat(0).SetString(str)
 		if ok {
 			value = f
 		} else {
 			s.errorf("bad float literal: %q", str)
-			tok = Unknown
+			tok = token.Unknown
 		}
-	case Imaginary:
+	case token.Imaginary:
 		panic("TODO token.Imaginary")
 	}
 
@@ -192,20 +194,20 @@ func (s *Scanner) Next() error {
 	s.skipWhitespace()
 	//fmt.Printf("Next: s.r=%v (%s)\n", s.r, string(s.r))
 
+	wasSemi := s.semi
 	s.semi = false
 	s.Literal = nil
 	r := s.r
 	switch {
 	case unicode.IsLetter(r):
-		var ok bool
 		lit := s.scanIdentifier()
-		s.Token, ok = tokens[lit]
-		if !ok {
-			s.Token = Identifier
+		s.Token = token.Keyword(lit)
+		if s.Token == token.Unknown {
+			s.Token = token.Ident
 			s.Literal = lit
 		}
 		switch s.Token {
-		case Identifier, Break, Continue, Fallthrough, Return:
+		case token.Ident, token.Break, token.Continue, token.Fallthrough, token.Return:
 			s.semi = true
 		}
 		return s.err
@@ -218,125 +220,128 @@ func (s *Scanner) Next() error {
 	s.next()
 	switch r {
 	case -1:
-		// TODO semicolon insertion could be done here
-		s.Token = Unknown
+		if wasSemi {
+			s.Token = token.Semicolon
+			return nil
+		}
+		s.Token = token.Unknown
 		return io.EOF
 	case '\n':
 		s.semi = false
-		s.Token = Semicolon
+		s.Token = token.Semicolon
 	case '(':
-		s.Token = LeftParen
+		s.Token = token.LeftParen
 	case ')':
 		s.semi = true
-		s.Token = RightParen
+		s.Token = token.RightParen
 	case '[':
-		s.Token = LeftBracket
+		s.Token = token.LeftBracket
 	case ']':
 		s.semi = true
-		s.Token = RightBracket
+		s.Token = token.RightBracket
 	case '{':
-		s.Token = LeftBrace
+		s.Token = token.LeftBrace
 	case '}':
 		s.semi = true
-		s.Token = RightBrace
+		s.Token = token.RightBrace
 	case ',':
-		s.Token = Comma
+		s.Token = token.Comma
 	case ';':
-		s.Token = Semicolon
+		s.Token = token.Semicolon
 	case ':':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = Define
+			s.Token = token.Define
 		default:
-			s.Token = Colon
+			s.Token = token.Colon
 		}
 	case '+':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = AddAssign
+			s.Token = token.AddAssign
 		case '+':
 			s.next()
-			s.Token = Inc
+			s.Token = token.Inc
 			s.semi = true
 		default:
-			s.Token = Add
+			s.Token = token.Add
 		}
 	case '-':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = SubAssign
+			s.Token = token.SubAssign
 		case '-':
 			s.next()
-			s.Token = Dec
+			s.Token = token.Dec
 			s.semi = true
 		default:
-			s.Token = Sub
+			s.Token = token.Sub
 		}
 	case '=':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = Equal
+			s.Token = token.Equal
 		default:
-			s.Token = Assign
+			s.Token = token.Assign
 		}
 	case '*':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = MulAssign
+			s.Token = token.MulAssign
 		default:
-			s.Token = Mul
+			s.Token = token.Mul
 		}
 	case '/':
 		switch s.r {
 		case '/', '*': // comment
 			// TODO if s.semi and no more tokens on this line, insert newline
 			s.Literal = s.scanComment()
-			s.Token = Comment
+			s.Token = token.Comment
 		case '=':
 			s.next()
-			s.Token = DivAssign
+			s.Token = token.DivAssign
 		default:
-			s.Token = Div
+			s.Token = token.Div
 		}
 	case '%':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = RemAssign
+			s.Token = token.RemAssign
 		default:
-			s.Token = Rem
+			s.Token = token.Rem
 		}
 	case '^':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = PowAssign
+			s.Token = token.PowAssign
 		default:
-			s.Token = Pow
+			s.Token = token.Pow
 		}
 	case '>':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = GreaterEqual
+			s.Token = token.GreaterEqual
 		default:
-			s.Token = Greater
+			s.Token = token.Greater
 		}
 	case '<':
 		switch s.r {
 		case '=':
 			s.next()
-			s.Token = LessEqual
+			s.Token = token.LessEqual
 		default:
-			s.Token = Less
+			s.Token = token.Less
 		}
 	default:
-		s.Token = Unknown
+		s.Token = token.Unknown
 		s.err = fmt.Errorf("parser: unknown r=%v", r)
 	}
 

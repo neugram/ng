@@ -8,33 +8,35 @@ import (
 	"math/big"
 	"strings"
 	"testing"
+
+	"numgrad.io/lang/token"
 )
 
 type scannerTest struct {
 	input   string
-	token   Token
+	token   token.Token
 	literal interface{}
 }
 
 var scannerBothTests = []scannerTest{
-	{"foo", Identifier, "foo"},
-	{"+", Add, nil},
-	{"*", Mul, nil},
-	{"bar", Identifier, "bar"},
-	{"9", Int, big.NewInt(9)},
-	{"+=", AddAssign, nil},
-	{"++", Inc, nil},
-	{"break", Break, nil},
-	{"/* a block comment */", Comment, "/* a block comment */"},
-	{"(", LeftParen, nil},
-	{"4.62e12", Float, big.NewFloat(4.62e12)},
-	{")", RightParen, nil},
-	{"//final", Comment, "//final"},
+	{"foo", token.Ident, "foo"},
+	{"+", token.Add, nil},
+	{"*", token.Mul, nil},
+	{"bar", token.Ident, "bar"},
+	{"9", token.Int, big.NewInt(9)},
+	{"+=", token.AddAssign, nil},
+	{"++", token.Inc, nil},
+	{"break", token.Break, nil},
+	{"/* a block comment */", token.Comment, "/* a block comment */"},
+	{"(", token.LeftParen, nil},
+	{"4.62e12", token.Float, big.NewFloat(4.62e12)},
+	{")", token.RightParen, nil},
+	{"//final", token.Comment, "//final"},
 }
 
 var scannerSepTests = append([]scannerTest{
-	{"// a line comment", Comment, "// a line comment"},
-	{"      // spaced ", Comment, "// spaced "},
+	{"// a line comment", token.Comment, "// a line comment"},
+	{"      // spaced ", token.Comment, "// spaced "},
 }, scannerBothTests...)
 
 var scannerJoinTests = append([]scannerTest{}, scannerBothTests...)

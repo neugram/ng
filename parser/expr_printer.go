@@ -4,260 +4,22 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"os/exec"
 	"strings"
+
+	"numgrad.io/lang/expr"
 )
 
-func Print(w io.Writer, expr Expr) error {
-	p := printer{w: w}
-	p.printExpr(expr)
-	return p.err
+func Print(w io.Writer, expr expr.Expr) error { // TODO remove
+	_, err := io.WriteString(w, expr.Sexp())
+	return err
 }
 
-var indentText = []byte("|\t")
-
-type printer struct {
-	w          io.Writer
-	numIndent  int
-	needIndent bool
-	err        error
-}
-
-func (p *printer) writeIndent() error {
-	if !p.needIndent {
-		return nil
-	}
-	p.needIndent = false
-	for i := 0; i < p.numIndent; i++ {
-		if _, err := p.w.Write(indentText); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *printer) Write(b []byte) (n int, err error) {
-	wrote := 0
-	for len(b) > 0 {
-		if err := p.writeIndent(); err != nil {
-			return wrote, err
-		}
-		i := bytes.IndexByte(b, '\n')
-		if i < 0 {
-			break
-		}
-		n, err = p.w.Write(b[0 : i+1])
-		wrote += n
-		b = b[i+1:]
-		p.needIndent = true
-		if err != nil {
-			return wrote, err
-		}
-	}
-	if len(b) > 0 {
-		n, err = p.w.Write(b)
-		wrote += n
-	}
-	return wrote, err
-}
-
-func (p *printer) printf(format string, a ...interface{}) {
-	if p.err != nil {
-		return
-	}
-	if _, err := fmt.Fprintf(p, format, a...); err != nil {
-		p.err = err
-	}
-}
-
-func (p *printer) printFields(fields []*Field) {
-	for _, f := range fields {
-		p.printf("Field{Name: %q, Type: ", f.Name)
-		p.printExpr(f.Type)
-		p.printf("}\n")
-	}
-}
-
-func (p *printer) printStmt(s Stmt) {
-	if p.err != nil {
-		return
-	}
-	if s == nil {
-		p.printf("<nilstmt>")
-		return
-	}
-	switch s := s.(type) {
-	case *AssignStmt:
-		p.printf("AssignStmt{")
-		p.numIndent++
-		p.printf("\nLeft: [")
-		p.numIndent++
-		for _, expr := range s.Left {
-			p.printf("\n")
-			p.printExpr(expr)
-		}
-		p.numIndent--
-		p.printf("\n]")
-		p.printf("\nRight: [")
-		p.numIndent++
-		for _, expr := range s.Right {
-			p.printf("\n")
-			p.printExpr(expr)
-		}
-		p.numIndent--
-		p.printf("\n]")
-		p.numIndent--
-		p.printf("\n}")
-	case *BlockStmt:
-		p.printf("BlockStmt{\n")
-		p.numIndent++
-		for _, stmt := range s.Stmts {
-			p.printf("\n")
-			p.printStmt(stmt)
-		}
-		p.numIndent--
-		p.printf("\n}")
-	case *IfStmt:
-		p.printf("AssignStmt{\n")
-		p.numIndent++
-		p.printf("\nInit: ")
-		p.printStmt(s.Init)
-		p.printf("\nCond: ")
-		p.printExpr(s.Cond)
-		p.printf("\nBody: ")
-		p.printStmt(s.Body)
-		p.printf("\nElse: ")
-		p.printStmt(s.Else)
-		p.numIndent--
-		p.printf("\n}")
-	case *ReturnStmt:
-		p.printf("ReturnStmt{")
-		switch len(s.Exprs) {
-		case 0:
-		case 1:
-			p.printf("Exprs: [")
-			p.printExpr(s.Exprs[0])
-			p.printf("]")
-		default:
-			p.printf("\n")
-			p.numIndent++
-			p.printf("\nExprs: [")
-			p.numIndent++
-			for _, expr := range s.Exprs {
-				p.printf("\n")
-				p.printExpr(expr)
-			}
-			p.numIndent--
-			p.printf("\n]")
-			p.numIndent--
-			p.printf("\n")
-		}
-		p.printf("}")
-	default:
-		p.err = fmt.Errorf("Unknown Stmt (%T)", s)
-	}
-}
-
-func (p *printer) printExpr(expr Expr) {
-	if p.err != nil {
-		return
-	}
-	if expr == nil {
-		p.printf("<nilexpr>")
-		return
-	}
-	switch expr := expr.(type) {
-	case *BinaryExpr:
-		p.printf("BinaryExpr{\n")
-		p.numIndent++
-		p.printf("Op:    %s", expr.Op)
-		p.printf("\nLeft:  ")
-		p.printExpr(expr.Left)
-		p.printf("\nRight: ")
-		p.printExpr(expr.Right)
-		p.numIndent--
-		p.printf("\n}")
-	case *UnaryExpr:
-		p.printf("UnaryExpr{\n")
-		p.numIndent++
-		p.printf("Op:    %s\n", expr.Op)
-		p.printf("Expr:  ")
-		p.printExpr(expr.Expr)
-		p.numIndent--
-		p.printf("\n}")
-	case *BadExpr:
-		p.printf("BadExpr{Error: %v}", expr.Error)
-	case *BasicLiteral:
-		// TODO check types string, *big.Int, *big.Float
-		switch expr.Value.(type) {
-		case string, *big.Int, *big.Float:
-			p.printf("BasicLiteral{Value: %#v}", expr.Value)
-		default:
-			p.printf("BasicLiteral{Value: Unknown Type=%T: %#v}", expr.Value, expr.Value)
-		}
-	case *FuncLiteral:
-		p.printf("FuncLiteral{")
-		p.numIndent++
-		if expr.Type != nil {
-			p.printf("\nType: FuncType{")
-			p.numIndent++
-			if len(expr.Type.In) > 0 {
-				p.printf("\nIn:  ")
-				p.numIndent++
-				p.printFields(expr.Type.In)
-				p.numIndent--
-				p.printf("\n]")
-
-			}
-			if len(expr.Type.Out) > 0 {
-				p.printf("\nOut: [\n")
-				p.numIndent++
-				p.printFields(expr.Type.Out)
-				p.numIndent--
-				p.printf("\n]")
-			}
-			p.numIndent--
-			p.printf("\n}")
-		}
-		p.printf("\nBody: [")
-		p.numIndent++
-		for _, s := range expr.Body {
-			p.printf("\n")
-			p.printStmt(s)
-		}
-		p.numIndent--
-		p.printf("\n]")
-		p.numIndent--
-		p.printf("\n}")
-	case *Ident:
-		p.printf("Ident{Name: %q}", expr.Name)
-	case *CallExpr:
-		p.printf("CallExpr{\n")
-		p.numIndent++
-		p.printf("Func: ")
-		p.printExpr(expr.Func)
-		p.printf("\nArgs: [")
-		p.numIndent++
-		for _, expr := range expr.Args {
-			p.printf("\n")
-			p.printExpr(expr)
-		}
-		p.numIndent--
-		p.printf("\n]")
-		p.numIndent--
-		p.printf("\n}")
-	default:
-		p.err = fmt.Errorf("Unknown Expr (%T)", expr)
-	}
-}
-
-func printToFile(x Expr) (path string, err error) {
+func printToFile(x expr.Expr) (path string, err error) {
 	f, err := ioutil.TempFile("", "numgrad-diff-")
 	if err != nil {
 		return "", err
@@ -278,7 +40,7 @@ func printToFile(x Expr) (path string, err error) {
 	return f.Name(), nil
 }
 
-func Diff(x, y Expr) string {
+func Diff(x, y expr.Expr) string {
 	if EqualExpr(x, y) {
 		return ""
 	}
@@ -306,7 +68,7 @@ func Diff(x, y Expr) string {
 	res = strings.Replace(res, fy, "/y", 1)
 
 	if res == "" {
-		return fmt.Sprintf("expressions not equal but empty diff: %s and %s", x, y)
+		return fmt.Sprintf("expressions not equal but empty diff. LHS: %s: %#+v", x.Sexp(), x)
 	}
 	return res
 }

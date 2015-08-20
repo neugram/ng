@@ -8,9 +8,14 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+
+	"numgrad.io/lang/expr"
+	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/tipe"
+	"numgrad.io/lang/token"
 )
 
-func ParseExpr(src []byte) (expr Expr, err error) {
+func ParseExpr(src []byte) (expr expr.Expr, err error) {
 	p := newParser(src)
 	if err := p.s.Next(); err != nil {
 		if err == io.EOF {
@@ -28,6 +33,24 @@ func ParseExpr(src []byte) (expr Expr, err error) {
 	return expr, err
 }
 
+func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
+	p := newParser(src)
+	if err := p.s.Next(); err != nil {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+		return nil, err
+	}
+	s := p.parseStmt()
+	if len(p.err) > 0 {
+		err = Errors(p.err)
+	}
+	if err == nil && p.s.err != io.EOF {
+		err = p.s.err
+	}
+	return s, err
+}
+
 type parser struct {
 	s   *Scanner
 	err []Error
@@ -43,16 +66,16 @@ func newParser(src []byte) *parser {
 
 func (p *parser) next() {
 	p.s.Next()
-	if p.s.Token == Comment {
+	if p.s.Token == token.Comment {
 		p.next()
 	}
 }
 
-func (p *parser) parseExpr(lhs bool) Expr {
+func (p *parser) parseExpr(lhs bool) expr.Expr {
 	return p.parseBinaryExpr(lhs, 1)
 }
 
-func (p *parser) parseBinaryExpr(lhs bool, minPrec int) Expr {
+func (p *parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
 	x := p.parseUnaryExpr(lhs)
 	for prec := p.s.Token.Precedence(); prec >= minPrec; prec-- {
 		for {
@@ -64,7 +87,7 @@ func (p *parser) parseBinaryExpr(lhs bool, minPrec int) Expr {
 			y := p.parseBinaryExpr(false, prec+1)
 			// TODO: distinguish expr from types, when we have types
 			// TODO record position
-			x = &BinaryExpr{
+			x = &expr.Binary{
 				Op:    op,
 				Left:  x,
 				Right: y,
@@ -74,29 +97,29 @@ func (p *parser) parseBinaryExpr(lhs bool, minPrec int) Expr {
 	return x
 }
 
-func (p *parser) parseUnaryExpr(lhs bool) Expr {
+func (p *parser) parseUnaryExpr(lhs bool) expr.Expr {
 	switch p.s.Token {
-	case Add, Sub, Not:
+	case token.Add, token.Sub, token.Not:
 		op := p.s.Token
 		p.next()
 		if p.s.err != nil {
-			return &BadExpr{Error: p.s.err}
+			return &expr.Bad{Error: p.s.err}
 		}
 		x := p.parseUnaryExpr(false)
 		// TODO: distinguish expr from types, when we have types
-		return &UnaryExpr{Op: op, Expr: x}
-	case Mul:
+		return &expr.Unary{Op: op, Expr: x}
+	case token.Mul:
 		p.next()
 		x := p.parseUnaryExpr(false)
-		return &UnaryExpr{Op: Mul, Expr: x}
+		return &expr.Unary{Op: token.Mul, Expr: x}
 	default:
 		return p.parsePrimaryExpr(lhs)
 	}
 }
 
-func (p *parser) expectCommaOr(otherwise Token, msg string) bool {
+func (p *parser) expectCommaOr(otherwise token.Token, msg string) bool {
 	switch {
-	case p.s.Token == Comma:
+	case p.s.Token == token.Comma:
 		return true
 	case p.s.Token != otherwise:
 		p.error("missing ',' in " + msg + " (got " + p.s.Token.String() + ")")
@@ -106,42 +129,42 @@ func (p *parser) expectCommaOr(otherwise Token, msg string) bool {
 	}
 }
 
-func (p *parser) parseArgs() []Expr {
-	p.expect(LeftParen)
+func (p *parser) parseArgs() []expr.Expr {
+	p.expect(token.LeftParen)
 	p.next()
-	var args []Expr
-	for p.s.Token != RightParen && p.s.r > 0 {
+	var args []expr.Expr
+	for p.s.Token != token.RightParen && p.s.r > 0 {
 		args = append(args, p.parseExpr(false))
-		if !p.expectCommaOr(RightParen, "arguments") {
+		if !p.expectCommaOr(token.RightParen, "arguments") {
 			break
 		}
 		p.next()
 	}
-	p.expect(RightParen)
+	p.expect(token.RightParen)
 	p.next()
 	return args
 }
 
-func (p *parser) parsePrimaryExpr(lhs bool) Expr {
+func (p *parser) parsePrimaryExpr(lhs bool) expr.Expr {
 	x := p.parseOperand(lhs)
 	for {
 		switch p.s.Token {
-		case Period:
+		case token.Period:
 			p.next()
 			switch p.s.Token {
-			case Identifier:
+			case token.Ident:
 				panic("TODO parse selector")
-			case LeftParen:
+			case token.LeftParen:
 				panic("TODO parse type assertion")
 			default:
 				panic("TODO expect selector type assertion")
 			}
-		case LeftBracket:
+		case token.LeftBracket:
 			panic("TODO array index")
-		case LeftParen:
+		case token.LeftParen:
 			args := p.parseArgs()
-			return &CallExpr{Func: x, Args: args}
-		case LeftBrace:
+			return &expr.Call{Func: x, Args: args}
+		case token.LeftBrace:
 			// TODO could be composite literal, check type
 			// If not a composite literal, end of statement.
 			return x
@@ -153,18 +176,18 @@ func (p *parser) parsePrimaryExpr(lhs bool) Expr {
 	return x
 }
 
-func (p *parser) parseIn() (params []*Field) {
-	for p.s.Token > 0 && p.s.Token != RightParen {
-		f := &Field{
-			Name: p.parseIdent(),
-			Type: p.maybeParseIdentOrType(),
+func (p *parser) parseIn() (params []*tipe.Field) {
+	for p.s.Token > 0 && p.s.Token != token.RightParen {
+		f := &tipe.Field{
+			Name: p.parseIdent().Name,
+			Type: p.maybeParseType(),
 		}
 		if f.Type != nil {
 			for i := len(params) - 1; i >= 0 && params[i].Type == nil; i-- {
 				params[i].Type = f.Type
 			}
 		}
-		if p.s.Token == Comma {
+		if p.s.Token == token.Comma {
 			p.next()
 		}
 		params = append(params, f)
@@ -172,8 +195,24 @@ func (p *parser) parseIn() (params []*Field) {
 	return params
 }
 
-func (p *parser) parseOut() (params []*Field) {
-	params = p.parseIn()
+func (p *parser) parseOut() (params []*tipe.Field) {
+	for p.s.Token > 0 && p.s.Token != token.RightParen {
+		f := &tipe.Field{}
+		t := p.maybeParseType()
+		n, ok := t.(*tipe.Unresolved)
+		if ok {
+			f.Name, ok = n.Name.(string)
+		}
+		if ok {
+			f.Type = p.maybeParseType()
+		} else {
+			f.Type = t
+		}
+		if p.s.Token == token.Comma {
+			p.next()
+		}
+		params = append(params, f)
+	}
 	named := false
 	for _, param := range params {
 		if param.Type != nil {
@@ -185,120 +224,130 @@ func (p *parser) parseOut() (params []*Field) {
 		// In an output list, a sequence (a, b, c) is a list
 		// of types, not names.
 		for _, param := range params {
-			if ident, ok := param.Type.(*Ident); ok {
-				param.Name = ident
-				param.Type = nil
-			}
+			param.Type = &tipe.Unresolved{param.Name}
+			param.Name = ""
 		}
 	}
 	return params
 }
 
-func (p *parser) maybeParseIdentOrType() Expr {
+func (p *parser) maybeParseType() tipe.Type {
 	switch p.s.Token {
-	case Identifier:
+	case token.Ident:
 		ident := p.parseIdent()
-		if p.s.Token == Period {
+		if p.s.Token == token.Period {
 			p.next()
 			sel := p.parseIdent()
-			return &SelectorExpr{ident, sel}
+			return &tipe.Unresolved{&expr.Selector{ident, sel}}
 		}
-		return ident
-	case Struct:
-	case Mul: // pointer type
-	case Func:
-	case Map:
-	case LeftParen:
+		return &tipe.Unresolved{ident.Name}
+	case token.Struct:
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+	case token.Mul: // pointer type
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+	case token.Func:
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+	case token.Map:
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+	case token.LeftParen:
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	default:
-		fmt.Printf("maybeParseIdentOrType: token=%s\n", p.s.Token)
+		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	}
-	// TODO many more kinds of types
 	return nil
 }
 
-func (p *parser) parseExprs() []Expr {
-	exprs := []Expr{p.parseExpr(false)}
-	for p.s.Token == Comma {
+func (p *parser) parseExprs() []expr.Expr {
+	exprs := []expr.Expr{p.parseExpr(false)}
+	for p.s.Token == token.Comma {
 		p.next()
 		exprs = append(exprs, p.parseExpr(false))
 	}
 	return exprs
 }
 
-func (p *parser) parseSimpleStmt() Stmt {
+func (p *parser) parseSimpleStmt() stmt.Stmt {
 	exprs := p.parseExprs()
 	switch p.s.Token {
-	case Define, Assign, AddAssign, SubAssign, MulAssign, DivAssign, RemAssign:
+	case token.Define, token.Assign, token.AddAssign, token.SubAssign,
+		token.MulAssign, token.DivAssign, token.RemAssign:
+		decl := p.s.Token == token.Define
 		p.next()
 		// TODO: if p.s.Token == Range
 		right := p.parseExprs()
-		return &AssignStmt{Left: exprs, Right: right}
-	case Inc, Dec:
+		return &stmt.Assign{
+			Decl:  decl,
+			Left:  exprs,
+			Right: right,
+		}
+	case token.Inc, token.Dec:
 		// TODO: do we want to introduce a specialized statement for this?
-		op := Add
-		if p.s.Token == Dec {
-			op = Sub
+		op := token.Add
+		if p.s.Token == token.Dec {
+			op = token.Sub
 		}
 		p.next()
-		return &AssignStmt{
-			Left: []Expr{exprs[0]},
-			Right: []Expr{&BinaryExpr{
+		return &stmt.Assign{
+			Left: []expr.Expr{exprs[0]},
+			Right: []expr.Expr{&expr.Binary{
 				Op:    op,
 				Left:  exprs[0],
-				Right: &BasicLiteral{big.NewInt(1)},
+				Right: &expr.BasicLiteral{big.NewInt(1)},
 			}},
 		}
 	}
 
-	return exprs[0]
+	// TODO len==1
+	return &stmt.Simple{exprs[0]}
 	//panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
 }
 
-func (p *parser) parseStmt() Stmt {
+func (p *parser) parseStmt() stmt.Stmt {
 	switch p.s.Token {
 	// TODO: many many kinds of statements
-	case If:
-		s := &IfStmt{}
+	case token.If:
+		s := &stmt.If{}
 		p.next()
-		if p.s.Token == Semicolon {
+		if p.s.Token == token.Semicolon {
 			// Blank Init statement.
 			p.next()
 			s.Cond = p.parseExpr(true)
 		} else {
 			s.Init = p.parseSimpleStmt()
-			if p.s.Token == Semicolon {
+			if p.s.Token == token.Semicolon {
 				p.next()
 				s.Cond = p.parseExpr(false)
 			} else {
 				// No Init statement, make it the condition
-				if isExpr(s.Init) {
-					s.Cond = s.Init.(Expr)
+				if e, isExpr := s.Init.(expr.Expr); isExpr {
+					s.Cond = e
 				} else {
 					fmt.Printf("expected boolean expression, found statement: %T: %s", s.Init, s.Init)
-					s.Cond = &BadExpr{p.error("expected boolean expression, found statement")}
+					s.Cond = &expr.Bad{p.error("expected boolean expression, found statement")}
 				}
 				s.Init = nil
 			}
 		}
 		s.Body = p.parseBlock()
-		if p.s.Token == Else {
+		if p.s.Token == token.Else {
 			p.next()
 			s.Else = p.parseStmt()
 		} else {
 			p.parseSemi()
 		}
 		return s
-	case Identifier:
+	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul,
+		token.Func, token.LeftBracket, token.LeftParen:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
 		p.parseSemi()
 		return s
-	case Return:
+	case token.Return:
 		p.next()
-		s := &ReturnStmt{Exprs: p.parseExprs()}
+		s := &stmt.Return{Exprs: p.parseExprs()}
 		p.parseSemi()
 		return s
-	case LeftBrace:
+	case token.LeftBrace:
 		s := p.parseBlock()
 		p.parseSemi()
 		return s
@@ -306,76 +355,73 @@ func (p *parser) parseStmt() Stmt {
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
 
-func (p *parser) parseBlock() Stmt {
-	p.expect(LeftBrace)
+func (p *parser) parseBlock() stmt.Stmt {
+	p.expect(token.LeftBrace)
 	p.next()
-	s := &BlockStmt{Stmts: p.parseStmts()}
-	p.expect(RightBrace)
+	s := &stmt.Block{Stmts: p.parseStmts()}
+	p.expect(token.RightBrace)
 	p.next()
 	return s
 }
 
-func (p *parser) parseStmts() (stmts []Stmt) {
+func (p *parser) parseStmts() (stmts []stmt.Stmt) {
 	// TODO there are other kinds of blocks to exit from
-	for p.s.Token > 0 && p.s.Token != RightBrace {
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		stmts = append(stmts, p.parseStmt())
 	}
 	return stmts
 }
 
-func (p *parser) parseFuncType() *FuncType {
-	f := &FuncType{}
-	p.expect(LeftParen)
+func (p *parser) parseFuncType() *tipe.Func {
+	f := &tipe.Func{}
+	p.expect(token.LeftParen)
 	p.next()
-	if p.s.Token != RightParen {
+	if p.s.Token != token.RightParen {
 		f.In = p.parseIn()
 	}
-	p.expect(RightParen)
+	p.expect(token.RightParen)
 	p.next()
 
-	if p.s.Token == LeftParen {
-		p.expect(LeftParen)
+	if p.s.Token == token.LeftParen {
+		p.expect(token.LeftParen)
 		p.next()
-		if p.s.Token != RightParen {
+		if p.s.Token != token.RightParen {
 			f.Out = p.parseOut()
 		}
-		p.expect(RightParen)
+		p.expect(token.RightParen)
 		p.next()
 	} else {
-		typ := p.maybeParseIdentOrType()
+		typ := p.maybeParseType()
 		if typ != nil {
-			f.Out = []*Field{{Type: typ}}
+			f.Out = []*tipe.Field{{Type: typ}}
 		}
 	}
 	return f
 }
 
-func (p *parser) parseOperand(lhs bool) Expr {
+func (p *parser) parseOperand(lhs bool) expr.Expr {
 	switch p.s.Token {
-	case Identifier:
+	case token.Ident:
 		return p.parseIdent()
-	case Int, Float, Imaginary, String:
-		x := &BasicLiteral{Value: p.s.Literal}
+	case token.Int, token.Float, token.Imaginary, token.String:
+		x := &expr.BasicLiteral{Value: p.s.Literal}
 		p.next()
 		return x
-	case LeftParen:
+	case token.LeftParen:
 		p.next()
-		expr := p.parseExpr(false) // TODO or a type?
-		p.expect(RightParen)
+		ex := p.parseExpr(false) // TODO or a type?
+		p.expect(token.RightParen)
 		p.next()
-		return &UnaryExpr{Op: LeftParen, Expr: expr}
-	case Func:
+		return &expr.Unary{Op: token.LeftParen, Expr: ex}
+	case token.Func:
 		p.next()
 		ty := p.parseFuncType()
-		if p.s.Token != LeftBrace {
+		if p.s.Token != token.LeftBrace {
 			p.next()
-			return &BadExpr{p.error("TODO just a function type")}
+			return &expr.Bad{p.error("TODO just a function type")}
 		}
-		p.next()
-		body := p.parseStmts()
-		p.expect(RightBrace)
-		p.next()
-		return &FuncLiteral{
+		body := p.parseBlock()
+		return &expr.FuncLiteral{
 			Type: ty,
 			Body: body,
 		}
@@ -383,7 +429,7 @@ func (p *parser) parseOperand(lhs bool) Expr {
 	// TODO: other cases, eventually Func, etc
 
 	p.next()
-	return &BadExpr{p.error("expected operand")}
+	return &expr.Bad{p.error("expected operand")}
 }
 
 type Errors []Error
@@ -416,7 +462,7 @@ func (p *parser) error(msg string) error {
 	return err
 }
 
-func (p *parser) expect(t Token) bool {
+func (p *parser) expect(t token.Token) bool {
 	met := t == p.s.Token
 	if !met {
 		p.error(fmt.Sprintf("expected %q, found %q", t, p.s.Token))
@@ -425,18 +471,18 @@ func (p *parser) expect(t Token) bool {
 }
 
 func (p *parser) parseSemi() {
-	if p.s.Token == RightBrace {
+	if p.s.Token == token.RightBrace {
 		return
 	}
-	p.expect(Semicolon)
+	p.expect(token.Semicolon)
 	p.next()
 }
 
-func (p *parser) parseIdent() *Ident {
+func (p *parser) parseIdent() *expr.Ident {
 	name := "_"
-	if p.expect(Identifier) {
+	if p.expect(token.Ident) {
 		name = p.s.Literal.(string)
 	}
 	p.next()
-	return &Ident{Name: name}
+	return &expr.Ident{Name: name}
 }

@@ -1,7 +1,8 @@
 // Copyright 2015 The Numgrad Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
-package parser
+// Package token defines data structures representing Numengrad tokens.
+package token
 
 import "fmt"
 
@@ -14,11 +15,11 @@ const (
 
 	// Constants
 
-	Identifier // funcName
-	Int        // 1001
-	Float      // 10.01
-	Imaginary  // 10.01i
-	String     // "a string"
+	Ident     // E.g. funcName
+	Int       // E.g. 1001 TODO: rename to Integer?
+	Float     // E.g. 10.01
+	Imaginary // E.g. 10.01i
+	String    // E.g. "a string"
 
 	// Expression Operators
 
@@ -96,31 +97,31 @@ const (
 )
 
 var tokens = map[string]Token{
-	"Unknown":      Unknown,
-	"Comment":      Comment,
-	"Identifier":   Identifier,
-	"Int":          Int,
-	"Float":        Float,
+	"unknown":      Unknown,
+	"comment":      Comment,
+	"ident":        Ident,
+	"integer":      Int,
+	"float":        Float,
 	"Imaginary":    Imaginary,
 	"string":       String,
-	"Add":          Add,
-	"Sub":          Sub,
-	"Mul":          Mul,
-	"Div":          Div,
-	"Rem":          Rem,
-	"Pow":          Pow,
-	"LogicalAnd":   LogicalAnd,
-	"LogicalOr":    LogicalOr,
-	"Equal":        Equal,
-	"Less":         Less,
-	"Greater":      Greater,
-	"Assign":       Assign,
-	"Not":          Not,
-	"NotEqual":     NotEqual,
-	"LessEqual":    LessEqual,
-	"GreaterEqual": GreaterEqual,
-	"Inc":          Inc,
-	"Dec":          Dec,
+	"+":            Add,
+	"-":            Sub,
+	"*":            Mul,
+	"/":            Div,
+	"%":            Rem,
+	"^":            Pow,
+	"&&":           LogicalAnd,
+	"||":           LogicalOr,
+	"==":           Equal,
+	"<":            Less,
+	">":            Greater,
+	"=":            Assign,
+	"!":            Not,
+	"!=":           NotEqual,
+	"<=":           LessEqual,
+	">=":           GreaterEqual,
+	"++":           Inc,
+	"--":           Dec,
 	"AddAssign":    AddAssign,
 	"SubAssign":    SubAssign,
 	"MulAssign":    MulAssign,
@@ -138,33 +139,43 @@ var tokens = map[string]Token{
 	"Period":       Period,
 	"Semicolon":    Semicolon,
 	"Colon":        Colon,
-	"package":      Package,
-	"import":       Import,
-	"func":         Func,
-	"return":       Return,
-	"switch":       Switch,
-	"case":         Case,
-	"default":      Default,
-	"fallthrough":  Fallthrough,
-	"const":        Const,
-	"if":           If,
-	"else":         Else,
-	"for":          For,
-	"range":        Range,
-	"continue":     Continue,
-	"break":        Break,
-	"goto":         Goto,
-	"go":           Go,
-	"frame":        Frame,
-	"map":          Map,
-	"struct":       Struct,
-	"type":         Type,
 }
 
-var tokenStrings = make(map[Token]string, len(tokens))
+var keywords = map[string]Token{
+	"package":     Package,
+	"import":      Import,
+	"func":        Func,
+	"return":      Return,
+	"switch":      Switch,
+	"case":        Case,
+	"default":     Default,
+	"fallthrough": Fallthrough,
+	"const":       Const,
+	"if":          If,
+	"else":        Else,
+	"for":         For,
+	"range":       Range,
+	"continue":    Continue,
+	"break":       Break,
+	"goto":        Goto,
+	"go":          Go,
+	"frame":       Frame,
+	"map":         Map,
+	"struct":      Struct,
+	"type":        Type,
+}
+
+func Keyword(n string) Token {
+	return keywords[n]
+}
+
+var tokenStrings = make(map[Token]string, len(tokens)+len(keywords))
 
 func init() {
 	for s, t := range tokens {
+		tokenStrings[t] = s
+	}
+	for s, t := range keywords {
 		tokenStrings[t] = s
 	}
 }
@@ -173,7 +184,7 @@ func (t Token) String() string {
 	if s := tokenStrings[t]; s != "" {
 		return s
 	}
-	return fmt.Sprintf("parser.Token(%d)", t)
+	return fmt.Sprintf("Token:%d", t)
 }
 
 func (t Token) Precedence() int {
