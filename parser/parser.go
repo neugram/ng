@@ -319,10 +319,10 @@ func (p *parser) parseStmt() stmt.Stmt {
 				s.Cond = p.parseExpr(false)
 			} else {
 				// No Init statement, make it the condition
-				if e, isExpr := s.Init.(expr.Expr); isExpr {
-					s.Cond = e
+				if e, isExpr := s.Init.(*stmt.Simple); isExpr {
+					s.Cond = e.Expr
 				} else {
-					fmt.Printf("expected boolean expression, found statement: %T: %s", s.Init, s.Init)
+					fmt.Printf("expected boolean expression, found statement: %s", s.Init.Sexp())
 					s.Cond = &expr.Bad{p.error("expected boolean expression, found statement")}
 				}
 				s.Init = nil
