@@ -6,7 +6,6 @@ package parser
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"math/big"
 
 	"numgrad.io/lang/expr"
@@ -15,67 +14,108 @@ import (
 	"numgrad.io/lang/token"
 )
 
-func ParseExpr(src []byte) (expr expr.Expr, err error) {
-	p := newParser(src)
-	if err := p.s.Next(); err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		return nil, err
-	}
-	expr = p.parseExpr(false)
-	if len(p.err) > 0 {
-		err = Errors(p.err)
-	}
-	if err == nil && p.s.err != io.EOF {
-		err = p.s.err
-	}
-	return expr, err
+type Result struct {
+	Stmt stmt.Stmt
+	Err  error
 }
 
-func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
-	p := newParser(src)
-	if err := p.s.Next(); err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		return nil, err
+func New() *Parser {
+	p := &Parser{
+		Result:  make(chan Result),
+		Waiting: make(chan bool),
+		s:       newScanner(),
 	}
-	s := p.parseStmt()
-	if len(p.err) > 0 {
-		err = Errors(p.err)
-	}
-	if err == nil && p.s.err != io.EOF {
-		err = p.s.err
-	}
-	return s, err
-}
-
-type parser struct {
-	s   *Scanner
-	err []Error
-}
-
-func newParser(src []byte) *parser {
-	p := &parser{
-		s: NewScanner(src),
-	}
-
+	go p.forwardWaiting()
+	go p.work()
+	<-p.Waiting
 	return p
 }
 
-func (p *parser) next() {
+type Parser struct {
+	Result  chan Result
+	Waiting chan bool
+
+	inStmt bool // true when stmt is partially parsed
+	s      *Scanner
+	err    []Error
+}
+
+func (p *Parser) Add(b []byte) {
+	p.s.addSrc <- b
+}
+
+func (p *Parser) Close() {
+	close(p.s.addSrc)
+}
+
+func (p *Parser) forwardWaiting() {
+	for {
+		more := <-p.s.needSrc
+		p.Waiting <- p.inStmt
+		if !more {
+			close(p.Waiting)
+			return
+		}
+	}
+}
+
+func (p *Parser) work() {
+	p.s.next()
+	for {
+		p.inStmt = false
+		p.next()
+		if p.s.Token == token.Unknown {
+			break
+		}
+		p.inStmt = true
+		r := Result{Stmt: p.parseStmt()}
+		if len(p.err) > 0 {
+			r.Err = Errors(p.err)
+			p.err = nil
+		}
+		p.Result <- r
+	}
+}
+
+func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
+	b := make([]byte, 0, len(src)+1)
+	b = append(b, src...)
+	b = append(b, '\n') // TODO: should be unnecessary now we have Close?
+	p := New()
+	p.Add(b)
+	p.Close()
+	var res Result
+	select {
+	case partial := <-p.Waiting:
+		if partial {
+			panic("unexpected partial statement")
+			return nil, fmt.Errorf("parser.ParseStmt: unexpected partial statement")
+		}
+		return nil, fmt.Errorf("parser.ParseStmt: incomplete result")
+	case res = <-p.Result:
+	}
+	if res.Err != nil {
+		return nil, err
+	}
+	partial := <-p.Waiting
+	if partial {
+		return nil, fmt.Errorf("parser.ParseStmt: trailing partial statement")
+	}
+	return res.Stmt, nil
+}
+
+func (p *Parser) next() {
 	p.s.Next()
 	if p.s.Token == token.Comment {
 		p.next()
 	}
 }
 
-func (p *parser) parseExpr(lhs bool) expr.Expr {
+func (p *Parser) parseExpr(lhs bool) expr.Expr {
 	return p.parseBinaryExpr(lhs, 1)
 }
 
-func (p *parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
+func (p *Parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
 	x := p.parseUnaryExpr(lhs)
 	for prec := p.s.Token.Precedence(); prec >= minPrec; prec-- {
 		for {
@@ -97,7 +137,7 @@ func (p *parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
 	return x
 }
 
-func (p *parser) parseUnaryExpr(lhs bool) expr.Expr {
+func (p *Parser) parseUnaryExpr(lhs bool) expr.Expr {
 	switch p.s.Token {
 	case token.Add, token.Sub, token.Not:
 		op := p.s.Token
@@ -117,7 +157,7 @@ func (p *parser) parseUnaryExpr(lhs bool) expr.Expr {
 	}
 }
 
-func (p *parser) expectCommaOr(otherwise token.Token, msg string) bool {
+func (p *Parser) expectCommaOr(otherwise token.Token, msg string) bool {
 	switch {
 	case p.s.Token == token.Comma:
 		return true
@@ -129,7 +169,7 @@ func (p *parser) expectCommaOr(otherwise token.Token, msg string) bool {
 	}
 }
 
-func (p *parser) parseArgs() []expr.Expr {
+func (p *Parser) parseArgs() []expr.Expr {
 	p.expect(token.LeftParen)
 	p.next()
 	var args []expr.Expr
@@ -145,7 +185,7 @@ func (p *parser) parseArgs() []expr.Expr {
 	return args
 }
 
-func (p *parser) parsePrimaryExpr(lhs bool) expr.Expr {
+func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
 	x := p.parseOperand(lhs)
 	for {
 		switch p.s.Token {
@@ -176,7 +216,7 @@ func (p *parser) parsePrimaryExpr(lhs bool) expr.Expr {
 	return x
 }
 
-func (p *parser) parseIn() (params []*tipe.Field) {
+func (p *Parser) parseIn() (params []*tipe.Field) {
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
 		f := &tipe.Field{
 			Name: p.parseIdent().Name,
@@ -195,7 +235,7 @@ func (p *parser) parseIn() (params []*tipe.Field) {
 	return params
 }
 
-func (p *parser) parseOut() (params []*tipe.Field) {
+func (p *Parser) parseOut() (params []*tipe.Field) {
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
 		f := &tipe.Field{}
 		t := p.maybeParseType()
@@ -231,7 +271,7 @@ func (p *parser) parseOut() (params []*tipe.Field) {
 	return params
 }
 
-func (p *parser) maybeParseType() tipe.Type {
+func (p *Parser) maybeParseType() tipe.Type {
 	switch p.s.Token {
 	case token.Ident:
 		ident := p.parseIdent()
@@ -257,7 +297,7 @@ func (p *parser) maybeParseType() tipe.Type {
 	return nil
 }
 
-func (p *parser) parseExprs() []expr.Expr {
+func (p *Parser) parseExprs() []expr.Expr {
 	exprs := []expr.Expr{p.parseExpr(false)}
 	for p.s.Token == token.Comma {
 		p.next()
@@ -266,7 +306,7 @@ func (p *parser) parseExprs() []expr.Expr {
 	return exprs
 }
 
-func (p *parser) parseSimpleStmt() stmt.Stmt {
+func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	exprs := p.parseExprs()
 	switch p.s.Token {
 	case token.Define, token.Assign, token.AddAssign, token.SubAssign,
@@ -309,7 +349,7 @@ func (p *parser) parseSimpleStmt() stmt.Stmt {
 	//panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
 }
 
-func (p *parser) parseStmt() stmt.Stmt {
+func (p *Parser) parseStmt() stmt.Stmt {
 	switch p.s.Token {
 	// TODO: many many kinds of statements
 	case token.If:
@@ -340,29 +380,29 @@ func (p *parser) parseStmt() stmt.Stmt {
 			p.next()
 			s.Else = p.parseStmt()
 		} else {
-			p.parseSemi()
+			p.expectSemi()
 		}
 		return s
 	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul,
 		token.Func, token.LeftBracket, token.LeftParen:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
-		p.parseSemi()
+		p.expectSemi()
 		return s
 	case token.Return:
 		p.next()
 		s := &stmt.Return{Exprs: p.parseExprs()}
-		p.parseSemi()
+		p.expectSemi()
 		return s
 	case token.LeftBrace:
 		s := p.parseBlock()
-		p.parseSemi()
+		p.expectSemi()
 		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
 
-func (p *parser) parseBlock() stmt.Stmt {
+func (p *Parser) parseBlock() stmt.Stmt {
 	p.expect(token.LeftBrace)
 	p.next()
 	s := &stmt.Block{Stmts: p.parseStmts()}
@@ -371,15 +411,18 @@ func (p *parser) parseBlock() stmt.Stmt {
 	return s
 }
 
-func (p *parser) parseStmts() (stmts []stmt.Stmt) {
+func (p *Parser) parseStmts() (stmts []stmt.Stmt) {
 	// TODO there are other kinds of blocks to exit from
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		stmts = append(stmts, p.parseStmt())
+		if p.s.Token == token.Semicolon {
+			p.next()
+		}
 	}
 	return stmts
 }
 
-func (p *parser) parseFuncType() *tipe.Func {
+func (p *Parser) parseFuncType() *tipe.Func {
 	f := &tipe.Func{}
 	p.expect(token.LeftParen)
 	p.next()
@@ -406,7 +449,7 @@ func (p *parser) parseFuncType() *tipe.Func {
 	return f
 }
 
-func (p *parser) parseOperand(lhs bool) expr.Expr {
+func (p *Parser) parseOperand(lhs bool) expr.Expr {
 	switch p.s.Token {
 	case token.Ident:
 		return p.parseIdent()
@@ -459,17 +502,17 @@ func (e Error) Error() string {
 	return fmt.Sprintf("numgrad: parser: %s (off %d)", e.Msg, e.Offset)
 }
 
-func (p *parser) error(msg string) error {
+func (p *Parser) error(msg string) error {
 	err := Error{
 		Offset: p.s.Offset,
 		Msg:    msg,
 	}
-	fmt.Printf("%v\n", err) // debug
+	panic(fmt.Sprintf("%v\n", err)) // debug
 	p.err = append(p.err, err)
 	return err
 }
 
-func (p *parser) expect(t token.Token) bool {
+func (p *Parser) expect(t token.Token) bool {
 	met := t == p.s.Token
 	if !met {
 		p.error(fmt.Sprintf("expected %q, found %q", t, p.s.Token))
@@ -477,15 +520,14 @@ func (p *parser) expect(t token.Token) bool {
 	return met
 }
 
-func (p *parser) parseSemi() {
+func (p *Parser) expectSemi() {
 	if p.s.Token == token.RightBrace {
 		return
 	}
 	p.expect(token.Semicolon)
-	p.next()
 }
 
-func (p *parser) parseIdent() *expr.Ident {
+func (p *Parser) parseIdent() *expr.Ident {
 	name := "_"
 	if p.expect(token.Ident) {
 		name = p.s.Literal.(string)

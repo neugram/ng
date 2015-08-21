@@ -5,7 +5,6 @@ package parser
 
 import (
 	"fmt"
-	"io"
 	"math/big"
 	"unicode"
 	"unicode/utf8"
@@ -15,9 +14,13 @@ import (
 
 const bom = 0xFEFF // byte order marker
 
-func NewScanner(src []byte) *Scanner {
-	s := &Scanner{src: src}
-	s.next()
+func newScanner() *Scanner {
+	s := &Scanner{
+		addSrc:  make(chan []byte),
+		needSrc: make(chan bool),
+	}
+	//go s.next()
+	//<-s.needSrc
 	return s
 }
 
@@ -34,6 +37,10 @@ type Scanner struct {
 	off  int
 	semi bool
 	err  error
+
+	addSrc  chan []byte
+	needSrc chan bool
+	done    bool
 }
 
 func (s *Scanner) errorf(format string, a ...interface{}) {
@@ -42,11 +49,22 @@ func (s *Scanner) errorf(format string, a ...interface{}) {
 
 func (s *Scanner) next() {
 	if s.off >= len(s.src) {
-		s.Offset = len(s.src)
-		s.Token = token.Unknown
-		s.Literal = nil
-		s.r = -1
-		return
+		if s.r == -1 {
+			return
+		}
+		//fmt.Printf("need src\n")
+		s.needSrc <- true
+		b := <-s.addSrc
+		//fmt.Printf("adding source: %q\n", string(b))
+		if b == nil {
+			s.needSrc <- false
+			s.Offset = len(s.src)
+			s.Token = token.Unknown
+			s.Literal = nil
+			s.r = -1
+			return
+		}
+		s.src = append(s.src, b...)
 	}
 
 	s.Offset = s.off
@@ -71,7 +89,7 @@ func (s *Scanner) next() {
 }
 
 func (s *Scanner) skipWhitespace() {
-	for s.r == ' ' || s.r == '\t' || s.r == '\n' && !s.semi || s.r == '\r' {
+	for s.r == ' ' || s.r == '\t' || (s.r == '\n' && !s.semi) || s.r == '\r' {
 		s.next()
 	}
 }
@@ -183,16 +201,17 @@ func (s *Scanner) scanComment() string {
 	return string(lit)
 }
 
-func (s *Scanner) Next() error {
-	defer func() {
+func (s *Scanner) Next() {
+	/* defer func() {
 		fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d", s.Token, s.Offset, s.off)
 		if s.Literal != nil {
 			fmt.Printf(" Literal=%s", s.Literal)
 		}
 		fmt.Printf("\n")
 	}()
+	*/
 	s.skipWhitespace()
-	//fmt.Printf("Next: s.r=%v (%s)\n", s.r, string(s.r))
+	//fmt.Printf("Next: s.r=%v (%s) s.off=%d\n", s.r, string(s.r), s.off)
 
 	wasSemi := s.semi
 	s.semi = false
@@ -210,11 +229,15 @@ func (s *Scanner) Next() error {
 		case token.Ident, token.Break, token.Continue, token.Fallthrough, token.Return:
 			s.semi = true
 		}
-		return s.err
+		return
 	case unicode.IsDigit(r):
 		s.semi = true
 		s.Token, s.Literal = s.scanNumber(false)
-		return s.err
+		return
+	case r == '\n':
+		s.semi = false
+		s.Token = token.Semicolon
+		return
 	}
 
 	s.next()
@@ -222,10 +245,10 @@ func (s *Scanner) Next() error {
 	case -1:
 		if wasSemi {
 			s.Token = token.Semicolon
-			return nil
+			return
 		}
 		s.Token = token.Unknown
-		return io.EOF
+		return
 	case '\n':
 		s.semi = false
 		s.Token = token.Semicolon
@@ -342,8 +365,7 @@ func (s *Scanner) Next() error {
 		}
 	default:
 		s.Token = token.Unknown
+		fmt.Printf("Scanner.Next unknown r=%v (%q) s.off=%d\n", r, string(rune(r)), s.off)
 		s.err = fmt.Errorf("parser: unknown r=%v", r)
 	}
-
-	return s.err
 }
