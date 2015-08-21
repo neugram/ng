@@ -39,7 +39,17 @@ func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
 	if p.Cur == nil {
 		p.Cur = p.Pkg["main"]
 	}
-	return p.evalStmt(s)
+	res, err := p.evalStmt(s)
+	if err != nil {
+		return nil, err
+	}
+	for i, v := range res {
+		res[i], err = p.readVar(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (p *Program) pushScope() {
@@ -135,6 +145,9 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		}
 		return res, nil
 	}
+	if s == nil {
+		return nil, fmt.Errorf("Parser.evalStmt: statement is nil")
+	}
 	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
 }
 
@@ -165,6 +178,9 @@ func (p *Program) evalExprAndReadVar(e expr.Expr) (interface{}, error) {
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
 	switch v := e.(type) {
+	case *expr.FuncLiteral:
+		// lack of symmetry with BasicLiteral is unfortunate
+		return v, nil
 	case *expr.BasicLiteral:
 		return v.Value, nil
 	case *Variable:
@@ -248,14 +264,11 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 		return []interface{}{v}, nil
 	case *expr.Call:
-		res, err := p.evalExpr(e.Func)
+		res, err := p.evalExprAndReadVar(e.Func)
 		if err != nil {
 			return nil, err
 		}
-		if len(res) != 1 {
-			return nil, fmt.Errorf("multi-valued (%d) expression when expecting single-value function", len(res))
-		}
-		switch fn := res[0].(type) {
+		switch fn := res.(type) {
 		case *expr.FuncLiteral:
 			p.pushScope()
 			defer p.popScope()
