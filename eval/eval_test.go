@@ -28,26 +28,24 @@ var exprTests = []struct {
 		}()`,
 		big.NewInt(8),
 	},
-	/*
-		{
-			`func() val {
-					x := 9
-					x++
-					if x > 5 {
-						x = -x
-					}
-					return x
-			}()`,
-			big.NewInt(-10),
-		},
-		{
-			`func() val {
-				t = 9
-				return t
-			}()`,
-			big.NewInt(9),
-		},
-	*/
+	{
+		`func() val {
+			x := 9
+			x++
+			if x > 5 {
+				x = -x
+			}
+			return x
+		}()`,
+		big.NewInt(-10),
+	},
+	{
+		`func() val {
+			x++
+			return x
+		}()`,
+		big.NewInt(5),
+	},
 }
 
 func mkBasicProgram() *Program {

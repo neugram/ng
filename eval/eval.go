@@ -54,6 +54,36 @@ func (p *Program) popScope() {
 
 func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 	switch s := s.(type) {
+	case *stmt.Assign:
+		vars := make([]*Variable, len(s.Left))
+		if s.Decl {
+			for i, lhs := range s.Left {
+				vars[i] = new(Variable)
+				p.Cur.Var[lhs.(*expr.Ident).Name] = vars[i]
+			}
+		} else {
+			// TODO: order of evaluation, left-then-right,
+			// or right-then-left?
+			for i, lhs := range s.Left {
+				v, err := p.evalExpr(lhs)
+				if err != nil {
+					return nil, err
+				}
+				vars[i] = v[0].(*Variable)
+			}
+		}
+		vals := make([]interface{}, 0, len(s.Left))
+		for _, rhs := range s.Right {
+			v, err := p.evalExprAndReadVars(rhs)
+			if err != nil {
+				return nil, err
+			}
+			vals = append(vals, v...)
+		}
+		for i := range vars {
+			vars[i].Value = vals[i]
+		}
+		return nil, nil
 	case *stmt.Simple:
 		return p.evalExpr(s.Expr)
 	case *stmt.Block:
@@ -170,6 +200,29 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 				return []interface{}{!v}, nil
 			}
 			return nil, fmt.Errorf("negation operator expects boolean expression, not %T", v)
+		case token.Sub:
+			rhs, err := p.evalExprAndReadVar(e.Expr)
+			if err != nil {
+				return nil, err
+			}
+			var lhs interface{}
+			switch rhs.(type) {
+			case int64:
+				lhs = int64(0)
+			case float32:
+				lhs = float32(0)
+			case float64:
+				lhs = float64(0)
+			case *big.Int:
+				lhs = big.NewInt(0)
+			case *big.Float:
+				lhs = big.NewFloat(0)
+			}
+			v, err := binOp(token.Sub, lhs, rhs)
+			if err != nil {
+				return nil, err
+			}
+			return []interface{}{v}, nil
 		}
 	case *expr.Binary:
 		lhs, err := p.evalExprAndReadVar(e.Left)
@@ -207,12 +260,15 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			p.pushScope()
 			defer p.popScope()
 			res, err := p.evalStmt(fn.Body.(*stmt.Block))
+			if err != nil {
+				return nil, err
+			}
 			if p.Returning {
 				p.Returning = false
 			} else if len(fn.Type.Out) > 0 {
 				return nil, fmt.Errorf("missing return %v", fn.Type.Out)
 			}
-			return res, err
+			return res, nil
 		}
 	}
 	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
