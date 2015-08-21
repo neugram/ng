@@ -275,6 +275,13 @@ func (p *parser) parseSimpleStmt() stmt.Stmt {
 		p.next()
 		// TODO: if p.s.Token == Range
 		right := p.parseExprs()
+		if decl {
+			for i, e := range exprs {
+				if _, ok := e.(*expr.Ident); !ok {
+					exprs[i] = &expr.Bad{p.error("expected identifier as declaration")}
+				}
+			}
+		}
 		return &stmt.Assign{
 			Decl:  decl,
 			Left:  exprs,
