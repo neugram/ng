@@ -9,7 +9,7 @@ import (
 	"io"
 
 	"numgrad.io/eval"
-	"numgrad.io/parser"
+	"numgrad.io/lang/expr"
 )
 
 // A Frame is a two-dimensional data set.
@@ -129,8 +129,8 @@ func Transpose(f Frame) Frame {
 // TODO: consider baking the By field directly into the Frame.
 // Then: x.groupby("Col0", "Col2").fold(sum) could work.
 type Grouping struct {
-	By   []int               // column index to group by, in order
-	Func map[int]parser.Expr // column index -> binary operator
+	By   []int             // column index to group by, in order
+	Func map[int]expr.Expr // column index -> binary operator
 }
 
 func Accumulate(f Frame, g Grouping) (Frame, error) {
@@ -165,9 +165,9 @@ func Len(f Frame) (int, error) {
 	return y, nil
 }
 
-func Filter(f Frame, s *eval.Scope, e *parser.Expr) (Frame, error) {
+func Filter(f Frame, s *eval.Scope, e expr.Expr) (Frame, error) {
 	fr, ok := f.(interface {
-		Filter(s *eval.Scope, e *parser.Expr) (Frame, error)
+		Filter(s *eval.Scope, e expr.Expr) (Frame, error)
 	})
 	if ok {
 		return fr.Filter(s, e)
