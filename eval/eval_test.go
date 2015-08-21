@@ -18,35 +18,35 @@ var exprTests = []struct {
 }{
 	{"2+3*(x+y-2)", big.NewInt(23)},
 	{"func() val { return 7 }()", big.NewInt(7)},
+	{
+		`func() val {
+			if x > 2 {
+				return z+1
+			} else {
+				return z-1
+			}
+		}()`,
+		big.NewInt(8),
+	},
 	/*
 		{
 			`func() val {
-					if x > 2 {
-						return z+1
-					} else {
-						return z-1
+					x := 9
+					x++
+					if x > 5 {
+						x = -x
 					}
-				}()`,
-			big.NewInt(8),
+					return x
+			}()`,
+			big.NewInt(-10),
 		},
-			{
-				`func() val {
-						x := 9
-						x++
-						if x > 5 {
-							x = -x
-						}
-						return x
-				}()`,
-				big.NewInt(-10),
-			},
-			{
-				`func() val {
-					t = 9
-					return t
-				}()`,
-				big.NewInt(9),
-			},
+		{
+			`func() val {
+				t = 9
+				return t
+			}()`,
+			big.NewInt(9),
+		},
 	*/
 }
 

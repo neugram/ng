@@ -39,7 +39,6 @@ func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
 	if p.Cur == nil {
 		p.Cur = p.Pkg["main"]
 	}
-	fmt.Printf("eval2.Eval(%q)\n", s.Sexp())
 	return p.evalStmt(s)
 }
 
@@ -56,9 +55,7 @@ func (p *Program) popScope() {
 func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 	switch s := s.(type) {
 	case *stmt.Simple:
-		res, err := p.evalExpr(s.Expr)
-		fmt.Printf("Returning Simple: %#+v\n", res)
-		return res, err
+		return p.evalExpr(s.Expr)
 	case *stmt.Block:
 		p.pushScope()
 		defer p.popScope()
@@ -70,6 +67,22 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			if p.Returning {
 				return res, nil
 			}
+		}
+		return nil, nil
+	case *stmt.If:
+		if s.Init != nil {
+			if _, err := p.evalStmt(s.Init); err != nil {
+				return nil, err
+			}
+		}
+		cond, err := p.evalExprAndReadVar(s.Cond)
+		if err != nil {
+			return nil, err
+		}
+		if cond.(bool) {
+			return p.evalStmt(s.Body)
+		} else if s.Else != nil {
+			return p.evalStmt(s.Else)
 		}
 		return nil, nil
 	case *stmt.Return:
@@ -92,7 +105,7 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		}
 		return res, nil
 	}
-	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s))
+	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
 }
 
 func (p *Program) evalExprAndReadVars(e expr.Expr) ([]interface{}, error) {
@@ -199,9 +212,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			} else if len(fn.Type.Out) > 0 {
 				return nil, fmt.Errorf("missing return %v", fn.Type.Out)
 			}
-			fmt.Printf("Returning: %#+v\n", res)
 			return res, err
 		}
 	}
-	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e, e)
+	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
 }
