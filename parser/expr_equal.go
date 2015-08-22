@@ -236,6 +236,23 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualStmt(x.Body, y.Body) {
 			return false
 		}
+	case *stmt.Range:
+		y, ok := y.(*stmt.Range)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Key, y.Key) {
+			return false
+		}
+		if !EqualExpr(x.Val, y.Val) {
+			return false
+		}
+		if !EqualExpr(x.Expr, y.Expr) {
+			return false
+		}
+		if !EqualStmt(x.Body, y.Body) {
+			return false
+		}
 	default:
 		panic(fmt.Sprintf("unknown stmt type %T: %#+v", x, x))
 	}

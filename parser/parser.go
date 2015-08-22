@@ -306,42 +306,56 @@ func (p *Parser) parseExprs() []expr.Expr {
 	return exprs
 }
 
+func arithAssignOp(t token.Token) token.Token {
+	switch t {
+	case token.AddAssign:
+		return token.Add
+	case token.SubAssign:
+		return token.Sub
+	case token.MulAssign:
+		return token.Mul
+	case token.DivAssign:
+		return token.Div
+	case token.RemAssign:
+		return token.Rem
+	case token.PowAssign:
+		return token.Pow
+	default:
+		return token.Unknown
+	}
+}
+
 func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	exprs := p.parseExprs()
+
 	switch p.s.Token {
 	case token.Define, token.Assign, token.AddAssign, token.SubAssign,
 		token.MulAssign, token.DivAssign, token.RemAssign, token.PowAssign:
 		tok := p.s.Token
-		decl := false
-		arithOp := token.Unknown
-		switch p.s.Token {
-		case token.Define:
-			decl = true
-		case token.AddAssign:
-			arithOp = token.Add
-		case token.SubAssign:
-			arithOp = token.Sub
-		case token.MulAssign:
-			arithOp = token.Mul
-		case token.DivAssign:
-			arithOp = token.Div
-		case token.RemAssign:
-			arithOp = token.Rem
-		case token.PowAssign:
-			arithOp = token.Pow
-		}
 
 		p.next()
-		// TODO: if p.s.Token == Range
-		right := p.parseExprs()
-		if decl {
+		var right []expr.Expr
+		if p.s.Token == token.Range {
+			p.next()
+			if tok != token.Define && tok != token.Assign {
+				right = []expr.Expr{&expr.Bad{p.error("range can only be used inside ':=' or '='")}}
+			} else {
+				right = []expr.Expr{&expr.Unary{
+					Op:   token.Range,
+					Expr: p.parseExpr(false),
+				}}
+			}
+		} else {
+			right = p.parseExprs()
+		}
+		if tok == token.Define {
 			for i, e := range exprs {
 				if _, ok := e.(*expr.Ident); !ok {
 					exprs[i] = &expr.Bad{p.error("expected identifier as declaration")}
 				}
 			}
 		}
-		if arithOp != token.Unknown {
+		if arithOp := arithAssignOp(tok); arithOp != token.Unknown {
 			if len(exprs) != 1 || len(right) != 1 {
 				right = []expr.Expr{&expr.Bad{p.error(fmt.Sprintf("arithmetic assignement %q only accepts one argument", tok))}}
 			} else {
@@ -353,7 +367,7 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			}
 		}
 		return &stmt.Assign{
-			Decl:  decl,
+			Decl:  tok == token.Define,
 			Left:  exprs,
 			Right: right,
 		}
@@ -385,6 +399,27 @@ func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
 	}
 	fmt.Printf("expected boolean expression, found statement: %s", s.Sexp())
 	return &expr.Bad{p.error("expected boolean expression, found statement")}
+}
+
+func extractRange(s stmt.Stmt) (res *stmt.Range) {
+	defer fmt.Printf("extractRange(%s) res=%s\n", s.Sexp(), res)
+	a, ok := s.(*stmt.Assign)
+	if !ok || len(a.Right) != 1 {
+		return nil
+	}
+	r, ok := a.Right[0].(*expr.Unary)
+	if !ok || r.Op != token.Range {
+		return nil
+	}
+	var key, val expr.Expr
+	if len(a.Left) > 2 {
+		return nil
+	}
+	key = a.Left[0]
+	if len(a.Left) == 2 {
+		val = a.Left[1]
+	}
+	return &stmt.Range{Key: key, Val: val, Expr: r.Expr}
 }
 
 func (p *Parser) parseStmt() stmt.Stmt {
@@ -455,7 +490,8 @@ func (p *Parser) parseFor() stmt.Stmt {
 	}
 	if p.s.Token == token.Range {
 		// for range r { }
-		panic("TODO parseFor 'for range'") // TODO
+		p.next()
+		return &stmt.Range{Expr: p.parseExpr(false), Body: body()}
 	}
 	if p.s.Token == token.Semicolon {
 		p.next()
@@ -480,8 +516,15 @@ func (p *Parser) parseFor() stmt.Stmt {
 	} else {
 		i0 := p.parseSimpleStmt()
 		if p.s.Token == token.LeftBrace {
-			// for i0 {}
-			return &stmt.For{Cond: p.extractExpr(i0), Body: body()}
+			if r := extractRange(i0); r != nil {
+				// for k := range r { }
+				// for k, _ := range r { }
+				r.Body = body()
+				return r
+			} else {
+				// for i0 {}
+				return &stmt.For{Cond: p.extractExpr(i0), Body: body()}
+			}
 		}
 		p.expectSemi()
 		p.next()
@@ -508,8 +551,6 @@ func (p *Parser) parseFor() stmt.Stmt {
 	}
 
 	// TODO
-	// for k := range r { }
-	// for k, _ := range r { }
 	panic("TODO parseFor range")
 }
 

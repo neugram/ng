@@ -217,6 +217,18 @@ var stmtTests = []stmtTest{
 	{"for ;; {}", &stmt.For{Body: &stmt.Block{}}},
 	{"for true {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
 	{"for ; true; {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
+	{"for range x {}", &stmt.Range{Expr: &expr.Ident{"x"}, Body: &stmt.Block{}}},
+	{"for k, v := range x {}", &stmt.Range{
+		Key:  &expr.Ident{"k"},
+		Val:  &expr.Ident{"v"},
+		Expr: &expr.Ident{"x"},
+		Body: &stmt.Block{},
+	}},
+	{"for k := range x {}", &stmt.Range{
+		Key:  &expr.Ident{"k"},
+		Expr: &expr.Ident{"x"},
+		Body: &stmt.Block{},
+	}},
 	{
 		"for i := 0; i < 10; i++ { x = i }",
 		&stmt.For{

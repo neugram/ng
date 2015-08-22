@@ -40,6 +40,13 @@ type For struct {
 	Body Stmt // always *BlockStmt
 }
 
+type Range struct {
+	Key  expr.Expr
+	Val  expr.Expr
+	Expr expr.Expr
+	Body Stmt // always *BlockStmt
+}
+
 type Return struct {
 	Exprs []expr.Expr
 }
@@ -52,6 +59,7 @@ func (s Assign) stmt() {}
 func (s Block) stmt()  {}
 func (s If) stmt()     {}
 func (s For) stmt()    {}
+func (s Range) stmt()  {}
 func (s Return) stmt() {}
 func (s Simple) stmt() {}
 
@@ -78,6 +86,9 @@ func (e *If) Sexp() string {
 }
 func (e *For) Sexp() string {
 	return fmt.Sprintf("(for %s %s %s %s)", stmtSexp(e.Init), exprSexp(e.Cond), stmtSexp(e.Post), stmtSexp(e.Body))
+}
+func (e *Range) Sexp() string {
+	return fmt.Sprintf("(range %s %s %s %s)", exprSexp(e.Key), exprSexp(e.Val), exprSexp(e.Expr), stmtSexp(e.Body))
 }
 func (e *Simple) Sexp() string { return fmt.Sprintf("(simple %s)", exprSexp(e.Expr)) }
 

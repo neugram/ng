@@ -24,7 +24,7 @@ type Binary struct {
 }
 
 type Unary struct {
-	Op   token.Token // Not, Mul (deref), Ref, LeftParen
+	Op   token.Token // Not, Mul (deref), Ref, LeftParen, Range
 	Expr Expr
 }
 
