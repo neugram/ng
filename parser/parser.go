@@ -310,8 +310,27 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	exprs := p.parseExprs()
 	switch p.s.Token {
 	case token.Define, token.Assign, token.AddAssign, token.SubAssign,
-		token.MulAssign, token.DivAssign, token.RemAssign:
-		decl := p.s.Token == token.Define
+		token.MulAssign, token.DivAssign, token.RemAssign, token.PowAssign:
+		tok := p.s.Token
+		decl := false
+		arithOp := token.Unknown
+		switch p.s.Token {
+		case token.Define:
+			decl = true
+		case token.AddAssign:
+			arithOp = token.Add
+		case token.SubAssign:
+			arithOp = token.Sub
+		case token.MulAssign:
+			arithOp = token.Mul
+		case token.DivAssign:
+			arithOp = token.Div
+		case token.RemAssign:
+			arithOp = token.Rem
+		case token.PowAssign:
+			arithOp = token.Pow
+		}
+
 		p.next()
 		// TODO: if p.s.Token == Range
 		right := p.parseExprs()
@@ -319,6 +338,17 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			for i, e := range exprs {
 				if _, ok := e.(*expr.Ident); !ok {
 					exprs[i] = &expr.Bad{p.error("expected identifier as declaration")}
+				}
+			}
+		}
+		if arithOp != token.Unknown {
+			if len(exprs) != 1 || len(right) != 1 {
+				right = []expr.Expr{&expr.Bad{p.error(fmt.Sprintf("arithmetic assignement %q only accepts one argument", tok))}}
+			} else {
+				right[0] = &expr.Binary{
+					Op:    arithOp,
+					Left:  exprs[0],
+					Right: right[0],
 				}
 			}
 		}

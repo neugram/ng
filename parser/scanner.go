@@ -363,6 +363,30 @@ func (s *Scanner) Next() {
 		default:
 			s.Token = token.Less
 		}
+	case '&':
+		switch s.r {
+		case '&':
+			s.next()
+			s.Token = token.LogicalAnd
+		default:
+			s.Token = token.Ref
+		}
+	case '|':
+		if s.r != '|' {
+			s.Token = token.Unknown
+			s.err = fmt.Errorf("parser: unexpected '|'")
+			return
+		}
+		s.next()
+		s.Token = token.LogicalOr
+	case '!':
+		switch s.r {
+		case '=':
+			s.next()
+			s.Token = token.NotEqual
+		default:
+			s.Token = token.Not
+		}
 	default:
 		s.Token = token.Unknown
 		fmt.Printf("Scanner.Next unknown r=%v (%q) s.off=%d\n", r, string(rune(r)), s.off)
