@@ -202,14 +202,13 @@ func (s *Scanner) scanComment() string {
 }
 
 func (s *Scanner) Next() {
-	/* defer func() {
+	defer func() {
 		fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d", s.Token, s.Offset, s.off)
 		if s.Literal != nil {
 			fmt.Printf(" Literal=%s", s.Literal)
 		}
 		fmt.Printf("\n")
 	}()
-	*/
 	s.skipWhitespace()
 	//fmt.Printf("Next: s.r=%v (%s) s.off=%d\n", s.r, string(s.r), s.off)
 

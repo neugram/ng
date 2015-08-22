@@ -10,6 +10,12 @@ import (
 )
 
 func EqualExpr(x, y expr.Expr) bool {
+	if x == nil && y == nil {
+		return true
+	}
+	if x == nil || y == nil {
+		return false
+	}
 	switch x := x.(type) {
 	case *expr.Binary:
 		y, ok := y.(*expr.Binary)
@@ -151,12 +157,18 @@ func equalFuncLiteral(f0, f1 *expr.FuncLiteral) bool {
 		if !ok {
 			return false
 		}
-		return equalStmt(b0, b1)
+		return EqualStmt(b0, b1)
 	}
 	return true
 }
 
-func equalStmt(x, y stmt.Stmt) bool {
+func EqualStmt(x, y stmt.Stmt) bool {
+	if x == nil && y == nil {
+		return true
+	}
+	if x == nil || y == nil {
+		return false
+	}
 	switch x := x.(type) {
 	case *stmt.Return:
 		y, ok := y.(*stmt.Return)
@@ -186,7 +198,7 @@ func equalStmt(x, y stmt.Stmt) bool {
 			return false
 		}
 		for i := range x.Stmts {
-			if !equalStmt(x.Stmts[i], y.Stmts[i]) {
+			if !EqualStmt(x.Stmts[i], y.Stmts[i]) {
 				return false
 			}
 		}
@@ -195,16 +207,33 @@ func equalStmt(x, y stmt.Stmt) bool {
 		if !ok {
 			return false
 		}
-		if !equalStmt(x.Init, y.Init) {
+		if !EqualStmt(x.Init, y.Init) {
 			return false
 		}
 		if !EqualExpr(x.Cond, y.Cond) {
 			return false
 		}
-		if !equalStmt(x.Body, y.Body) {
+		if !EqualStmt(x.Body, y.Body) {
 			return false
 		}
-		if !equalStmt(x.Else, y.Else) {
+		if !EqualStmt(x.Else, y.Else) {
+			return false
+		}
+	case *stmt.For:
+		y, ok := y.(*stmt.For)
+		if !ok {
+			return false
+		}
+		if !EqualStmt(x.Init, y.Init) {
+			return false
+		}
+		if !EqualExpr(x.Cond, y.Cond) {
+			return false
+		}
+		if !EqualStmt(x.Post, y.Post) {
+			return false
+		}
+		if !EqualStmt(x.Body, y.Body) {
 			return false
 		}
 	default:

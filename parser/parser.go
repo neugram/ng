@@ -379,6 +379,14 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	//panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
 }
 
+func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
+	if e, isExpr := s.(*stmt.Simple); isExpr {
+		return e.Expr
+	}
+	fmt.Printf("expected boolean expression, found statement: %s", s.Sexp())
+	return &expr.Bad{p.error("expected boolean expression, found statement")}
+}
+
 func (p *Parser) parseStmt() stmt.Stmt {
 	switch p.s.Token {
 	// TODO: many many kinds of statements
@@ -396,12 +404,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 				s.Cond = p.parseExpr(false)
 			} else {
 				// No Init statement, make it the condition
-				if e, isExpr := s.Init.(*stmt.Simple); isExpr {
-					s.Cond = e.Expr
-				} else {
-					fmt.Printf("expected boolean expression, found statement: %s", s.Init.Sexp())
-					s.Cond = &expr.Bad{p.error("expected boolean expression, found statement")}
-				}
+				s.Cond = p.extractExpr(s.Init)
 				s.Init = nil
 			}
 		}
@@ -428,8 +431,86 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseBlock()
 		p.expectSemi()
 		return s
+	case token.For:
+		s := p.parseFor()
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *Parser) parseFor() stmt.Stmt {
+	p.expect(token.For)
+	p.next()
+
+	body := func() stmt.Stmt {
+		b := p.parseBlock()
+		p.expectSemi()
+		return b
+	}
+
+	if p.s.Token == token.LeftBrace {
+		// for {}
+		return &stmt.For{Body: body()}
+	}
+	if p.s.Token == token.Range {
+		// for range r { }
+		panic("TODO parseFor 'for range'") // TODO
+	}
+	if p.s.Token == token.Semicolon {
+		p.next()
+		if p.s.Token == token.Semicolon {
+			p.next()
+			if p.s.Token == token.LeftBrace {
+				// for ;; { }
+				return &stmt.For{Body: body()}
+			}
+			// for ;;i2 { }
+			i2 := p.parseSimpleStmt()
+			return &stmt.For{Post: i2, Body: body()}
+		}
+		i1 := p.parseSimpleStmt()
+		if p.s.Token == token.Semicolon {
+			// for ;i1; { }
+			p.next()
+			return &stmt.For{Cond: p.extractExpr(i1), Body: body()}
+		}
+		// for ;i1;i2 { }
+		panic("TODO parseFor 'for ;'") // TODO
+	} else {
+		i0 := p.parseSimpleStmt()
+		if p.s.Token == token.LeftBrace {
+			// for i0 {}
+			return &stmt.For{Cond: p.extractExpr(i0), Body: body()}
+		}
+		p.expectSemi()
+		p.next()
+		if p.s.Token == token.Semicolon {
+			// for i0;; {}
+			return &stmt.For{Init: i0, Body: body()}
+		}
+		i1 := p.parseSimpleStmt()
+		p.expectSemi()
+		p.next()
+		if p.s.Token == token.LeftBrace {
+			// for i0;i1; { }
+			return &stmt.For{Init: i0, Cond: p.extractExpr(i1), Body: body()}
+		}
+		i2 := p.parseSimpleStmt()
+		p.expect(token.LeftBrace)
+		// for i0; i1; i2 { }
+		return &stmt.For{
+			Init: i0,
+			Cond: p.extractExpr(i1),
+			Post: i2,
+			Body: body(),
+		}
+	}
+
+	// TODO
+	// for k := range r { }
+	// for k, _ := range r { }
+	panic("TODO parseFor range")
 }
 
 func (p *Parser) parseBlock() stmt.Stmt {

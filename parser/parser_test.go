@@ -202,7 +202,65 @@ func TestParseExpr(t *testing.T) {
 		}
 		got := s.(*stmt.Simple).Expr
 		if !EqualExpr(got, test.want) {
-			t.Errorf("ParseExpr(%q):\n%v", test.input, Diff(test.want, got))
+			t.Errorf("ParseExpr(%q):\n%v", test.input, DiffExpr(test.want, got))
+		}
+	}
+}
+
+type stmtTest struct {
+	input string
+	want  stmt.Stmt
+}
+
+var stmtTests = []stmtTest{
+	{"for {}", &stmt.For{Body: &stmt.Block{}}},
+	{"for ;; {}", &stmt.For{Body: &stmt.Block{}}},
+	{"for true {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
+	{"for ; true; {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
+	{
+		"for i := 0; i < 10; i++ { x = i }",
+		&stmt.For{
+			Init: &stmt.Assign{
+				Decl:  true,
+				Left:  []expr.Expr{&expr.Ident{"i"}},
+				Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(0)}},
+			},
+			Cond: &expr.Binary{
+				Op:    token.Less,
+				Left:  &expr.Ident{"i"},
+				Right: &expr.BasicLiteral{big.NewInt(10)},
+			},
+			Post: &stmt.Assign{
+				Left: []expr.Expr{&expr.Ident{"i"}},
+				Right: []expr.Expr{
+					&expr.Binary{
+						Op:    token.Add,
+						Left:  &expr.Ident{"i"},
+						Right: &expr.BasicLiteral{big.NewInt(1)},
+					},
+				},
+			},
+			Body: &stmt.Block{Stmts: []stmt.Stmt{&stmt.Assign{
+				Left:  []expr.Expr{&expr.Ident{"x"}},
+				Right: []expr.Expr{&expr.Ident{"i"}},
+			}}},
+		},
+	},
+}
+
+func TestParseStmt(t *testing.T) {
+	for _, test := range stmtTests {
+		got, err := ParseStmt([]byte(test.input))
+		if err != nil {
+			t.Errorf("ParseStmt(%q): error: %v", test.input, err)
+			continue
+		}
+		if got == nil {
+			t.Errorf("ParseStmt(%q): nil stmt", test.input)
+			continue
+		}
+		if !EqualStmt(got, test.want) {
+			t.Errorf("ParseStmt(%q):\n%v", test.input, DiffStmt(test.want, got))
 		}
 	}
 }

@@ -12,14 +12,14 @@ import (
 	"strings"
 
 	"numgrad.io/lang/expr"
+	"numgrad.io/lang/stmt"
 )
 
-func Print(w io.Writer, expr expr.Expr) error { // TODO remove
-	_, err := io.WriteString(w, expr.Sexp())
-	return err
+type sExpr interface {
+	Sexp() string
 }
 
-func printToFile(x expr.Expr) (path string, err error) {
+func printToFile(x sExpr) (path string, err error) {
 	f, err := ioutil.TempFile("", "numgrad-diff-")
 	if err != nil {
 		return "", err
@@ -34,16 +34,32 @@ func printToFile(x expr.Expr) (path string, err error) {
 		}
 	}()
 
-	if err := Print(f, x); err != nil {
+	str := ""
+	if x != nil {
+		str = x.Sexp()
+	}
+	if _, err := io.WriteString(f, str); err != nil {
 		return "", err
 	}
 	return f.Name(), nil
 }
 
-func Diff(x, y expr.Expr) string {
+func DiffStmt(x, y stmt.Stmt) string {
+	if EqualStmt(x, y) {
+		return ""
+	}
+	return diffSexp(x, y)
+
+}
+
+func DiffExpr(x, y expr.Expr) string {
 	if EqualExpr(x, y) {
 		return ""
 	}
+	return diffSexp(x, y)
+}
+
+func diffSexp(x, y sExpr) string {
 	fx, err := printToFile(x)
 	if err != nil {
 		return "diff print lhs error: " + err.Error()
