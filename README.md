@@ -14,7 +14,52 @@ Very imporant: it's easy to import Go packages and call Go from inside
 Numengrad. Serious work should be implemented in Go, Numengrad is the
 numerical glue.
 
+# Files and Packages
+
+Files end in *.ng*.
+
+A package is a single file.
+
+A file is a sequence of statements.
+
+The first statement in a file is "package *nameoffile.ng*"
+
+A package can be imported with "import path/to/nameoffile.ng".
+In a file, imports must come directly after package. The interpreter
+allows mid-file imports.
+
+A program starts with "package main".
+
+We borrow GOPATH.
+
 # Types
+
+## Current thoughts on types
+
+- Allow the definition of unused Go types, but no arithmetic on unsigned ints.
+
+- Leave out type parameters for now (except for a piece of syntax below).
+
+- In my mind there's a type named val, that is the abstract type above
+	integer, float, float32, float64, int64, complex, complex64, complex128
+  but I'm not exposing it yet.
+
+- Frames:
+	frame[integer], frame[float], frame[float64], ...
+  and
+	frame, short for frame[interface{}].
+  Dynamically, a frame keeps a type on each column, so:
+	func conv(f frame) frame[float64] { return f.(frame[float64]) }
+  is possible, but may fail dynamically.
+
+- A frame[float64] (etc) is a matrix. These admit arithmetic operators.
+
+- No dimensions in the frame type parameters, that way lies too many types.
+
+- No implicit conversions in arithmetic, even the safe ones (int64->integer) as
+  they have surprising performance implications.
+
+## Background
 
 Start with Go's types.
 - remove channels
@@ -34,21 +79,26 @@ Start with Go's types.
 - later: introduce imaginary numbers
 
 - problem: want to be able to write:
+	```
 	func min(x, y) {
 		if x < y {
 			return x
 		}
 		return y
 	}
+	```
   what types does it have?
   this is really calling for type parameters:
+	```
 	func [T] min(x, y T) T {
 		if x < y {
 			return x
 		}
 		return y
 	}
+	```
   this is possible, but it will have to be pervasive:
+	```
 	type [T] Point struct {
 		X, Y T
 	}
@@ -61,24 +111,29 @@ Start with Go's types.
 	func [T] sqrt(x, y T) T {
 		// newton's method
 	}
+	```
   Besides being useful, this has the usual problem type parameters
   have: it makes programming more complex. Work like this should
   really be done in Go and called from Numengrad.
 
 - extremely tempting, dynamic types:
+	```
 	func min(x, y val) val {
 		if x < y {
 			return x
 		}
 		return y
 	}
+	```
   Interpreter would initially box all types, a JIT could unbox and specialize
   the important types, int64/float{32,64}, and in the future possibly custom
   user types.
 
   IMPORTANT:
+	```
 	x, y := int64(4), float64(5)
 	min(x, y) // fails, dynamic check in (<) operator
+	```
   Avoid nasty implicit type conversions.
   Possible implicit conversions we could introduce later:
 	- int64 -> int
@@ -102,26 +157,20 @@ Start with Go's types.
   if we allow per-column types. It can probably be type checked, but
   would you want to program with them?
 
-
-- current thoughts on these problems:
-	- a frame is always dynamic in its types
-	- keep the door open on type parameters, but not yet
-	- use dynamic types
-	- rename interface{} to val
-	- allow numeric ops to work on val type
-
 # Syntax
 
-Almost entirely derived from Go. 
+Almost entirely derived from Go.
 
-New keywords: frame, val
+New keywords: frame, val (reserved)
 
 TODO: literal syntax for frames is giving me a headache. For now, using the composite literal syntax for the fake struct record:
 
+```
 type frame struct {
 	Names []string
 	Rows [][]interface{}
 }
+```
 
 Must do better, but I really hate syntax.
 
@@ -131,14 +180,14 @@ The Go type frame.Frame has an innocently named optional method Slice
 that gets a ton of fun syntax:
 
 Given x:
-
+```
  Col0 Col1 Col2
 0 0.0  0.1  0.2
 1 1.0  1.1  1.2
 2 2.0  2.1  2.2
-
+```
 or
-
+```
 x = frame{
 	Names: {"Col0", "Col1", "Col2"},
 	Rows: {
@@ -184,3 +233,4 @@ x[1,0:1] == frame{
 }
 
 x[1,1] == 1.1 // all slicing variants return a frame, except this one
+```
