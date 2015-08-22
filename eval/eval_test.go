@@ -20,7 +20,7 @@ var exprTests = []struct {
 	{"func() val { return 7 }()", big.NewInt(7)},
 	{
 		`func() val {
-			if x > 2 {
+			if x > 2 && x < 500 {
 				return z+1
 			} else {
 				return z-1
@@ -41,10 +41,19 @@ var exprTests = []struct {
 	},
 	{
 		`func() val {
-			x++
+			f := func() val {
+				x++
+				return true
+			}
+			if x == 4 || f() {
+				x += 4
+			}
+			if x == 1 && f() {
+				x *= 4
+			}
 			return x
 		}()`,
-		big.NewInt(5),
+		big.NewInt(8),
 	},
 }
 

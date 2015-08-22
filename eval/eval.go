@@ -247,10 +247,18 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 
 		switch e.Op {
-		case token.LogicalAnd:
-			panic("TODO LogicalAnd") // maybe skip RHS
-		case token.LogicalOr:
-			panic("TODO LogicalOr") // maybe skip RHS
+		case token.LogicalAnd, token.LogicalOr:
+			if e.Op == token.LogicalAnd && !lhs.(bool) {
+				return []interface{}{false}, nil
+			}
+			if e.Op == token.LogicalOr && lhs.(bool) {
+				return []interface{}{true}, nil
+			}
+			rhs, err := p.evalExprAndReadVar(e.Right)
+			if err != nil {
+				return nil, err
+			}
+			return []interface{}{rhs.(bool)}, nil
 		}
 
 		rhs, err := p.evalExprAndReadVar(e.Right)
