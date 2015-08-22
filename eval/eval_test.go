@@ -55,6 +55,28 @@ var exprTests = []struct {
 		}()`,
 		big.NewInt(8),
 	},
+	{
+		`func() val {
+			v := 2
+			for i := 1; i < 4; i++ {
+				v *= i
+			}
+			return v
+		}()`,
+		big.NewInt(12),
+	},
+	{
+		`func() val {
+			v := 2
+			for {
+				v++
+				break
+				v++
+			}
+			return v
+		}()`,
+		big.NewInt(3),
+	},
 }
 
 func mkBasicProgram() *Program {

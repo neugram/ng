@@ -33,6 +33,7 @@ type Program struct {
 	Pkg       map[string]*Scope // package -> scope
 	Cur       *Scope
 	Returning bool
+	Breaking  bool
 }
 
 func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
@@ -104,13 +105,15 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			if p.Returning {
+			if p.Returning || p.Breaking {
 				return res, nil
 			}
 		}
 		return nil, nil
 	case *stmt.If:
 		if s.Init != nil {
+			p.pushScope()
+			defer p.popScope()
 			if _, err := p.evalStmt(s.Init); err != nil {
 				return nil, err
 			}
@@ -123,6 +126,32 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			return p.evalStmt(s.Body)
 		} else if s.Else != nil {
 			return p.evalStmt(s.Else)
+		}
+		return nil, nil
+	case *stmt.For:
+		if s.Init != nil {
+			p.pushScope()
+			defer p.popScope()
+			if _, err := p.evalStmt(s.Init); err != nil {
+				return nil, err
+			}
+		}
+		for {
+			cond, err := p.evalExprAndReadVar(s.Cond)
+			if err != nil {
+				return nil, err
+			}
+			if !cond.(bool) {
+				break
+			}
+			if _, err := p.evalStmt(s.Body); err != nil {
+				return nil, err
+			}
+			if s.Post != nil {
+				if _, err := p.evalStmt(s.Post); err != nil {
+					return nil, err
+				}
+			}
 		}
 		return nil, nil
 	case *stmt.Return:
