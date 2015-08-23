@@ -95,7 +95,7 @@ func (c *Checker) stmt(s stmt.Stmt) {
 				if isUntyped(p.typ) {
 					c.constrainUntyped(&p, defaultType(p.typ))
 				}
-				obj := &Obj{Type: partials[i].typ}
+				obj := &Obj{Type: p.typ}
 				c.Defs[lhs.(*expr.Ident)] = obj
 				c.cur.Objs[lhs.(*expr.Ident).Name] = obj
 			}
@@ -104,7 +104,7 @@ func (c *Checker) stmt(s stmt.Stmt) {
 				p := partials[i]
 				lhsP := c.expr(lhs)
 				if isUntyped(p.typ) {
-					c.constrainUntyped(&p, c.Types[lhsP.expr])
+					c.constrainUntyped(&p, lhsP.typ)
 				}
 			}
 		}
@@ -137,6 +137,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		c.Defs[e] = obj // TODO Defs is more than definitions? rename?
 		p.mode = modeVar
+		p.typ = obj.Type
 		return p
 	case *expr.BasicLiteral:
 		p.mode = modeConst
