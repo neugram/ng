@@ -30,23 +30,32 @@ type Struct struct {
 	Fields []*Field
 }
 
-type BasicKind int
+type Basic string
 
 const (
-	Invalid BasicKind = iota
-	Bool
-	Byte
-	Int64
-	Float32
-	Float64
-	Integer
-	Float
-	String
+	Invalid Basic = "invalid"
+	Bool    Basic = "bool"
+	Integer Basic = "integer"
+	Float   Basic = "float"
+	Complex Basic = "complex"
+	String  Basic = "string"
+
+	Int64   Basic = "int64"
+	Float32 Basic = "float32"
+	Float64 Basic = "float64"
+
+	UntypedBool    Basic = "untyped bool"
+	UntypedInteger Basic = "untyped integer"
+	UntypedFloat   Basic = "untyped float"
+	UntypedComplex Basic = "untyped complex"
 )
 
-type Basic struct {
-	Kind BasicKind
-	Name string
+type Named struct {
+	Name string // not an identifier, only for debugging
+	// TODO: move Ref to a Checker map?
+	Ref        interface{} // a *typecheck.Obj after type checking
+	Underlying Type
+	// TODO: Methods []*Obj
 }
 
 type Unresolved struct {
@@ -54,20 +63,31 @@ type Unresolved struct {
 }
 
 var (
+	_ = Type(Basic(""))
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
-func (t Func) tipe()       {}
-func (t Struct) tipe()     {}
-func (t Unresolved) tipe() {}
+func (t Basic) tipe()       {}
+func (t *Func) tipe()       {}
+func (t *Struct) tipe()     {}
+func (t *Named) tipe()      {}
+func (t *Unresolved) tipe() {}
 
+func (e Basic) Sexp() string { return fmt.Sprintf("(basictype %s)", string(e)) }
 func (e *Func) Sexp() string {
 	return fmt.Sprintf("(functype (in %s) (out %s))", fieldsStr(e.In), fieldsStr(e.Out))
 }
 func (e *Struct) Sexp() string {
-	return fmt.Sprintf("(struct )", fieldsStr(e.Fields))
+	return fmt.Sprintf("(structtype %s)", fieldsStr(e.Fields))
+}
+func (e *Named) Sexp() string {
+	u := "nilunderlying"
+	if e.Underlying != nil {
+		u = e.Underlying.Sexp()
+	}
+	return fmt.Sprintf("(namedtype %s %s)", e.Name, u)
 }
 func (e *Unresolved) Sexp() string {
 	switch n := e.Name.(type) {
@@ -76,7 +96,7 @@ func (e *Unresolved) Sexp() string {
 	case interface {
 		Sexp() string
 	}:
-		return "(type " + n.Sexp() + ")"
+		return "(unresolvedtype " + n.Sexp() + ")"
 	default:
 		return fmt.Sprintf("unknown:%s", e)
 	}
