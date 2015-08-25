@@ -20,6 +20,7 @@ var typeTests = []typeTest{
 		[]string{
 			"x := 4 + 5 + 2",
 			"y := x",
+			"z := int64(x) + 2",
 		},
 		nil,
 	},
@@ -38,9 +39,10 @@ func TestBasic(t *testing.T) {
 
 		c := New()
 		for _, s := range stmts {
-			t.Logf("Add(%s)", s.Sexp())
+			t.Logf("Add((%p)%s)", s, s.Sexp())
 			c.Add(s)
 		}
-		t.Errorf("%s", c)
+		t.Logf("%s", c)
+		t.Errorf("TODO")
 	}
 }

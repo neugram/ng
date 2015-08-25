@@ -38,7 +38,10 @@ func New() *Checker {
 		Types:  make(map[expr.Expr]tipe.Type),
 		Defs:   make(map[*expr.Ident]*Obj),
 		Values: make(map[expr.Expr]constant.Value),
-		cur:    &Scope{Objs: make(map[string]*Obj)},
+		cur: &Scope{
+			Parent: base,
+			Objs:   make(map[string]*Obj),
+		},
 	}
 }
 
@@ -50,6 +53,7 @@ const (
 	modeConst
 	modeVar
 	modeBuiltin
+	modeTypeExpr
 )
 
 type partial struct {
@@ -57,26 +61,6 @@ type partial struct {
 	typ  tipe.Type
 	val  constant.Value
 	expr expr.Expr
-}
-
-func (c *Checker) errorf(format string, args ...interface{}) {
-	fmt.Printf("typecheck error: %s\n", fmt.Sprintf(format, args...))
-}
-
-func defaultType(t tipe.Type) tipe.Type {
-	b, ok := t.(tipe.Basic)
-	if !ok {
-		return t
-	}
-	switch b {
-	case tipe.UntypedBool:
-		return tipe.Bool
-	case tipe.UntypedInteger:
-		return tipe.Integer
-	case tipe.UntypedFloat:
-		return tipe.Float
-	}
-	return t
 }
 
 func (c *Checker) stmt(s stmt.Stmt) {
@@ -95,7 +79,11 @@ func (c *Checker) stmt(s stmt.Stmt) {
 				if isUntyped(p.typ) {
 					c.constrainUntyped(&p, defaultType(p.typ))
 				}
-				obj := &Obj{Type: p.typ}
+				obj := &Obj{
+					// TODO ObjType for x := struct{ X int64 }?
+					Kind: ObjVar,
+					Type: p.typ,
+				}
 				c.Defs[lhs.(*expr.Ident)] = obj
 				c.cur.Objs[lhs.(*expr.Ident).Name] = obj
 			}
@@ -107,6 +95,16 @@ func (c *Checker) stmt(s stmt.Stmt) {
 					c.constrainUntyped(&p, lhsP.typ)
 				}
 			}
+		}
+
+	case *stmt.Simple:
+		c.expr(s.Expr)
+
+	case *stmt.Block:
+		c.pushScope()
+		defer c.popScope()
+		for _, s := range s.Stmts {
+			c.stmt(s)
 		}
 
 	default:
@@ -136,7 +134,14 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			return p
 		}
 		c.Defs[e] = obj // TODO Defs is more than definitions? rename?
-		p.mode = modeVar
+		// TODO: is a partial's mode just an ObjKind?
+		// not every partial has an Obj, but we could reuse the type.
+		switch obj.Kind {
+		case ObjVar:
+			p.mode = modeVar
+		case ObjType:
+			p.mode = modeTypeExpr
+		}
 		p.typ = obj.Type
 		return p
 	case *expr.BasicLiteral:
@@ -171,29 +176,79 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 
 		return left
-	default:
-		panic(fmt.Sprintf("expr TODO: %T", e))
+	case *expr.Call:
+		p := c.expr(e.Func)
+		switch p.mode {
+		case modeVar:
+			// function call
+			c.errorf("TODO function call")
+		case modeTypeExpr:
+			// type conversion
+			if len(e.Args) == 0 {
+				p.mode = modeInvalid
+				c.errorf("type conversion to %s is missing an argument", p.typ)
+				return p
+			} else if len(e.Args) != 1 {
+				p.mode = modeInvalid
+				c.errorf("type conversion to %s has too many arguments", p.typ)
+				return p
+			}
+			t := p.typ
+			p = c.expr(e.Args[0])
+			if p.mode == modeInvalid {
+				return p
+			}
+			c.convert(&p, t)
+			p.expr = e
+			return p
+		default:
+			panic("unreachable, unknown call mode")
+		}
+	}
+	panic(fmt.Sprintf("expr TODO: %T", e))
+}
+
+func (c *Checker) convert(p *partial, t tipe.Type) {
+	_, tIsConst := t.(tipe.Basic)
+	if p.mode == modeConst && tIsConst {
+		// TODO or integer -> string conversion
+		if round(p.val, t.(tipe.Basic)) == nil {
+			// p.val does not fit in t
+			c.errorf("constant %s does not fit in %s", p.val, t)
+			p.mode = modeInvalid
+			return
+		}
+	}
+
+	if !convertible(p.typ, t) {
+		// TODO p.typ and t have identical underlying types
+		// TODO p is assignable to t, lots of possibilities
+		// (interface satisfaction, etc)
+		c.errorf("TODO non-const convert")
+		p.mode = modeInvalid
+		return
+	}
+
+	if isUntyped(p.typ) {
+		c.constrainUntyped(p, t)
+	} else {
+		p.typ = t
 	}
 }
 
-func convGoOp(op token.Token) gotoken.Token {
-	switch op {
-	case token.Add:
-		return gotoken.ADD
-	case token.Sub:
-		return gotoken.SUB
-	case token.Mul:
-		return gotoken.MUL
-	case token.Div:
-		return gotoken.QUO // TODO: QUO_ASSIGN for int div
-	case token.Rem:
-		return gotoken.REM
-	case token.Pow:
-		panic("TODO token.Pow")
-		return gotoken.REM
-	default:
-		panic(fmt.Sprintf("typecheck: bad op: %s", op))
+func convertible(dst, src tipe.Type) bool {
+	if dst == src {
+		return true
 	}
+	// TODO several other forms of "identical" types,
+	// e.g. maps where keys and value are identical,
+
+	// integers and floats can be converted to one another
+	if (tipe.IsInt(dst) || tipe.IsFloat(dst)) && (tipe.IsInt(src) || tipe.IsFloat(src)) {
+		return true
+	}
+
+	return false
 }
 
 func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
@@ -209,18 +264,17 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 		case t == tipe.UntypedComplex && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
 			// promote untyped int or float to complex
 		case t != p.typ:
-			panic("cannot convert untyped")
-			// TODO c.errorf("cannot convert %s to %s", x, typ)
+			c.errorf("cannot convert %s to %s", p.typ, t)
 		}
 	} else {
-		switch t := Underlying(t).(type) {
+		switch t := tipe.Underlying(t).(type) {
 		case tipe.Basic:
 			switch p.mode {
 			case modeConst:
 				p.val = round(p.val, t)
 				if p.val == nil {
-					panic("cannot convert")
-					// TODO c.errorf
+					c.errorf("cannot convert %s to %s", p.typ, t)
+					// TODO more details about why
 				}
 			case modeVar:
 				panic("TODO coerce var to basic")
@@ -259,6 +313,40 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 	}
 
 	c.Types[e] = t
+}
+
+func (c *Checker) errorf(format string, args ...interface{}) {
+	fmt.Printf("typecheck error: %s\n", fmt.Sprintf(format, args...))
+}
+
+func (c *Checker) pushScope() {
+	c.cur = &Scope{
+		Parent: c.cur,
+		Objs:   make(map[string]*Obj),
+	}
+}
+func (c *Checker) popScope() {
+	c.cur = c.cur.Parent
+}
+
+func convGoOp(op token.Token) gotoken.Token {
+	switch op {
+	case token.Add:
+		return gotoken.ADD
+	case token.Sub:
+		return gotoken.SUB
+	case token.Mul:
+		return gotoken.MUL
+	case token.Div:
+		return gotoken.QUO // TODO: QUO_ASSIGN for int div
+	case token.Rem:
+		return gotoken.REM
+	case token.Pow:
+		panic("TODO token.Pow")
+		return gotoken.REM
+	default:
+		panic(fmt.Sprintf("typecheck: bad op: %s", op))
+	}
 }
 
 func round(v constant.Value, t tipe.Basic) constant.Value {
@@ -318,7 +406,7 @@ func (c *Checker) String() string {
 		if v.Type != nil {
 			t = v.Type.Sexp()
 		}
-		fmt.Fprintf(buf, "\t\t(%p)%s: (%p).Type:%s\n", k, k.Sexp(), v, t)
+		fmt.Fprintf(buf, "\t\t(%p)%s: (%p)*Obj{Kind: %v, Type:%s}\n", k, k.Sexp(), v, v.Kind, t)
 	}
 	buf.WriteString("\t},\n")
 	buf.WriteString("\tValues : map[expr.Expr]constant.Value{\n")
@@ -345,27 +433,58 @@ func (s *Scope) LookupRec(name string) *Obj {
 	return nil
 }
 
+type ObjKind int
+
+const (
+	ObjUnknown ObjKind = iota
+	ObjVar
+	ObjType
+)
+
+func (o ObjKind) String() string {
+	switch o {
+	case ObjUnknown:
+		return "ObjUnknown"
+	case ObjVar:
+		return "ObjVar"
+	case ObjType:
+		return "ObjType"
+	default:
+		return fmt.Sprintf("ObjKind(%d)", int(o))
+	}
+}
+
 // An Obj represents a declared constant, type, variable, or function.
 type Obj struct {
+	Kind ObjKind
 	Type tipe.Type
 	Used bool
 }
 
-func Underlying(t tipe.Type) tipe.Type {
-	if n, ok := t.(*tipe.Named); ok {
-		return n.Underlying
-	}
-	return t
-}
-
 func isTyped(t tipe.Type) bool {
-	return Underlying(t) != tipe.Invalid && !isUntyped(t)
+	return tipe.Underlying(t) != tipe.Invalid && !isUntyped(t)
 }
 
 func isUntyped(t tipe.Type) bool {
-	switch Underlying(t) {
+	switch tipe.Underlying(t) {
 	case tipe.UntypedBool, tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
 		return true
 	}
 	return false
+}
+
+func defaultType(t tipe.Type) tipe.Type {
+	b, ok := t.(tipe.Basic)
+	if !ok {
+		return t
+	}
+	switch b {
+	case tipe.UntypedBool:
+		return tipe.Bool
+	case tipe.UntypedInteger:
+		return tipe.Integer
+	case tipe.UntypedFloat:
+		return tipe.Float
+	}
+	return t
 }

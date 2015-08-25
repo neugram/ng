@@ -112,3 +112,26 @@ func fieldsStr(fields []*Field) string {
 	}
 	return buf.String()
 }
+
+func Underlying(t Type) Type {
+	if n, ok := t.(*Named); ok {
+		return n.Underlying
+	}
+	return t
+}
+
+func IsInt(t Type) bool {
+	b, ok := t.(Basic)
+	if !ok {
+		return false
+	}
+	return b == Integer || b == Int64
+}
+
+func IsFloat(t Type) bool {
+	b, ok := t.(Basic)
+	if !ok {
+		return false
+	}
+	return b == Float || b == Float32 || b == Float64
+}
