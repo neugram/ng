@@ -135,3 +135,11 @@ func IsFloat(t Type) bool {
 	}
 	return b == Float || b == Float32 || b == Float64
 }
+
+func Equal(x, y Type) bool {
+	if x == y {
+		return true
+	}
+	fmt.Printf("tipe.Equal TODO\n")
+	return false
+}

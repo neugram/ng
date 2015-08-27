@@ -7,27 +7,40 @@ import (
 	"testing"
 
 	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/tipe"
 	"numgrad.io/parser"
 )
 
+type identType struct {
+	name string
+	t    tipe.Type
+}
+
 type typeTest struct {
 	stmts []string
-	want  interface{} // TODO
+	want  []identType
 }
 
 var typeTests = []typeTest{
+	{
+		[]string{"x := 4"},
+		[]identType{{"x", tipe.Integer}},
+	},
 	{
 		[]string{
 			"x := 4 + 5 + 2",
 			"y := x",
 			"z := int64(x) + 2",
 		},
-		nil,
+		[]identType{
+			{"y", tipe.Integer},
+			{"z", tipe.Int64},
+		},
 	},
 }
 
 func TestBasic(t *testing.T) {
-	for _, test := range typeTests {
+	for i, test := range typeTests {
 		var stmts []stmt.Stmt
 		for _, str := range test.stmts {
 			s, err := parser.ParseStmt([]byte(str))
@@ -43,6 +56,25 @@ func TestBasic(t *testing.T) {
 			c.Add(s)
 		}
 		t.Logf("%s", c)
-		t.Errorf("TODO")
+
+		findDef := func(name string) *Obj {
+			for ident, obj := range c.Defs {
+				if ident.Name == name {
+					return obj
+				}
+			}
+			return nil
+		}
+
+		for _, want := range test.want {
+			obj := findDef(want.name)
+			if obj == nil {
+				t.Errorf("%d: want %s=%s, is missing", i, want.name, want.t, want.name)
+				continue
+			}
+			if !tipe.Equal(obj.Type, want.t) {
+				t.Errorf("%d: want %s=%s, got %s", i, want.name, want.t, obj.Type)
+			}
+		}
 	}
 }
