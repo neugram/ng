@@ -136,7 +136,24 @@ func equalType(t0, t1 tipe.Type) bool {
 			return false
 		}
 	case *tipe.Struct:
-		panic("TODO")
+		t1, ok := t1.(*tipe.Struct)
+		if !ok {
+			return false
+		}
+		if !equalFields(t0.Fields, t1.Fields) {
+			return false
+		}
+	case *tipe.Unresolved:
+		// TODO a correct definition for a parser, but not for a type checker
+		t1, ok := t1.(*tipe.Unresolved)
+		if !ok {
+			return false
+		}
+		if t0.Name != t1.Name {
+			return false
+		}
+	default:
+		panic(fmt.Sprintf("unknown type: %T", t0))
 	}
 	return true
 }
@@ -176,6 +193,42 @@ func EqualStmt(x, y stmt.Stmt) bool {
 			return false
 		}
 		if !equalExprs(x.Exprs, y.Exprs) {
+			return false
+		}
+	case *stmt.Import:
+		y, ok := y.(*stmt.Import)
+		if !ok {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		if !EqualExpr(x.Path, y.Path) {
+			return false
+		}
+	case *stmt.Type:
+		y, ok := y.(*stmt.Type)
+		if !ok {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+	case *stmt.Const:
+		y, ok := y.(*stmt.Const)
+		if !ok {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		if !EqualExpr(x.Value, y.Value) {
 			return false
 		}
 	case *stmt.Assign:

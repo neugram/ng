@@ -258,6 +258,28 @@ var stmtTests = []stmtTest{
 			}}},
 		},
 	},
+	{"const x = 4", &stmt.Const{Name: "x", Value: &expr.BasicLiteral{big.NewInt(4)}}},
+	{
+		"const x int64 = 4",
+		&stmt.Const{
+			Name:  "x",
+			Type:  &tipe.Unresolved{"int64"},
+			Value: &expr.BasicLiteral{big.NewInt(4)},
+		},
+	},
+	{"type a int64", &stmt.Type{Name: "a", Type: &tipe.Unresolved{"int64"}}},
+	{
+		"type a struct { x integer, y struct { z int64 }}",
+		&stmt.Type{
+			Name: "a",
+			Type: &tipe.Struct{Fields: []*tipe.Field{
+				{"x", &tipe.Unresolved{"integer"}},
+				{"y", &tipe.Struct{Fields: []*tipe.Field{
+					{"z", &tipe.Unresolved{"int64"}},
+				}}},
+			}},
+		},
+	},
 }
 
 func TestParseStmt(t *testing.T) {

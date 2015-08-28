@@ -271,6 +271,14 @@ func (p *Parser) parseOut() (params []*tipe.Field) {
 	return params
 }
 
+func (p *Parser) parseType() tipe.Type {
+	t := p.maybeParseType()
+	if t == nil {
+		p.errorf("expected type, got %s", p.s.Token)
+	}
+	return t
+}
+
 func (p *Parser) maybeParseType() tipe.Type {
 	switch p.s.Token {
 	case token.Ident:
@@ -282,7 +290,24 @@ func (p *Parser) maybeParseType() tipe.Type {
 		}
 		return &tipe.Unresolved{ident.Name}
 	case token.Struct:
-		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+		p.next()
+		p.expect(token.LeftBrace)
+		p.next()
+		s := &tipe.Struct{}
+		for p.s.Token > 0 && p.s.Token != token.RightBrace {
+			s.Fields = append(s.Fields, &tipe.Field{
+				Name: p.parseIdent().Name,
+				Type: p.parseType(),
+			})
+			if p.s.Token == token.Comma {
+				p.next()
+			} else if p.s.Token != token.RightBrace {
+				p.expect(token.Comma) // prodce error
+			}
+		}
+		p.expect(token.RightBrace)
+		p.next()
+		return s
 	case token.Mul: // pointer type
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Func:
@@ -470,6 +495,27 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseFor()
 		p.expectSemi()
 		return s
+	case token.Const:
+		p.next()
+		s := &stmt.Const{
+			Name: p.parseIdent().Name,
+		}
+		if p.s.Token != token.Assign {
+			s.Type = p.parseType()
+		}
+		p.expect(token.Assign)
+		p.next()
+		s.Value = p.parseExpr(false)
+		p.expectSemi()
+		return s
+	case token.Type:
+		p.next()
+		s := &stmt.Type{
+			Name: p.parseIdent().Name,
+			Type: p.parseType(),
+		}
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
@@ -652,6 +698,10 @@ type Error struct {
 
 func (e Error) Error() string {
 	return fmt.Sprintf("numgrad: parser: %s (off %d)", e.Msg, e.Offset)
+}
+
+func (p *Parser) errorf(format string, a ...interface{}) error {
+	return p.error(fmt.Sprintf(format, a...))
 }
 
 func (p *Parser) error(msg string) error {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"numgrad.io/lang/expr"
+	"numgrad.io/lang/tipe"
 )
 
 type Stmt interface {
@@ -16,10 +17,26 @@ type Stmt interface {
 	stmt()
 }
 
+type Import struct {
+	Name string
+	Path *expr.BasicLiteral
+}
+
+type Type struct {
+	Name string
+	Type tipe.Type
+}
+
+type Const struct {
+	Name  string
+	Type  tipe.Type
+	Value expr.Expr
+}
+
 type Assign struct {
 	Decl  bool
 	Left  []expr.Expr
-	Right []expr.Expr
+	Right []expr.Expr // TODO: give up on multiple rhs values for now.
 }
 
 type Block struct {
@@ -55,6 +72,9 @@ type Simple struct {
 	Expr expr.Expr
 }
 
+func (s Import) stmt() {}
+func (s Type) stmt()   {}
+func (s Const) stmt()  {}
 func (s Assign) stmt() {}
 func (s Block) stmt()  {}
 func (s If) stmt()     {}
@@ -74,6 +94,13 @@ func (s *Block) Sexp() string {
 	return buf.String()
 }
 func (e *Return) Sexp() string { return fmt.Sprintf("(return %s)", exprsStr(e.Exprs)) }
+func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, exprSexp(e.Path)) }
+func (e *Type) Sexp() string {
+	return fmt.Sprintf("(typedecl %s %s)", e.Name, typeSexp(e.Type))
+}
+func (e *Const) Sexp() string {
+	return fmt.Sprintf("(constdecl %s %s %s)", e.Name, typeSexp(e.Type), exprSexp(e.Value))
+}
 func (e *Assign) Sexp() string {
 	decl := ""
 	if e.Decl {
@@ -97,6 +124,13 @@ func stmtSexp(s Stmt) string {
 		return "nilstmt"
 	}
 	return s.Sexp()
+}
+
+func typeSexp(e tipe.Type) string {
+	if e == nil {
+		return "niltype"
+	}
+	return e.Sexp()
 }
 
 func exprSexp(e expr.Expr) string {

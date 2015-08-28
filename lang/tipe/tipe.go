@@ -59,6 +59,10 @@ type Named struct {
 }
 
 type Unresolved struct {
+	/* TODO:
+	Package string
+	Name string
+	*/
 	Name interface{} // string or *expr.Selector
 }
 
