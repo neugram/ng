@@ -38,26 +38,57 @@ We borrow GOPATH.
 
 - Allow the definition of unused Go types, but no arithmetic on unsigned ints.
 
-- Leave out type parameters for now (except for a piece of syntax below).
+- Rename interface{} to val. Everything is a val.
 
-- In my mind there's a type named val, that is the abstract type above
-	integer, float, float32, float64, int64, complex, complex64, complex128
-  but I'm not exposing it yet.
+- Introduce a new abstract type, num. A num admits arithmetic.
 
-- Frames:
-	frame[integer], frame[float], frame[float64], ...
-  and
-	frame, short for frame[interface{}].
-  Dynamically, a frame keeps a type on each column, so:
-	func conv(f frame) frame[float64] { return f.(frame[float64]) }
+- Introduce a new abstract type [|]num, a frame.
+  Like slices, frames have a type for their contents, which must be a
+  non-frame num. E.g.
+	[|]num         - valid, is a num
+	[|]float64     - valid, is a num
+	[|][|]num      - invalid
+	[|]val         - valid, not a num
+
+- Introduce a single type parameter, which must be declared to be some part
+  of the num heirarchy:
+
+  type [T num] struct { x T }
+  type [T [|]float64] struct { x T }
+
+- Basic numeric types:
+	integer, float, float32, float64, int64, complex, complex128
+
+- Dynamically, a frame keeps a type on each column, so:
+	func conv(f [|]num) [|]float64 { return f.([|]float64) }
   is possible, but may fail dynamically.
 
-- A frame[float64] (etc) is a matrix. These admit arithmetic operators.
+- A [|]float64 (etc) is a matrix. These admit arithmetic operators.
 
 - No dimensions in the frame type parameters, that way lies too many types.
 
 - No implicit conversions in arithmetic, even the safe ones (int64->integer) as
   they have surprising performance implications.
+
+- The hierarchy is confusing, but looks something like: ```
+
+       val (a.k.a interface{})                   
+            +                                    
+ +----------------------------+                  
+ |                   |        |                  
+ |                   +        +                  
+ +-> int64         [|]val    num                 
+     struct {        +        +                  
+       x int64       |        +-------+          
+       y [|]int64    |                |          
+     }               |                +          
+     ...             +-----------> [|]num        
+                                    |            
+                                    +->[|]integer
+                                       [|]float  
+                                       [|]int64  
+                                       ...       
+```
 
 ## Background
 
