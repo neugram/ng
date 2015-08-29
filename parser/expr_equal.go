@@ -143,6 +143,14 @@ func equalType(t0, t1 tipe.Type) bool {
 		if !equalFields(t0.Fields, t1.Fields) {
 			return false
 		}
+	case *tipe.Frame:
+		t1, ok := t1.(*tipe.Frame)
+		if !ok {
+			return false
+		}
+		if !equalType(t0.Type, t1.Type) {
+			return false
+		}
 	case *tipe.Unresolved:
 		// TODO a correct definition for a parser, but not for a type checker
 		t1, ok := t1.(*tipe.Unresolved)

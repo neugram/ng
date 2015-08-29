@@ -63,6 +63,7 @@ const (
 	Period       // .
 	Semicolon    // ;
 	Colon        // :
+	Pipe         // |
 
 	// Keywords
 
@@ -139,6 +140,7 @@ var tokens = map[string]Token{
 	"Period":       Period,
 	"Semicolon":    Semicolon,
 	"Colon":        Colon,
+	"Pipe":         Pipe,
 }
 
 var keywords = map[string]Token{

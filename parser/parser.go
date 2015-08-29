@@ -308,6 +308,13 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.expect(token.RightBrace)
 		p.next()
 		return s
+	case token.LeftBracket:
+		p.next()
+		p.expect(token.Pipe)
+		p.next()
+		p.expect(token.RightBracket)
+		p.next()
+		return &tipe.Frame{Type: p.parseType()}
 	case token.Mul: // pointer type
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Func:

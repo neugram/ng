@@ -280,6 +280,10 @@ var stmtTests = []stmtTest{
 			}},
 		},
 	},
+	{
+		"type a [|]int64",
+		&stmt.Type{Name: "a", Type: &tipe.Frame{&tipe.Unresolved{"int64"}}},
+	},
 }
 
 func TestParseStmt(t *testing.T) {

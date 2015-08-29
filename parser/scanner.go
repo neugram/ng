@@ -371,13 +371,13 @@ func (s *Scanner) Next() {
 			s.Token = token.Ref
 		}
 	case '|':
-		if s.r != '|' {
-			s.Token = token.Unknown
-			s.err = fmt.Errorf("parser: unexpected '|'")
-			return
+		switch s.r {
+		case '|':
+			s.next()
+			s.Token = token.LogicalOr
+		default:
+			s.Token = token.Pipe
 		}
-		s.next()
-		s.Token = token.LogicalOr
 	case '!':
 		switch s.r {
 		case '=':
