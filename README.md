@@ -38,26 +38,55 @@ We borrow GOPATH.
 
 - Allow the definition of unused Go types, but no arithmetic on unsigned ints.
 
-- Rename interface{} to val. Everything is a val.
+- Concrete types:
+	string        (is val)
+	integer       (is val, ari)
+	int64         (is val, ari)
+	float         (is val, ari)
+	float64       (is val, ari)
+	float32       (is val, ari)
+	complex128    (is val, ari)
+	[|]integer    (is val, ari, [|]val, [|]num)
+	[|]int64      (is val, ari, [|]val, [|]num)
+	[|]float      (is val, ari, [|]val, [|]num)
+	[|]float64    (is val, ari, [|]val, [|]num)
+	[|]float32    (is val, ari, [|]val, [|]num)
+	[|]complex128 (is val, ari, [|]val, [|]num)
 
-- Introduce a new abstract type, num. A num admits arithmetic.
+- Abstract types:
+	- val: everything is a val. A.K.A. interface{}.
+	- num: basic numeric types: integer, float, int64, etc
+	- ari: nums and frames of nums. Admits arithmetic, 
+	- [|]val: each cell has any type. Can dynamic cast to other frames.
+	- [|]num: frame of basic numeric types
 
-- Introduce a new abstract type [|]num, a frame.
-  Like slices, frames have a type for their contents, which must be a
-  non-frame num. E.g.
-	[|]num         - valid, is a num
-	[|]float64     - valid, is a num
-	[|][|]num      - invalid
-	[|]val         - valid, not a num
+- All possible frame types:
+	[|]num
+	[|]integer
+	[|]int64
+	[|]float
+	[|]float64
+	[|]float32
+	[|]complex128
 
-- Introduce a single type parameter, which must be declared to be some part
-  of the num heirarchy:
+- Introduce type parameters.
+  Parameters must be restricted to being either num, ari, [|]num.
 
-  type [T num] struct { x T }
-  type [T [|]float64] struct { x T }
-
-- Basic numeric types:
-	integer, float, float32, float64, int64, complex, complex128
+	type <T num> struct { x T }
+	type <T [|]num> struct { x T }
+	func <T num> min(x, y T) T {
+		if x < y {
+			return x
+		}
+		return y
+	}
+	func <T num, U [|]num> fill(mat U, val T) {
+		for y := 0; y < mat.Height; y++ {
+			for x := 0; x < mat.Width(); x++ {
+				mat[y|x] = val
+			}
+		}
+	}
 
 - Dynamically, a frame keeps a type on each column, so:
 	func conv(f [|]num) [|]float64 { return f.([|]float64) }
@@ -68,27 +97,8 @@ We borrow GOPATH.
 - No dimensions in the frame type parameters, that way lies too many types.
 
 - No implicit conversions in arithmetic, even the safe ones (int64->integer) as
-  they have surprising performance implications.
-
-- The hierarchy is confusing, but looks something like: ```
-
-       val (a.k.a interface{})                   
-            +                                    
- +----------------------------+                  
- |                   |        |                  
- |                   +        +                  
- +-> int64         [|]val    num                 
-     struct {        +        +                  
-       x int64       |        +-------+          
-       y [|]int64    |                |          
-     }               |                +          
-     ...             +-----------> [|]num        
-                                    |            
-                                    +->[|]integer
-                                       [|]float  
-                                       [|]int64  
-                                       ...       
-```
+  they have surprising performance implications and while they may be
+  possible with type parametrs, they are painful to reason about.
 
 ## Background
 
@@ -108,44 +118,6 @@ Start with Go's types.
 - remove unsigned types (and arithmetic)
 - keep byte, mostly a placeholder for passing to Go code
 - later: introduce imaginary numbers
-
-- problem: want to be able to write:
-	```
-	func min(x, y) {
-		if x < y {
-			return x
-		}
-		return y
-	}
-	```
-  what types does it have?
-  this is really calling for type parameters:
-	```
-	func [T] min(x, y T) T {
-		if x < y {
-			return x
-		}
-		return y
-	}
-	```
-  this is possible, but it will have to be pervasive:
-	```
-	type [T] Point struct {
-		X, Y T
-	}
-	func [T] min(a, b Point[T]) Point[T] {
-		if sqrt(a.X*a.X + a.Y*a.Y) < sqrt(b.X*b.X + b.Y*b.Y) {
-			return a
-		}
-		return b
-	}
-	func [T] sqrt(x, y T) T {
-		// newton's method
-	}
-	```
-  Besides being useful, this has the usual problem type parameters
-  have: it makes programming more complex. Work like this should
-  really be done in Go and called from Numengrad.
 
 - extremely tempting, dynamic types:
 	```
