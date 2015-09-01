@@ -236,37 +236,68 @@ func (p *Parser) parseIn() (params []*tipe.Field) {
 }
 
 func (p *Parser) parseOut() (params []*tipe.Field) {
+	typeToName := func(t tipe.Type) string {
+		if t == nil {
+			panic("nil type")
+		}
+		switch t := t.(type) {
+		case tipe.Basic:
+			return string(t)
+		case *tipe.Unresolved:
+			if t.Package != "" {
+				p.errorf("invalid return value name %s.%s", t.Package, t.Name)
+			}
+			return t.Name
+		default:
+			p.errorf("expected return value name, got %T", t)
+			return "BAD:" + t.Sexp()
+		}
+	}
+
+	// Either none of the output parameters have names, or all do.
+	var names []string
+	var types []tipe.Type
+	var named bool
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
-		f := &tipe.Field{}
 		t := p.maybeParseType()
-		n, ok := t.(*tipe.Unresolved)
-		if ok {
-			f.Name, ok = n.Name.(string)
+		if t == nil {
+			p.errorf("expected return value name or type, got %s", p.s.Token)
+			p.next() // make progress
+			continue
 		}
-		if ok {
-			f.Type = p.maybeParseType()
+		if p.s.Token > 0 && p.s.Token != token.RightParen && p.s.Token != token.Comma {
+			// Type was actually a name.
+			names = append(names, typeToName(t))
+			types = append(types, p.maybeParseType())
+			named = true
 		} else {
-			f.Type = t
+			// Single element parameter, assume a type for now.
+			names = append(names, "")
+			types = append(types, t)
 		}
+
 		if p.s.Token == token.Comma {
 			p.next()
 		}
-		params = append(params, f)
 	}
-	named := false
-	for _, param := range params {
-		if param.Type != nil {
-			named = true
-			break
+
+	if named {
+		// (a, b T1, b T2)
+		// All dangling types are really names.
+		for i, name := range names {
+			if name == "" {
+				names[i] = typeToName(types[i])
+				types[i] = nil
+			}
 		}
+	} else {
+		// (T1, T2)
 	}
-	if !named {
-		// In an output list, a sequence (a, b, c) is a list
-		// of types, not names.
-		for _, param := range params {
-			param.Type = &tipe.Unresolved{param.Name}
-			param.Name = ""
-		}
+	for i, t := range types {
+		params = append(params, &tipe.Field{
+			Name: names[i],
+			Type: t,
+		})
 	}
 	return params
 }
@@ -286,9 +317,33 @@ func (p *Parser) maybeParseType() tipe.Type {
 		if p.s.Token == token.Period {
 			p.next()
 			sel := p.parseIdent()
-			return &tipe.Unresolved{&expr.Selector{ident, sel}}
+			return &tipe.Unresolved{
+				Package: ident.Name,
+				Name:    sel.Name,
+			}
 		}
-		return &tipe.Unresolved{ident.Name}
+		// It is an error to declare a variable with the name of a
+		// basic type, so we can resolve these types immediately.
+		switch ident.Name {
+		case "bool":
+			return tipe.Bool
+		case "integer":
+			return tipe.Integer
+		case "float":
+			return tipe.Float
+		case "complex":
+			return tipe.Complex
+		case "string":
+			return tipe.String
+		case "int64":
+			return tipe.Int64
+		case "float32":
+			return tipe.Float32
+		case "float64":
+			return tipe.Float64
+		default:
+			return &tipe.Unresolved{Name: ident.Name}
+		}
 	case token.Struct:
 		p.next()
 		p.expect(token.LeftBrace)

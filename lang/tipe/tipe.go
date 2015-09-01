@@ -63,11 +63,8 @@ type Named struct {
 }
 
 type Unresolved struct {
-	/* TODO:
 	Package string
-	Name string
-	*/
-	Name interface{} // string or *expr.Selector
+	Name    string
 }
 
 var (
@@ -106,16 +103,10 @@ func (e *Named) Sexp() string {
 	return fmt.Sprintf("(namedtype %s %s)", e.Name, u)
 }
 func (e *Unresolved) Sexp() string {
-	switch n := e.Name.(type) {
-	case string:
-		return n
-	case interface {
-		Sexp() string
-	}:
-		return "(unresolvedtype " + n.Sexp() + ")"
-	default:
-		return fmt.Sprintf("unknown:%s", e)
+	if e.Package == "" {
+		return fmt.Sprintf("(unresolved %s)", e.Name)
 	}
+	return fmt.Sprintf("(unresolved %s.%s)", e.Package, e.Name)
 }
 
 func fieldsStr(fields []*Field) string {

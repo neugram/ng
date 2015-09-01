@@ -121,6 +121,10 @@ func equalType(t0, t1 tipe.Type) bool {
 		return false
 	}
 	switch t0 := t0.(type) {
+	case tipe.Basic:
+		if t0 != t1 {
+			return false
+		}
 	case *tipe.Func:
 		t1, ok := t1.(*tipe.Func)
 		if !ok {

@@ -76,9 +76,9 @@ var parserTests = []parserTest{
 		},
 	},
 	{
-		"func() int { return 7 }",
+		"func() integer { return 7 }",
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int"}}}},
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Integer}}},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
 			}},
@@ -89,12 +89,12 @@ var parserTests = []parserTest{
 		&expr.FuncLiteral{
 			Type: &tipe.Func{
 				In: []*tipe.Field{
-					&tipe.Field{Name: "x", Type: &tipe.Unresolved{"val"}},
-					&tipe.Field{Name: "y", Type: &tipe.Unresolved{"val"}},
+					&tipe.Field{Name: "x", Type: &tipe.Unresolved{Name: "val"}},
+					&tipe.Field{Name: "y", Type: &tipe.Unresolved{Name: "val"}},
 				},
 				Out: []*tipe.Field{
-					&tipe.Field{Name: "r0", Type: &tipe.Unresolved{"val"}},
-					&tipe.Field{Name: "r1", Type: &tipe.Unresolved{"val"}},
+					&tipe.Field{Name: "r0", Type: &tipe.Unresolved{Name: "val"}},
+					&tipe.Field{Name: "r1", Type: &tipe.Unresolved{Name: "val"}},
 				},
 			},
 			Body: &stmt.Block{[]stmt.Stmt{
@@ -111,7 +111,7 @@ var parserTests = []parserTest{
 			return x
 		}`,
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int64"}}}},
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Assign{
 					Left:  []expr.Expr{&expr.Ident{"x"}},
@@ -130,7 +130,7 @@ var parserTests = []parserTest{
 			}
 		}`,
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: &tipe.Unresolved{"int64"}}}},
+			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
 				Init: &stmt.Assign{
 					Left:  []expr.Expr{&expr.Ident{"x"}},
@@ -161,8 +161,8 @@ var parserTests = []parserTest{
 		&expr.Call{
 			Func: &expr.FuncLiteral{
 				Type: &tipe.Func{
-					In:  []*tipe.Field{{Name: "x", Type: &tipe.Unresolved{"val"}}},
-					Out: []*tipe.Field{{Type: &tipe.Unresolved{"val"}}},
+					In:  []*tipe.Field{{Name: "x", Type: &tipe.Unresolved{Name: "val"}}},
+					Out: []*tipe.Field{{Type: &tipe.Unresolved{Name: "val"}}},
 				},
 				Body: &stmt.Block{[]stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{
@@ -263,26 +263,26 @@ var stmtTests = []stmtTest{
 		"const x int64 = 4",
 		&stmt.Const{
 			Name:  "x",
-			Type:  &tipe.Unresolved{"int64"},
+			Type:  tipe.Int64,
 			Value: &expr.BasicLiteral{big.NewInt(4)},
 		},
 	},
-	{"type a int64", &stmt.Type{Name: "a", Type: &tipe.Unresolved{"int64"}}},
+	{"type a int64", &stmt.Type{Name: "a", Type: tipe.Int64}},
 	{
 		"type a struct { x integer, y struct { z int64 }}",
 		&stmt.Type{
 			Name: "a",
 			Type: &tipe.Struct{Fields: []*tipe.Field{
-				{"x", &tipe.Unresolved{"integer"}},
+				{"x", tipe.Integer},
 				{"y", &tipe.Struct{Fields: []*tipe.Field{
-					{"z", &tipe.Unresolved{"int64"}},
+					{"z", tipe.Int64},
 				}}},
 			}},
 		},
 	},
 	{
 		"type a [|]int64",
-		&stmt.Type{Name: "a", Type: &tipe.Frame{&tipe.Unresolved{"int64"}}},
+		&stmt.Type{Name: "a", Type: &tipe.Frame{tipe.Int64}},
 	},
 }
 
