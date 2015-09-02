@@ -7,7 +7,7 @@ inside an SQL query's WHERE clause), the library includes a small
 interpreted programming language. The langauge is starting as a subset
 of Go with a couple of key numerical features added.
 
-The key data structure is the data frame. A frame has a small (known)
+The key data structure is the table. A table has a small (known)
 number of named columns and many rows.
 
 Very imporant: it's easy to import Go packages and call Go from inside
@@ -109,18 +109,16 @@ the type parameter.
 	}
 ```
 
-### Frames
+### Tables
 
-**TODO: rename to tables?**
-
-- Dynamically, a frame keeps a type on each column, so:
+- Dynamically, a table keeps a type on each column, so:
 	func conv(f [|]num) [|]float64 { return f.([|]float64) }
   is possible, but may fail dynamically.
 
 - A concrete [|]float64 and the parameterized [|]num are matrixes.
   These admit arithmetic operators.
 
-- No dimensions in the frame type parameters, that way lies too many types.
+- No dimensions in the table type parameters, that way lies too many types.
 
 - No implicit conversions in arithmetic, even the safe ones (int64->integer) as
   they have surprising performance implications and while they may be
@@ -132,8 +130,8 @@ Start with Go's types.
 - remove channels
 - remove embedding
 - remove ability to define interface types (TODO: revisit)
-- add frame
-- TODO: keep slices, or make everything use frames?
+- remove slice operations (keep them as opaque types)
+- add tables
 - integer (*big.Int), float (*big.Float) TODO: what precision is float?
 - remove unsigned types (and arithmetic)
 - keep byte, mostly a placeholder for passing to Go code
@@ -147,10 +145,10 @@ New keywords: val, num (reserved). These don't have to be keywords,
 but I'm sick of the gotchas that arise from letting people write
 ```type int int16```.
 
-TODO: literal syntax for frames is giving me a headache. For now, using the composite literal syntax for the fake struct record:
+TODO: literal syntax for tables is giving me a headache. For now, using the composite literal syntax for the fake struct record:
 
 ```
-type frame struct {
+type table struct {
 	Names []string
 	Rows [][]interface{}
 }
@@ -158,7 +156,9 @@ type frame struct {
 
 Must do better, but I really hate syntax.
 
-## Frames
+*Problem:* this syntax is row-major, but our slicing and reasoning is column-major.
+
+## Tables
 
 The Go type frame.Frame has an innocently named optional method Slice
 that gets a ton of fun syntax:
@@ -172,7 +172,30 @@ Given x:
 ```
 or
 ```
-x = frame{
+
+ident3x3 := [|]float64{
+	{1, 0, 0},
+	{0, 1, 0},
+	{0, 0, 1},
+}
+
+presidents := [|]val{
+	{|"ID", "Name", "Term1", "Term2"|},
+	{1, "George Washington", 1789, 1792},
+	{2, "John Adams", 1797, 0},
+	{3, "Thomas Jefferson", 1800, 1804},
+	{4, "James Madison", 1808, 1812},
+}
+
+presidents["Name"] == presidents[1] == []val{
+	{|"Name"|},
+	{"George Washington"},
+	{"John Adams"},
+	{"Thomas Jefferson"},
+	{"James Madison"},
+}
+
+x = [|]num{
 	Names: {"Col0", "Col1", "Col2"},
 	Rows: {
 		{0.0, 0.1, 0.2},
@@ -181,7 +204,7 @@ x = frame{
 	},
 }
 
-x[1] == x["Col1"] == frame{
+x[1] == x["Col1"] == [|]num{
 	Names: {"Col1"},
 	Rows: {
 		{0.1},
@@ -190,14 +213,14 @@ x[1] == x["Col1"] == frame{
 	},
 }
 
-x[,2] == frame{
+x[,2] == [|]num{
 	Names: {"Col0", "Col1", "Col2"},
 	Rows: {
 		{2.0, 2.1  2.2},
 	},
 }
 
-x[0|2] == x["Col0"|"Col2"] == frame{
+x[0|2] == x["Col0"|"Col2"] == [|]num{
 	Names: {"Col0", "Col2"},
 	Rows: {
 		{0.0, 0.2},
@@ -208,7 +231,7 @@ x[0|2] == x["Col0"|"Col2"] == frame{
 
 x[0:1] == x[0|1] == x["Col0"|"Col1"]
 
-x[1,0:1] == frame{
+x[1,0:1] == [|]num{
 	Names: {"Col1"},
 	Rows: {
 		{0.1},
@@ -216,5 +239,5 @@ x[1,0:1] == frame{
 	},
 }
 
-x[1,1] == 1.1 // all slicing variants return a frame, except this one
+x[1,1] == 1.1 // all slicing variants return a table, except this one
 ```

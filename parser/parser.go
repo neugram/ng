@@ -444,7 +444,7 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.next()
 		p.expect(token.RightBracket)
 		p.next()
-		return &tipe.Frame{Type: p.parseType()}
+		return &tipe.Table{Type: p.parseType()}
 	case token.Mul: // pointer type
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Func:

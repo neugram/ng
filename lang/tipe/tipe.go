@@ -30,7 +30,7 @@ type Struct struct {
 	Fields []*Field
 }
 
-type Frame struct {
+type Table struct {
 	Type Type
 }
 
@@ -77,7 +77,7 @@ var (
 func (t Basic) tipe()       {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
-func (t *Frame) tipe()      {}
+func (t *Table) tipe()      {}
 func (t *Named) tipe()      {}
 func (t *Unresolved) tipe() {}
 
@@ -88,12 +88,12 @@ func (e *Func) Sexp() string {
 func (e *Struct) Sexp() string {
 	return fmt.Sprintf("(structtype %s)", fieldsStr(e.Fields))
 }
-func (e *Frame) Sexp() string {
+func (e *Table) Sexp() string {
 	u := "nil"
 	if e.Type != nil {
 		u = e.Type.Sexp()
 	}
-	return fmt.Sprintf("(frametype %s)", u)
+	return fmt.Sprintf("(tabletype %s)", u)
 }
 func (e *Named) Sexp() string {
 	u := "nilunderlying"

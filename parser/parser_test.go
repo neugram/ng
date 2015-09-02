@@ -314,7 +314,7 @@ var stmtTests = []stmtTest{
 	},
 	{
 		"type a [|]int64",
-		&stmt.Type{Name: "a", Type: &tipe.Frame{tipe.Int64}},
+		&stmt.Type{Name: "a", Type: &tipe.Table{tipe.Int64}},
 	},
 	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
 }

@@ -91,7 +91,6 @@ const (
 
 	Go
 
-	Frame
 	Map
 	Struct
 	Type
@@ -161,7 +160,6 @@ var keywords = map[string]Token{
 	"break":       Break,
 	"goto":        Goto,
 	"go":          Go,
-	"frame":       Frame,
 	"map":         Map,
 	"struct":      Struct,
 	"type":        Type,

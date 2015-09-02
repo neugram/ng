@@ -181,8 +181,8 @@ func equalType(t0, t1 tipe.Type) bool {
 		if !equalFields(t0.Fields, t1.Fields) {
 			return false
 		}
-	case *tipe.Frame:
-		t1, ok := t1.(*tipe.Frame)
+	case *tipe.Table:
+		t1, ok := t1.(*tipe.Table)
 		if !ok {
 			return false
 		}
