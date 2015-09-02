@@ -169,6 +169,30 @@ exponent:
 	return tok, value
 }
 
+func (s *Scanner) scanString() string {
+	off := s.Offset
+	s.next()
+
+	for {
+		r := s.r
+		if r <= 0 || r == '\n' {
+			s.errorf("string literal missing terminating '\"'")
+			break
+		}
+		s.next()
+		if r == '\\' {
+			// TODO: we can do a lot of error checking here.
+			if s.r == '"' {
+				s.next()
+			}
+		}
+		if r == '"' {
+			break
+		}
+	}
+	return string(s.src[off : s.Offset-1])
+}
+
 func (s *Scanner) scanComment() string {
 	off := s.Offset - 1 // already ate the first '/'
 
@@ -270,6 +294,12 @@ func (s *Scanner) Next() {
 		s.Token = token.Comma
 	case ';':
 		s.Token = token.Semicolon
+	case '"':
+		s.semi = true
+		s.Token = token.String
+		s.Literal = s.scanString()
+	case '.':
+		s.Token = token.Period
 	case ':':
 		switch s.r {
 		case '=':

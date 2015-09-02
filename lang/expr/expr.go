@@ -7,6 +7,7 @@ package expr
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"numgrad.io/lang/tipe"
 	"numgrad.io/lang/token"
@@ -33,7 +34,7 @@ type Bad struct {
 }
 
 type Selector struct {
-	Left  *Ident
+	Left  Expr
 	Right *Ident
 }
 
@@ -56,6 +57,19 @@ type Call struct {
 	Args []Expr
 }
 
+type Range struct {
+	Start Expr
+	End   Expr
+	Exact Expr
+}
+
+type TableIndex struct {
+	Expr     Expr
+	ColNames []string
+	Cols     Range
+	Rows     Range
+}
+
 var (
 	_ = Expr((*Binary)(nil))
 	_ = Expr((*Unary)(nil))
@@ -65,6 +79,7 @@ var (
 	_ = Expr((*FuncLiteral)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
+	_ = Expr((*TableIndex)(nil))
 )
 
 func (e *Binary) expr()       {}
@@ -75,6 +90,7 @@ func (e *BasicLiteral) expr() {}
 func (e *FuncLiteral) expr()  {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
+func (e *TableIndex) expr()   {}
 
 func (e *Binary) Sexp() string {
 	if e == nil {
@@ -126,6 +142,33 @@ func (e *FuncLiteral) Sexp() string {
 		}
 	}
 	return fmt.Sprintf("(func %s %s)", tipeSexp(e.Type), body)
+}
+func (e *TableIndex) Sexp() string {
+	names := strings.Join(e.ColNames, `"|"`)
+	if names != "" {
+		names = ` "` + names + `"`
+	}
+	rangeSexp := func(r Range) string {
+		rs := ""
+		if r.Start != nil || r.End != nil {
+			if r.Start != nil {
+				rs += exprSexp(r.Start)
+			}
+			rs += ":"
+			if r.End != nil {
+				rs += exprSexp(r.End)
+			}
+		}
+		exact := ""
+		if r.Exact != nil {
+			if rs != "" {
+				rs += " "
+			}
+			exact = exprSexp(r.Exact)
+		}
+		return fmt.Sprintf("(%s%s)", rs, exact)
+	}
+	return fmt.Sprintf("(tableindex %s%s %s %s", exprSexp(e.Expr), names, rangeSexp(e.Cols), rangeSexp(e.Rows))
 }
 
 func tipeSexp(t tipe.Type) string {

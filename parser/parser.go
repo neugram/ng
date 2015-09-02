@@ -51,11 +51,11 @@ func (p *Parser) Close() {
 func (p *Parser) forwardWaiting() {
 	for {
 		more := <-p.s.needSrc
-		p.Waiting <- p.inStmt
 		if !more {
 			close(p.Waiting)
 			return
 		}
+		p.Waiting <- p.inStmt
 	}
 }
 
@@ -83,7 +83,6 @@ func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
 	b = append(b, '\n') // TODO: should be unnecessary now we have Close?
 	p := New()
 	p.Add(b)
-	p.Close()
 	var res Result
 	select {
 	case partial := <-p.Waiting:
@@ -101,6 +100,7 @@ func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
 	if partial {
 		return nil, fmt.Errorf("parser.ParseStmt: trailing partial statement")
 	}
+	p.Close()
 	return res.Stmt, nil
 }
 
@@ -193,17 +193,22 @@ func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
 			p.next()
 			switch p.s.Token {
 			case token.Ident:
-				panic("TODO parse selector")
+				x = &expr.Selector{
+					Left:  x,
+					Right: p.parseIdent(),
+				}
 			case token.LeftParen:
 				panic("TODO parse type assertion")
 			default:
 				panic("TODO expect selector type assertion")
 			}
 		case token.LeftBracket:
-			panic("TODO array index")
+			ind := p.parseTableIndex()
+			ind.Expr = x
+			x = ind
 		case token.LeftParen:
 			args := p.parseArgs()
-			return &expr.Call{Func: x, Args: args}
+			x = &expr.Call{Func: x, Args: args}
 		case token.LeftBrace:
 			// TODO could be composite literal, check type
 			// If not a composite literal, end of statement.
@@ -214,6 +219,76 @@ func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
 	}
 
 	return x
+}
+
+func (p *Parser) parseTableIndex() *expr.TableIndex {
+	x := &expr.TableIndex{}
+
+	p.expect(token.LeftBracket)
+	p.next()
+
+	// Cols
+	for p.s.Token == token.String {
+		// "Col1"|"Col2"
+		x.ColNames = append(x.ColNames, p.s.Literal.(string))
+		p.next()
+		if p.s.Token != token.Pipe {
+			break
+		}
+		p.next()
+	}
+	if p.s.Token == token.RightBracket {
+		// ["Col1"|"Col2"]
+		p.next()
+		return x
+	}
+	if p.s.Token != token.Comma {
+		if len(x.ColNames) != 0 {
+			p.errorf("expected ',' or ']' after column names, got %s", p.s.Token)
+			return x
+		}
+		// [0:1, [:1, [0:], or [0:,
+		x.Cols = p.parseRange()
+	}
+	if p.s.Token == token.RightBracket {
+		p.next()
+		return x
+	}
+	if p.s.Token != token.Comma {
+		p.errorf("expected ',' or ']' after column range, got %s", p.s.Token)
+		return x
+	}
+	p.next()
+
+	// Rows
+	x.Rows = p.parseRange()
+
+	p.expect(token.RightBracket)
+	p.next()
+	return x
+}
+
+func (p *Parser) parseRange() (r expr.Range) {
+	var x expr.Expr
+	if p.s.Token != token.Colon {
+		// case 0, 0: or 0:1
+		x = p.parseExpr(false)
+	}
+	if p.s.Token == token.Comma || p.s.Token == token.RightBracket {
+		// case 0
+		r.Exact = x
+		return r
+	}
+	r.Start = x
+	p.expect(token.Colon)
+	p.next()
+	if p.s.Token == token.Comma || p.s.Token == token.RightBracket {
+		// 0: or :
+		return r
+	}
+	// 0:1 or :1
+	r.End = p.parseExpr(false)
+	return r
 }
 
 func (p *Parser) parseIn() (params []*tipe.Field) {
@@ -539,7 +614,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		return s
 	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul,
-		token.Func, token.LeftBracket, token.LeftParen:
+		token.Func, token.LeftBracket, token.LeftParen, token.String:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
 		p.expectSemi()
@@ -739,7 +814,7 @@ func (p *Parser) parseOperand(lhs bool) expr.Expr {
 	// TODO: other cases, eventually Func, etc
 
 	p.next()
-	return &expr.Bad{p.error("expected operand")}
+	return &expr.Bad{p.errorf("expected operand, got %s", p.s.Token)}
 }
 
 type Errors []Error

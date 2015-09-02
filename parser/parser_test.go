@@ -52,8 +52,6 @@ var parserTests = []parserTest{
 			&expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}},
 		},
 	},
-	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	// TODO {"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	{
 		"quit()",
 		&expr.Call{Func: &expr.Ident{Name: "quit"}},
@@ -107,9 +105,9 @@ var parserTests = []parserTest{
 	},
 	{
 		`func() int64 {
-			x := 7
-			return x
-		}`,
+				x := 7
+				return x
+			}`,
 		&expr.FuncLiteral{
 			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{
@@ -123,12 +121,12 @@ var parserTests = []parserTest{
 	},
 	{
 		`func() int64 {
-			if x := 9; x > 3 {
-				return x
-			} else {
-				return 1-x
-			}
-		}`,
+				if x := 9; x > 3 {
+					return x
+				} else {
+					return 1-x
+				}
+			}`,
 		&expr.FuncLiteral{
 			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
@@ -187,6 +185,40 @@ var parserTests = []parserTest{
 			}}},
 		},
 	},
+	{"x.y.z", &expr.Selector{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}, &expr.Ident{"z"}}},
+	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
+	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
+	//{`"\""`, nil},
+	{`"hello"`, &expr.BasicLiteral{"hello"}},
+	{`"hello \"numgrad\""`, &expr.BasicLiteral{`hello \"numgrad\"`}},
+	//{`"\""`, &expr.BasicLiteral{`"\""`}}, TODO
+	{"x[4]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Exact: &expr.BasicLiteral{big.NewInt(4)}}}},
+	{"x[1+2]", &expr.TableIndex{
+		Expr: &expr.Ident{"x"},
+		Cols: expr.Range{
+			Exact: &expr.Binary{Op: token.Add,
+				Left:  &expr.BasicLiteral{big.NewInt(1)},
+				Right: &expr.BasicLiteral{big.NewInt(2)},
+			},
+		},
+	}},
+	{"x[1:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}}}},
+	{"x[1:]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}}}},
+	{"x[:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{End: &expr.BasicLiteral{big.NewInt(3)}}}},
+	{"x[:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
+	{"x[,:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
+	{"x[:,:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
+	{`x["C1"|"C2"]`, &expr.TableIndex{Expr: &expr.Ident{"x"}, ColNames: []string{"C1", "C2"}}},
+	{`x["C1",1:]`, &expr.TableIndex{
+		Expr:     &expr.Ident{"x"},
+		ColNames: []string{"C1"},
+		Rows:     expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}},
+	}},
+	{"x[1:3,5:7]", &expr.TableIndex{
+		Expr: &expr.Ident{"x"},
+		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
+		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
+	}},
 }
 
 func TestParseExpr(t *testing.T) {
@@ -284,6 +316,7 @@ var stmtTests = []stmtTest{
 		"type a [|]int64",
 		&stmt.Type{Name: "a", Type: &tipe.Frame{tipe.Int64}},
 	},
+	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
 }
 
 func TestParseStmt(t *testing.T) {

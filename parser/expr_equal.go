@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"math/big"
+	"reflect"
 
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/stmt"
@@ -74,6 +75,39 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		if !equalExprs(x.Args, y.Args) {
+			return false
+		}
+		return true
+	case *expr.Selector:
+		y, ok := y.(*expr.Selector)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Left, y.Left) {
+			return false
+		}
+		if !EqualExpr(x.Right, y.Right) {
+			return false
+		}
+		return true
+	case *expr.TableIndex:
+		y, ok := y.(*expr.TableIndex)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Expr, y.Expr) {
+			return false
+		}
+		if !reflect.DeepEqual(x.ColNames, y.ColNames) {
+			return false
+		}
+		rangeEq := func(x, y expr.Range) bool {
+			return EqualExpr(x.Start, y.Start) && EqualExpr(x.End, y.End) && EqualExpr(x.Exact, y.Exact)
+		}
+		if !rangeEq(x.Cols, y.Cols) {
+			return false
+		}
+		if !rangeEq(x.Rows, y.Rows) {
 			return false
 		}
 		return true
@@ -316,6 +350,14 @@ func EqualStmt(x, y stmt.Stmt) bool {
 			return false
 		}
 		if !EqualStmt(x.Body, y.Body) {
+			return false
+		}
+	case *stmt.Simple:
+		y, ok := y.(*stmt.Simple)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Expr, y.Expr) {
 			return false
 		}
 	default:
