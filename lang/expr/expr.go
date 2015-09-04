@@ -47,6 +47,18 @@ type FuncLiteral struct {
 	Body interface{} // *stmt.Block, breaking the package import cycle
 }
 
+type CompLiteral struct {
+	Type     tipe.Type
+	Names    []string // TODO use
+	Elements []Expr
+}
+
+type TableLiteral struct {
+	Type     *tipe.Table
+	ColNames []Expr
+	Rows     [][]Expr
+}
+
 type Ident struct {
 	Name string
 	// Type tipe.Type
@@ -77,6 +89,8 @@ var (
 	_ = Expr((*Selector)(nil))
 	_ = Expr((*BasicLiteral)(nil))
 	_ = Expr((*FuncLiteral)(nil))
+	_ = Expr((*CompLiteral)(nil))
+	_ = Expr((*TableLiteral)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
 	_ = Expr((*TableIndex)(nil))
@@ -88,6 +102,8 @@ func (e *Bad) expr()          {}
 func (e *Selector) expr()     {}
 func (e *BasicLiteral) expr() {}
 func (e *FuncLiteral) expr()  {}
+func (e *CompLiteral) expr()  {}
+func (e *TableLiteral) expr() {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
 func (e *TableIndex) expr()   {}
@@ -143,6 +159,24 @@ func (e *FuncLiteral) Sexp() string {
 	}
 	return fmt.Sprintf("(func %s %s)", tipeSexp(e.Type), body)
 }
+func (e *CompLiteral) Sexp() string {
+	names := ""
+	if len(e.Names) > 0 {
+		names = "(" + strings.Join(e.Names, " ") + ")"
+	}
+	return fmt.Sprintf("(comp %s %s %s)", tipeSexp(e.Type), names, exprsStr(e.Elements))
+}
+func (e *TableLiteral) Sexp() string {
+	rows := ""
+	for _, row := range e.Rows {
+		rows += " " + exprsStr(row)
+	}
+	if rows != "" {
+		rows = " (" + rows[1:] + ")"
+	}
+	return fmt.Sprintf("(table %s %s%s)", tipeSexp(e.Type), exprsStr(e.ColNames), rows)
+}
+
 func (e *TableIndex) Sexp() string {
 	names := strings.Join(e.ColNames, `"|"`)
 	if names != "" {

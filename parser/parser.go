@@ -210,9 +210,14 @@ func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
 			args := p.parseArgs()
 			x = &expr.Call{Func: x, Args: args}
 		case token.LeftBrace:
-			// TODO could be composite literal, check type
-			// If not a composite literal, end of statement.
-			return x
+			switch x := x.(type) {
+			case *expr.TableLiteral:
+				p.parseTableLiteral(x)
+			case *expr.CompLiteral:
+				p.parseCompLiteral(x)
+			default:
+				return x // end of statement
+			}
 		default:
 			return x
 		}
@@ -811,10 +816,72 @@ func (p *Parser) parseOperand(lhs bool) expr.Expr {
 			Body: body,
 		}
 	}
-	// TODO: other cases, eventually Func, etc
+
+	if t := p.maybeParseType(); t != nil {
+		if t, ok := t.(*tipe.Table); ok {
+			return &expr.TableLiteral{Type: t}
+		} else {
+			return &expr.CompLiteral{Type: t}
+		}
+	}
 
 	p.next()
 	return &expr.Bad{p.errorf("expected operand, got %s", p.s.Token)}
+}
+
+func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
+	p.next()
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		p.expect(token.LeftBrace)
+		p.next()
+		if p.s.Token == token.Pipe {
+			// column names: {|"x","y"|},
+			if len(x.ColNames) != 0 || len(x.Rows) != 0 {
+				p.errorf("column names can only appear at beginning of table literal")
+			}
+			p.next()
+			for p.s.Token > 0 && p.s.Token != token.Pipe {
+				x.ColNames = append(x.ColNames, p.parseExpr(false))
+				if p.s.Token != token.Comma {
+					break
+				}
+				p.next()
+			}
+			p.expect(token.Pipe)
+			p.next()
+		} else {
+			var row []expr.Expr
+			for p.s.Token > 0 && p.s.Token != token.RightBrace {
+				row = append(row, p.parseExpr(false))
+				if p.s.Token != token.Comma {
+					break
+				}
+				p.next()
+			}
+			x.Rows = append(x.Rows, row)
+		}
+		p.expect(token.RightBrace)
+		p.next()
+		if p.s.Token != token.Comma {
+			break
+		}
+		p.next()
+	}
+	p.next()
+}
+
+func (p *Parser) parseCompLiteral(x *expr.CompLiteral) {
+	p.next()
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		// TODO FieldName: value
+		x.Elements = append(x.Elements, p.parseExpr(false))
+		if p.s.Token != token.Comma {
+			break
+		}
+		p.next()
+	}
+	p.expect(token.RightBrace)
+	p.next()
 }
 
 type Errors []Error

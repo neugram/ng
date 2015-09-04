@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -105,9 +106,9 @@ var parserTests = []parserTest{
 	},
 	{
 		`func() int64 {
-				x := 7
-				return x
-			}`,
+			x := 7
+			return x
+		}`,
 		&expr.FuncLiteral{
 			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{
@@ -121,12 +122,12 @@ var parserTests = []parserTest{
 	},
 	{
 		`func() int64 {
-				if x := 9; x > 3 {
-					return x
-				} else {
-					return 1-x
-				}
-			}`,
+			if x := 9; x > 3 {
+				return x
+			} else {
+				return 1-x
+			}
+		}`,
 		&expr.FuncLiteral{
 			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
@@ -188,10 +189,9 @@ var parserTests = []parserTest{
 	{"x.y.z", &expr.Selector{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}, &expr.Ident{"z"}}},
 	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	//{`"\""`, nil},
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
 	{`"hello \"numgrad\""`, &expr.BasicLiteral{`hello \"numgrad\"`}},
-	//{`"\""`, &expr.BasicLiteral{`"\""`}}, TODO
+	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
 	{"x[4]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Exact: &expr.BasicLiteral{big.NewInt(4)}}}},
 	{"x[1+2]", &expr.TableIndex{
 		Expr: &expr.Ident{"x"},
@@ -219,10 +219,21 @@ var parserTests = []parserTest{
 		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
 		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
 	}},
+	{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{&tipe.Unresolved{Name: "num"}}}},
+	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
+		Type: &tipe.Table{&tipe.Unresolved{Name: "num"}},
+		Rows: [][]expr.Expr{{basic(0), basic(1), basic(2)}},
+	}},
+	{`[|]num{{|"Col1"|}, {1}, {2}}`, &expr.TableLiteral{
+		Type:     &tipe.Table{&tipe.Unresolved{Name: "num"}},
+		ColNames: []expr.Expr{basic("Col1")},
+		Rows:     [][]expr.Expr{{basic(1)}, {basic(2)}},
+	}},
 }
 
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
+		fmt.Printf("Parsing %q\n", test.input)
 		s, err := ParseStmt([]byte(test.input))
 		if err != nil {
 			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
@@ -333,5 +344,18 @@ func TestParseStmt(t *testing.T) {
 		if !EqualStmt(got, test.want) {
 			t.Errorf("ParseStmt(%q):\n%v", test.input, DiffStmt(test.want, got))
 		}
+	}
+}
+
+func basic(x interface{}) *expr.BasicLiteral {
+	switch x := x.(type) {
+	case int:
+		return &expr.BasicLiteral{big.NewInt(int64(x))}
+	case int64:
+		return &expr.BasicLiteral{big.NewInt(x)}
+	case string:
+		return &expr.BasicLiteral{x}
+	default:
+		panic(fmt.Sprintf("unknown basic %v (%T)", x, x))
 	}
 }

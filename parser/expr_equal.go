@@ -23,11 +23,17 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !ok {
 			return false
 		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
 		return x.Op == y.Op && EqualExpr(x.Left, y.Left) && EqualExpr(x.Right, y.Right)
 	case *expr.Unary:
 		y, ok := y.(*expr.Unary)
 		if !ok {
 			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
 		}
 		return x.Op == y.Op && EqualExpr(x.Expr, y.Expr)
 	case *expr.Bad:
@@ -35,11 +41,17 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !ok {
 			return false
 		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
 		return x.Error == y.Error
 	case *expr.BasicLiteral:
 		y, ok := y.(*expr.BasicLiteral)
 		if !ok {
 			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
 		}
 		return equalLiteral(x.Value, y.Value)
 	case *expr.FuncLiteral:
@@ -47,11 +59,40 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !ok {
 			return false
 		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
 		return equalFuncLiteral(x, y)
+	case *expr.TableLiteral:
+		y, ok := y.(*expr.TableLiteral)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		if !equalExprs(x.ColNames, y.ColNames) {
+			return false
+		}
+		if len(x.Rows) != len(y.Rows) {
+			return false
+		}
+		for i, xrow := range x.Rows {
+			if !equalExprs(xrow, y.Rows[i]) {
+				return false
+			}
+		}
+		return true
 	case *expr.Ident:
 		y, ok := y.(*expr.Ident)
 		if !ok {
 			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
 		}
 		if x == nil {
 			if y == nil {
@@ -71,6 +112,9 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !ok {
 			return false
 		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
 		if !EqualExpr(x.Func, y.Func) {
 			return false
 		}
@@ -83,6 +127,9 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !ok {
 			return false
 		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
 		if !EqualExpr(x.Left, y.Left) {
 			return false
 		}
@@ -94,6 +141,9 @@ func EqualExpr(x, y expr.Expr) bool {
 		y, ok := y.(*expr.TableIndex)
 		if !ok {
 			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
 		}
 		if !EqualExpr(x.Expr, y.Expr) {
 			return false
@@ -165,6 +215,9 @@ func equalType(t0, t1 tipe.Type) bool {
 			panic("not both tipe.Func")
 			return false
 		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
 		if !equalFields(t0.In, t1.In) {
 			panic("!equalFields(t0.In, t1.In)")
 			return false
@@ -178,6 +231,9 @@ func equalType(t0, t1 tipe.Type) bool {
 		if !ok {
 			return false
 		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
 		if !equalFields(t0.Fields, t1.Fields) {
 			return false
 		}
@@ -185,6 +241,9 @@ func equalType(t0, t1 tipe.Type) bool {
 		t1, ok := t1.(*tipe.Table)
 		if !ok {
 			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
 		}
 		if !equalType(t0.Type, t1.Type) {
 			return false
@@ -194,6 +253,9 @@ func equalType(t0, t1 tipe.Type) bool {
 		t1, ok := t1.(*tipe.Unresolved)
 		if !ok {
 			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
 		}
 		if t0.Name != t1.Name {
 			return false
