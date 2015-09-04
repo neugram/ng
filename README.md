@@ -124,6 +124,49 @@ the type parameter.
   they have surprising performance implications and while they may be
   possible with type parametrs, they are painful to reason about.
 
+### Methods
+
+Methods are tricky in a forward only statement-based language like this.
+Some ideas:
+
+```
+type T struct {
+	Field1 int64
+	Field2 integer
+
+	Add (t *T) func(t2 T) {
+		t.Field1 += t2.Field1
+		t.Field2 += t2.Field2
+	}
+
+	Mul (t1 T) func(t2 T) (t3 T) {
+		t3.Field1 = t1.Field1 * t2.Field1
+		t3.Field2 = t1.Field2 * t2.Field2
+	}
+}
+```
+
+This way all methods of a type must be defined together. Limiting, but
+clear in meaning. Worth it?
+
+Note that this strategy departs from Go in a subtle way: T is accessible
+from inside the statement declaring it. Usually in Go this is invalid:
+
+```
+f := func(x int) {
+	if x > 3 {
+		f(x-1) // f is undefined
+	}
+}
+```
+
+But in Numgrad it silently becomes:
+
+```
+var f func(x int)
+f = func(x int) { ... }
+```
+
 ## Background
 
 Start with Go's types.
