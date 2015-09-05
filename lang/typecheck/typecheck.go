@@ -154,6 +154,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		case *big.Float:
 			p.typ = tipe.UntypedFloat
 			p.val = constant.MakeFromLiteral(v.String(), gotoken.FLOAT, 0)
+		case string:
+			p.typ = tipe.String
 		}
 		return p
 	case *expr.Binary:

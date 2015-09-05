@@ -37,6 +37,21 @@ var typeTests = []typeTest{
 			{"z", tipe.Int64},
 		},
 	},
+	{
+		[]string{
+			"x := 4 + 5 + 2",
+			`y := "foo"`,
+			`{
+				y := x
+				t := y
+			}`,
+			`z := y`,
+		},
+		[]identType{
+			{"y", tipe.String},
+			{"z", tipe.String},
+		},
+	},
 }
 
 func TestBasic(t *testing.T) {
@@ -58,12 +73,7 @@ func TestBasic(t *testing.T) {
 		t.Logf("%s", c)
 
 		findDef := func(name string) *Obj {
-			for ident, obj := range c.Defs {
-				if ident.Name == name {
-					return obj
-				}
-			}
-			return nil
+			return c.cur.Objs[name]
 		}
 
 		for _, want := range test.want {
