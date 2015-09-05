@@ -23,8 +23,16 @@ type typeTest struct {
 
 var typeTests = []typeTest{
 	{
+		[]string{"x := int64(4)"},
+		[]identType{{"x", tipe.Int64}},
+	},
+	{
+		[]string{"x := int64(4) + 2"},
+		[]identType{{"x", tipe.Int64}},
+	},
+	{
 		[]string{"x := 4"},
-		[]identType{{"x", tipe.Integer}},
+		[]identType{{"x", tipe.Num}},
 	},
 	{
 		[]string{
@@ -33,7 +41,7 @@ var typeTests = []typeTest{
 			"z := int64(x) + 2",
 		},
 		[]identType{
-			{"y", tipe.Integer},
+			{"y", tipe.Num},
 			{"z", tipe.Int64},
 		},
 	},

@@ -19,9 +19,10 @@ import (
 
 type Checker struct {
 	// TODO: we could put these on our AST. Should we?
-	Types  map[expr.Expr]tipe.Type
-	Defs   map[*expr.Ident]*Obj
-	Values map[expr.Expr]constant.Value
+	Types   map[expr.Expr]tipe.Type
+	Defs    map[*expr.Ident]*Obj
+	Values  map[expr.Expr]constant.Value
+	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 
 	// TODO NamedInfo map[*tipe.Named]NamedInfo
 
@@ -211,6 +212,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 }
 
 func (c *Checker) convert(p *partial, t tipe.Type) {
+	fmt.Printf("Checker.convert(p=%#+v, t=%s)\n", p, t)
 	_, tIsConst := t.(tipe.Basic)
 	if p.mode == modeConst && tIsConst {
 		// TODO or integer -> string conversion
@@ -245,8 +247,8 @@ func convertible(dst, src tipe.Type) bool {
 	// TODO several other forms of "identical" types,
 	// e.g. maps where keys and value are identical,
 
-	// integers and floats can be converted to one another
-	if (tipe.IsInt(dst) || tipe.IsFloat(dst)) && (tipe.IsInt(src) || tipe.IsFloat(src)) {
+	// numerics can be converted to one another
+	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
 		return true
 	}
 
@@ -265,6 +267,8 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 			// promote untyped int to float
 		case t == tipe.UntypedComplex && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
 			// promote untyped int or float to complex
+		case t == tipe.Num && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
+			// promote untyped int or float to num type parameter
 		case t != p.typ:
 			c.errorf("cannot convert %s to %s", p.typ, t)
 		}
@@ -367,6 +371,8 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			return v
 		case tipe.Float, tipe.UntypedFloat, tipe.UntypedComplex:
 			return v
+		case tipe.Num:
+			return v
 		case tipe.Int64:
 			if _, ok := constant.Int64Val(v); ok {
 				return v
@@ -384,6 +390,8 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 		case tipe.Float64:
 			r, _ := constant.Float64Val(v)
 			return constant.MakeFloat64(float64(r))
+		case tipe.Num:
+			return v
 		}
 	}
 	// TODO many more comparisons
@@ -423,6 +431,8 @@ func (c *Checker) String() string {
 type Scope struct {
 	Parent *Scope
 	Objs   map[string]*Obj
+
+	// TODO: NumSpec tipe.Type?
 }
 
 func (s *Scope) LookupRec(name string) *Obj {
@@ -484,9 +494,9 @@ func defaultType(t tipe.Type) tipe.Type {
 	case tipe.UntypedBool:
 		return tipe.Bool
 	case tipe.UntypedInteger:
-		return tipe.Integer
+		return tipe.Num
 	case tipe.UntypedFloat:
-		return tipe.Float
+		return tipe.Num
 	}
 	return t
 }

@@ -38,6 +38,7 @@ type Basic string
 
 const (
 	Invalid Basic = "invalid"
+	Num     Basic = "num" // type parameter
 	Bool    Basic = "bool"
 	Integer Basic = "integer"
 	Float   Basic = "float"
@@ -48,7 +49,7 @@ const (
 	Float32 Basic = "float32"
 	Float64 Basic = "float64"
 
-	UntypedBool    Basic = "untyped bool"
+	UntypedBool    Basic = "untyped bool" // TODO remove if we are not going to have named types
 	UntypedInteger Basic = "untyped integer"
 	UntypedFloat   Basic = "untyped float"
 	UntypedComplex Basic = "untyped complex"
@@ -127,20 +128,18 @@ func Underlying(t Type) Type {
 	return t
 }
 
-func IsInt(t Type) bool {
+func IsNumeric(t Type) bool {
 	b, ok := t.(Basic)
 	if !ok {
 		return false
 	}
-	return b == Integer || b == Int64
-}
-
-func IsFloat(t Type) bool {
-	b, ok := t.(Basic)
-	if !ok {
-		return false
+	switch b {
+	case Num, Integer, Float, Complex,
+		Int64, Float32, Float64,
+		UntypedInteger, UntypedFloat, UntypedComplex:
+		return true
 	}
-	return b == Float || b == Float32 || b == Float64
+	return false
 }
 
 func Equal(x, y Type) bool {
