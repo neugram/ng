@@ -7,8 +7,8 @@
 package tipe
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 )
 
 type Type interface {
@@ -16,22 +16,22 @@ type Type interface {
 	tipe()
 }
 
-type Field struct {
-	Name string
-	Type Type
-}
-
 type Func struct {
-	In  []*Field
-	Out []*Field
+	Params  *Tuple
+	Results *Tuple
 }
 
 type Struct struct {
-	Fields []*Field
+	Tags   []string
+	Fields []Type
 }
 
 type Table struct {
 	Type Type
+}
+
+type Tuple struct {
+	Elems []Type
 }
 
 type Basic string
@@ -55,14 +55,6 @@ const (
 	UntypedComplex Basic = "untyped complex"
 )
 
-type Named struct {
-	Name string // not an identifier, only for debugging
-	// TODO: move Ref to a Checker map?
-	Ref        interface{} // a *typecheck.Obj after type checking
-	Underlying Type
-	// TODO: Methods []*Obj
-}
-
 type Unresolved struct {
 	Package string
 	Name    string
@@ -72,6 +64,8 @@ var (
 	_ = Type(Basic(""))
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
+	_ = Type((*Table)(nil))
+	_ = Type((*Tuple)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
@@ -79,15 +73,27 @@ func (t Basic) tipe()       {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
 func (t *Table) tipe()      {}
-func (t *Named) tipe()      {}
+func (t *Tuple) tipe()      {}
 func (t *Unresolved) tipe() {}
 
 func (e Basic) Sexp() string { return fmt.Sprintf("(basictype %s)", string(e)) }
 func (e *Func) Sexp() string {
-	return fmt.Sprintf("(functype (in %s) (out %s))", fieldsStr(e.In), fieldsStr(e.Out))
+	p := "nilparams"
+	if e.Params != nil {
+		p = e.Params.Sexp()
+	}
+	r := "nilresults"
+	if e.Results != nil {
+		p = e.Results.Sexp()
+	}
+	return fmt.Sprintf("(functype %s %s)", p, r)
 }
 func (e *Struct) Sexp() string {
-	return fmt.Sprintf("(structtype %s)", fieldsStr(e.Fields))
+	var fields []string
+	for i, tag := range e.Tags {
+		fields = append(fields, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
+	}
+	return fmt.Sprintf("(structtype %s)", strings.Join(fields, " "))
 }
 func (e *Table) Sexp() string {
 	u := "nil"
@@ -96,36 +102,18 @@ func (e *Table) Sexp() string {
 	}
 	return fmt.Sprintf("(tabletype %s)", u)
 }
-func (e *Named) Sexp() string {
-	u := "nilunderlying"
-	if e.Underlying != nil {
-		u = e.Underlying.Sexp()
+func (e *Tuple) Sexp() string {
+	var elems []string
+	for _, t := range e.Elems {
+		elems = append(elems, t.Sexp())
 	}
-	return fmt.Sprintf("(namedtype %s %s)", e.Name, u)
+	return fmt.Sprintf("(tupletype %s)", strings.Join(elems, " "))
 }
 func (e *Unresolved) Sexp() string {
 	if e.Package == "" {
 		return fmt.Sprintf("(unresolved %s)", e.Name)
 	}
 	return fmt.Sprintf("(unresolved %s.%s)", e.Package, e.Name)
-}
-
-func fieldsStr(fields []*Field) string {
-	buf := new(bytes.Buffer)
-	for i, f := range fields {
-		if i > 0 {
-			buf.WriteRune(' ')
-		}
-		fmt.Fprintf(buf, "(%s %s)", f.Name, f.Type.Sexp())
-	}
-	return buf.String()
-}
-
-func Underlying(t Type) Type {
-	if n, ok := t.(*Named); ok {
-		return n.Underlying
-	}
-	return t
 }
 
 func IsNumeric(t Type) bool {

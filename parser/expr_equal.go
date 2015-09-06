@@ -178,23 +178,22 @@ func equalExprs(x, y []expr.Expr) bool {
 	return true
 }
 
-func equalFields(f0, f1 []*tipe.Field) bool {
-	if len(f0) != len(f1) {
+func equalTuple(x, y *tipe.Tuple) bool {
+	if x == nil && y == nil {
+		return true
+	}
+	if x == nil || y == nil {
 		return false
 	}
-	for i := range f0 {
-		if !equalField(f0[i], f1[i]) {
+	if len(x.Elems) != len(y.Elems) {
+		return false
+	}
+	for i := range x.Elems {
+		if !equalType(x.Elems[i], y.Elems[i]) {
 			return false
 		}
 	}
 	return true
-}
-
-func equalField(f0, f1 *tipe.Field) bool {
-	if f0.Name != f1.Name {
-		return false
-	}
-	return equalType(f0.Type, f1.Type)
 }
 
 func equalType(t0, t1 tipe.Type) bool {
@@ -218,12 +217,10 @@ func equalType(t0, t1 tipe.Type) bool {
 		if t0 == nil || t1 == nil {
 			return t0 == nil && t1 == nil
 		}
-		if !equalFields(t0.In, t1.In) {
-			panic("!equalFields(t0.In, t1.In)")
+		if !equalTuple(t0.Params, t1.Params) {
 			return false
 		}
-		if !equalFields(t0.Out, t1.Out) {
-			panic("!equalFields(t0.Out, t1.Out)")
+		if !equalTuple(t0.Results, t1.Results) {
 			return false
 		}
 	case *tipe.Struct:
@@ -234,8 +231,16 @@ func equalType(t0, t1 tipe.Type) bool {
 		if t0 == nil || t1 == nil {
 			return t0 == nil && t1 == nil
 		}
-		if !equalFields(t0.Fields, t1.Fields) {
+		if !reflect.DeepEqual(t0.Tags, t1.Tags) {
 			return false
+		}
+		if len(t0.Fields) != len(t1.Fields) {
+			return false
+		}
+		for i := range t0.Fields {
+			if !equalType(t0.Fields[i], t1.Fields[i]) {
+				return false
+			}
 		}
 	case *tipe.Table:
 		t1, ok := t1.(*tipe.Table)

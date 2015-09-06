@@ -296,26 +296,26 @@ func (p *Parser) parseRange() (r expr.Range) {
 	return r
 }
 
-func (p *Parser) parseIn() (params []*tipe.Field) {
+func (p *Parser) parseIn() (names []string, params *tipe.Tuple) {
+	params = &tipe.Tuple{}
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
-		f := &tipe.Field{
-			Name: p.parseIdent().Name,
-			Type: p.maybeParseType(),
-		}
-		if f.Type != nil {
-			for i := len(params) - 1; i >= 0 && params[i].Type == nil; i-- {
-				params[i].Type = f.Type
+		n := p.parseIdent().Name
+		t := p.maybeParseType()
+		if t != nil {
+			for i := len(params.Elems) - 1; i >= 0 && params.Elems[i] == nil; i-- {
+				params.Elems[i] = t
 			}
 		}
 		if p.s.Token == token.Comma {
 			p.next()
 		}
-		params = append(params, f)
+		names = append(names, n)
+		params.Elems = append(params.Elems, t)
 	}
-	return params
+	return names, params
 }
 
-func (p *Parser) parseOut() (params []*tipe.Field) {
+func (p *Parser) parseOut() (names []string, params *tipe.Tuple) {
 	typeToName := func(t tipe.Type) string {
 		if t == nil {
 			panic("nil type")
@@ -330,12 +330,11 @@ func (p *Parser) parseOut() (params []*tipe.Field) {
 			return t.Name
 		default:
 			p.errorf("expected return value name, got %T", t)
-			return "BAD:" + t.Sexp()
+			return "BAD:" + t.Sexp() // TODO something better
 		}
 	}
 
 	// Either none of the output parameters have names, or all do.
-	var names []string
 	var types []tipe.Type
 	var named bool
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
@@ -373,13 +372,8 @@ func (p *Parser) parseOut() (params []*tipe.Field) {
 	} else {
 		// (T1, T2)
 	}
-	for i, t := range types {
-		params = append(params, &tipe.Field{
-			Name: names[i],
-			Type: t,
-		})
-	}
-	return params
+	params = &tipe.Tuple{Elems: types}
+	return names, params
 }
 
 func (p *Parser) parseType() tipe.Type {
@@ -430,10 +424,10 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.next()
 		s := &tipe.Struct{}
 		for p.s.Token > 0 && p.s.Token != token.RightBrace {
-			s.Fields = append(s.Fields, &tipe.Field{
-				Name: p.parseIdent().Name,
-				Type: p.parseType(),
-			})
+			n := p.parseIdent().Name
+			t := p.parseType()
+			s.Tags = append(s.Tags, n)
+			s.Fields = append(s.Fields, t)
 			if p.s.Token == token.Comma {
 				p.next()
 			} else if p.s.Token != token.RightBrace {
@@ -762,12 +756,12 @@ func (p *Parser) parseStmts() (stmts []stmt.Stmt) {
 	return stmts
 }
 
-func (p *Parser) parseFuncType() *tipe.Func {
-	f := &tipe.Func{}
+func (p *Parser) parseFuncType() (paramNames, resultNames []string, f *tipe.Func) {
+	f = &tipe.Func{}
 	p.expect(token.LeftParen)
 	p.next()
 	if p.s.Token != token.RightParen {
-		f.In = p.parseIn()
+		paramNames, f.Params = p.parseIn()
 	}
 	p.expect(token.RightParen)
 	p.next()
@@ -776,17 +770,17 @@ func (p *Parser) parseFuncType() *tipe.Func {
 		p.expect(token.LeftParen)
 		p.next()
 		if p.s.Token != token.RightParen {
-			f.Out = p.parseOut()
+			resultNames, f.Results = p.parseOut()
 		}
 		p.expect(token.RightParen)
 		p.next()
 	} else {
 		typ := p.maybeParseType()
 		if typ != nil {
-			f.Out = []*tipe.Field{{Type: typ}}
+			resultNames, f.Results = []string{""}, &tipe.Tuple{Elems: []tipe.Type{typ}}
 		}
 	}
-	return f
+	return paramNames, resultNames, f
 }
 
 func (p *Parser) parseOperand(lhs bool) expr.Expr {
@@ -805,15 +799,17 @@ func (p *Parser) parseOperand(lhs bool) expr.Expr {
 		return &expr.Unary{Op: token.LeftParen, Expr: ex}
 	case token.Func:
 		p.next()
-		ty := p.parseFuncType()
+		paramNames, resultNames, ty := p.parseFuncType()
 		if p.s.Token != token.LeftBrace {
 			p.next()
 			return &expr.Bad{p.error("TODO just a function type")}
 		}
 		body := p.parseBlock()
 		return &expr.FuncLiteral{
-			Type: ty,
-			Body: body,
+			Type:        ty,
+			ParamNames:  paramNames,
+			ResultNames: resultNames,
+			Body:        body,
 		}
 	}
 

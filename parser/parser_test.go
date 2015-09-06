@@ -77,7 +77,7 @@ var parserTests = []parserTest{
 	{
 		"func() integer { return 7 }",
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Integer}}},
+			Type: &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}}},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
 			}},
@@ -87,15 +87,17 @@ var parserTests = []parserTest{
 		"func(x, y val) (r0 val, r1 val) { return x, y }",
 		&expr.FuncLiteral{
 			Type: &tipe.Func{
-				In: []*tipe.Field{
-					&tipe.Field{Name: "x", Type: &tipe.Unresolved{Name: "val"}},
-					&tipe.Field{Name: "y", Type: &tipe.Unresolved{Name: "val"}},
-				},
-				Out: []*tipe.Field{
-					&tipe.Field{Name: "r0", Type: &tipe.Unresolved{Name: "val"}},
-					&tipe.Field{Name: "r1", Type: &tipe.Unresolved{Name: "val"}},
-				},
+				Params: &tipe.Tuple{Elems: []tipe.Type{
+					&tipe.Unresolved{Name: "val"},
+					&tipe.Unresolved{Name: "val"},
+				}},
+				Results: &tipe.Tuple{Elems: []tipe.Type{
+					&tipe.Unresolved{Name: "val"},
+					&tipe.Unresolved{Name: "val"},
+				}},
 			},
+			ParamNames:  []string{"x", "y"},
+			ResultNames: []string{"r0", "r1"},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{
 					&expr.Ident{Name: "x"},
@@ -110,7 +112,8 @@ var parserTests = []parserTest{
 			return x
 		}`,
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
+			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}},
+			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Assign{
 					Left:  []expr.Expr{&expr.Ident{"x"}},
@@ -129,7 +132,8 @@ var parserTests = []parserTest{
 			}
 		}`,
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Out: []*tipe.Field{{Type: tipe.Int64}}},
+			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}},
+			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
 				Init: &stmt.Assign{
 					Left:  []expr.Expr{&expr.Ident{"x"}},
@@ -160,9 +164,11 @@ var parserTests = []parserTest{
 		&expr.Call{
 			Func: &expr.FuncLiteral{
 				Type: &tipe.Func{
-					In:  []*tipe.Field{{Name: "x", Type: &tipe.Unresolved{Name: "val"}}},
-					Out: []*tipe.Field{{Type: &tipe.Unresolved{Name: "val"}}},
+					Params:  &tipe.Tuple{Elems: []tipe.Type{&tipe.Unresolved{Name: "val"}}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{&tipe.Unresolved{Name: "val"}}},
 				},
+				ParamNames:  []string{""},
+				ResultNames: []string{""},
 				Body: &stmt.Block{[]stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{
 						&expr.Binary{
@@ -315,12 +321,15 @@ var stmtTests = []stmtTest{
 		"type a struct { x integer, y struct { z int64 }}",
 		&stmt.Type{
 			Name: "a",
-			Type: &tipe.Struct{Fields: []*tipe.Field{
-				{"x", tipe.Integer},
-				{"y", &tipe.Struct{Fields: []*tipe.Field{
-					{"z", tipe.Int64},
-				}}},
-			}},
+			Type: &tipe.Struct{
+				Tags: []string{"x", "y"},
+				Fields: []tipe.Type{
+					tipe.Integer,
+					&tipe.Struct{
+						Tags:   []string{"z"},
+						Fields: []tipe.Type{tipe.Int64},
+					},
+				}},
 		},
 	},
 	{

@@ -43,8 +43,10 @@ type BasicLiteral struct {
 }
 
 type FuncLiteral struct {
-	Type *tipe.Func
-	Body interface{} // *stmt.Block, breaking the package import cycle
+	Type        *tipe.Func
+	ParamNames  []string
+	ResultNames []string
+	Body        interface{} // *stmt.Block, breaking the package import cycle
 }
 
 type CompLiteral struct {
