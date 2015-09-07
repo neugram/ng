@@ -329,8 +329,15 @@ var stmtTests = []stmtTest{
 		&stmt.ClassDecl{
 			Name: "a",
 			Type: &tipe.Class{
-				Tags:   []string{"x", "y"},
-				Fields: []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
+				Tags: []string{"x", "y", "f"},
+				Fields: []tipe.Type{
+					tipe.Integer,
+					&tipe.Table{tipe.Int64},
+					&tipe.Func{
+						Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					},
+				},
 			},
 			Methods: []*expr.FuncLiteral{{
 				Name:            "f",

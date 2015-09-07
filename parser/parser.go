@@ -399,17 +399,30 @@ func (p *Parser) parseTypeDecl(name string) stmt.Stmt {
 			Name: name,
 			Type: &tipe.Class{},
 		}
+		tags := make(map[string]bool)
 		for p.s.Token > 0 && p.s.Token != token.RightBrace {
 			if p.s.Token == token.Func {
-				c.Methods = append(c.Methods, p.parseFunc(true))
-			} else {
-				if len(c.Methods) > 0 {
-					p.errorf("class fields must be declared before methods")
+				m := p.parseFunc(true)
+				if tags[m.Name] {
+					p.errorf("field %s redeclared in class %s", m.Name, c.Name)
+				} else {
+					tags[m.Name] = true
+					c.Type.Tags = append(c.Type.Tags, m.Name)
+					c.Type.Fields = append(c.Type.Fields, m.Type)
+					c.Methods = append(c.Methods, m)
 				}
+			} else {
 				n := p.parseIdent().Name
 				t := p.parseType()
-				c.Type.Tags = append(c.Type.Tags, n)
-				c.Type.Fields = append(c.Type.Fields, t)
+				if len(c.Methods) > 0 {
+					p.errorf("class fields must be declared before methods")
+				} else if tags[n] {
+					p.errorf("field %s redeclared in class %s", n, c.Name)
+				} else {
+					tags[n] = true
+					c.Type.Tags = append(c.Type.Tags, n)
+					c.Type.Fields = append(c.Type.Fields, t)
+				}
 			}
 			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
 				p.next()
