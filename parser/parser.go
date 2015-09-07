@@ -35,9 +35,10 @@ type Parser struct {
 	Result  chan Result
 	Waiting chan bool
 
-	inStmt bool // true when stmt is partially parsed
-	s      *Scanner
-	err    []Error
+	inForLoop bool // to resolve composite literal parsing
+	inStmt    bool // true when stmt is partially parsed
+	s         *Scanner
+	err       []Error
 }
 
 func (p *Parser) Add(b []byte) {
@@ -111,12 +112,12 @@ func (p *Parser) next() {
 	}
 }
 
-func (p *Parser) parseExpr(lhs bool) expr.Expr {
-	return p.parseBinaryExpr(lhs, 1)
+func (p *Parser) parseExpr() expr.Expr {
+	return p.parseBinaryExpr(1)
 }
 
-func (p *Parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
-	x := p.parseUnaryExpr(lhs)
+func (p *Parser) parseBinaryExpr(minPrec int) expr.Expr {
+	x := p.parseUnaryExpr()
 	for prec := p.s.Token.Precedence(); prec >= minPrec; prec-- {
 		for {
 			op := p.s.Token
@@ -124,7 +125,7 @@ func (p *Parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
 				break
 			}
 			p.next()
-			y := p.parseBinaryExpr(false, prec+1)
+			y := p.parseBinaryExpr(prec + 1)
 			// TODO: distinguish expr from types, when we have types
 			// TODO record position
 			x = &expr.Binary{
@@ -137,7 +138,7 @@ func (p *Parser) parseBinaryExpr(lhs bool, minPrec int) expr.Expr {
 	return x
 }
 
-func (p *Parser) parseUnaryExpr(lhs bool) expr.Expr {
+func (p *Parser) parseUnaryExpr() expr.Expr {
 	switch p.s.Token {
 	case token.Add, token.Sub, token.Not:
 		op := p.s.Token
@@ -145,15 +146,15 @@ func (p *Parser) parseUnaryExpr(lhs bool) expr.Expr {
 		if p.s.err != nil {
 			return &expr.Bad{Error: p.s.err}
 		}
-		x := p.parseUnaryExpr(false)
+		x := p.parseUnaryExpr()
 		// TODO: distinguish expr from types, when we have types
 		return &expr.Unary{Op: op, Expr: x}
 	case token.Mul:
 		p.next()
-		x := p.parseUnaryExpr(false)
+		x := p.parseUnaryExpr()
 		return &expr.Unary{Op: token.Mul, Expr: x}
 	default:
-		return p.parsePrimaryExpr(lhs)
+		return p.parsePrimaryExpr()
 	}
 }
 
@@ -174,7 +175,7 @@ func (p *Parser) parseArgs() []expr.Expr {
 	p.next()
 	var args []expr.Expr
 	for p.s.Token != token.RightParen && p.s.r > 0 {
-		args = append(args, p.parseExpr(false))
+		args = append(args, p.parseExpr())
 		if !p.expectCommaOr(token.RightParen, "arguments") {
 			break
 		}
@@ -185,8 +186,8 @@ func (p *Parser) parseArgs() []expr.Expr {
 	return args
 }
 
-func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
-	x := p.parseOperand(lhs)
+func (p *Parser) parsePrimaryExpr() expr.Expr {
+	x := p.parseOperand()
 	for {
 		switch p.s.Token {
 		case token.Period:
@@ -210,12 +211,21 @@ func (p *Parser) parsePrimaryExpr(lhs bool) expr.Expr {
 			args := p.parseArgs()
 			x = &expr.Call{Func: x, Args: args}
 		case token.LeftBrace:
-			switch x := x.(type) {
+			switch xpr := x.(type) {
 			case *expr.TableLiteral:
-				p.parseTableLiteral(x)
+				p.parseTableLiteral(xpr)
 			case *expr.CompLiteral:
-				p.parseCompLiteral(x)
-			default:
+				p.parseCompLiteral(xpr)
+			}
+
+			// The problem is that
+			//	for x := y; x.v++; x = T{}
+			// are the final braces part of a composite literal, or
+			// the body of the loop? Resolve this by requiring
+			// parens around CompLiteral in loop definition.
+			if xpr, isIdent := x.(*expr.Ident); isIdent && !p.inForLoop {
+				x = &expr.CompLiteral{Type: &tipe.Unresolved{Name: xpr.Name}}
+			} else {
 				return x // end of statement
 			}
 		default:
@@ -277,7 +287,7 @@ func (p *Parser) parseRange() (r expr.Range) {
 	var x expr.Expr
 	if p.s.Token != token.Colon {
 		// case 0, 0: or 0:1
-		x = p.parseExpr(false)
+		x = p.parseExpr()
 	}
 	if p.s.Token == token.Comma || p.s.Token == token.RightBracket {
 		// case 0
@@ -292,7 +302,7 @@ func (p *Parser) parseRange() (r expr.Range) {
 		return r
 	}
 	// 0:1 or :1
-	r.End = p.parseExpr(false)
+	r.End = p.parseExpr()
 	return r
 }
 
@@ -478,10 +488,10 @@ func (p *Parser) maybeParseType() tipe.Type {
 }
 
 func (p *Parser) parseExprs() []expr.Expr {
-	exprs := []expr.Expr{p.parseExpr(false)}
+	exprs := []expr.Expr{p.parseExpr()}
 	for p.s.Token == token.Comma {
 		p.next()
-		exprs = append(exprs, p.parseExpr(false))
+		exprs = append(exprs, p.parseExpr())
 	}
 	return exprs
 }
@@ -522,7 +532,7 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			} else {
 				right = []expr.Expr{&expr.Unary{
 					Op:   token.Range,
-					Expr: p.parseExpr(false),
+					Expr: p.parseExpr(),
 				}}
 			}
 		} else {
@@ -611,12 +621,12 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		if p.s.Token == token.Semicolon {
 			// Blank Init statement.
 			p.next()
-			s.Cond = p.parseExpr(true)
+			s.Cond = p.parseExpr()
 		} else {
 			s.Init = p.parseSimpleStmt()
 			if p.s.Token == token.Semicolon {
 				p.next()
-				s.Cond = p.parseExpr(false)
+				s.Cond = p.parseExpr()
 			} else {
 				// No Init statement, make it the condition
 				s.Cond = p.extractExpr(s.Init)
@@ -660,7 +670,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		p.expect(token.Assign)
 		p.next()
-		s.Value = p.parseExpr(false)
+		s.Value = p.parseExpr()
 		p.expectSemi()
 		return s
 	case token.Type:
@@ -676,7 +686,9 @@ func (p *Parser) parseFor() stmt.Stmt {
 	p.expect(token.For)
 	p.next()
 
+	p.inForLoop = true
 	body := func() stmt.Stmt {
+		p.inForLoop = false
 		b := p.parseBlock()
 		p.expectSemi()
 		return b
@@ -689,7 +701,7 @@ func (p *Parser) parseFor() stmt.Stmt {
 	if p.s.Token == token.Range {
 		// for range r { }
 		p.next()
-		return &stmt.Range{Expr: p.parseExpr(false), Body: body()}
+		return &stmt.Range{Expr: p.parseExpr(), Body: body()}
 	}
 	if p.s.Token == token.Semicolon {
 		p.next()
@@ -837,17 +849,18 @@ func (p *Parser) parseFunc(method bool) *expr.FuncLiteral {
 	return f
 }
 
-func (p *Parser) parseOperand(lhs bool) expr.Expr {
+func (p *Parser) parseOperand() expr.Expr {
 	switch p.s.Token {
 	case token.Ident:
-		return p.parseIdent()
+		x := p.parseIdent()
+		return x
 	case token.Int, token.Float, token.Imaginary, token.String:
 		x := &expr.BasicLiteral{Value: p.s.Literal}
 		p.next()
 		return x
 	case token.LeftParen:
 		p.next()
-		ex := p.parseExpr(false) // TODO or a type?
+		ex := p.parseExpr() // TODO or a type?
 		p.expect(token.RightParen)
 		p.next()
 		return &expr.Unary{Op: token.LeftParen, Expr: ex}
@@ -879,7 +892,7 @@ func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
 			}
 			p.next()
 			for p.s.Token > 0 && p.s.Token != token.Pipe {
-				x.ColNames = append(x.ColNames, p.parseExpr(false))
+				x.ColNames = append(x.ColNames, p.parseExpr())
 				if p.s.Token != token.Comma {
 					break
 				}
@@ -890,7 +903,7 @@ func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
 		} else {
 			var row []expr.Expr
 			for p.s.Token > 0 && p.s.Token != token.RightBrace {
-				row = append(row, p.parseExpr(false))
+				row = append(row, p.parseExpr())
 				if p.s.Token != token.Comma {
 					break
 				}
@@ -912,7 +925,7 @@ func (p *Parser) parseCompLiteral(x *expr.CompLiteral) {
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		// TODO FieldName: value
-		x.Elements = append(x.Elements, p.parseExpr(false))
+		x.Elements = append(x.Elements, p.parseExpr())
 		if p.s.Token != token.Comma {
 			break
 		}

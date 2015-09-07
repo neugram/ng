@@ -355,6 +355,7 @@ var stmtTests = []stmtTest{
 
 func TestParseStmt(t *testing.T) {
 	for _, test := range stmtTests {
+		fmt.Printf("Parsing stmt %q\n", test.input)
 		got, err := ParseStmt([]byte(test.input))
 		if err != nil {
 			t.Errorf("ParseStmt(%q): error: %v", test.input, err)

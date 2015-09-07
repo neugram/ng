@@ -8,6 +8,7 @@ package tipe
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -132,6 +133,28 @@ func IsNumeric(t Type) bool {
 
 func Equal(x, y Type) bool {
 	if x == y {
+		return true
+	}
+	switch x := x.(type) {
+	case *Class:
+		y, ok := y.(*Class)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if !reflect.DeepEqual(x.Tags, y.Tags) {
+			return false
+		}
+		if len(x.Fields) != len(y.Fields) {
+			return false
+		}
+		for i := range x.Fields {
+			if !Equal(x.Fields[i], y.Fields[i]) {
+				return false
+			}
+		}
 		return true
 	}
 	fmt.Printf("tipe.Equal TODO\n")

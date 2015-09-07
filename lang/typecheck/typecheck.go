@@ -82,7 +82,6 @@ func (c *Checker) stmt(s stmt.Stmt) {
 					c.constrainUntyped(&p, defaultType(p.typ))
 				}
 				obj := &Obj{
-					// TODO ObjType for x := struct{ X int64 }?
 					Kind: ObjVar,
 					Type: p.typ,
 				}
@@ -108,6 +107,14 @@ func (c *Checker) stmt(s stmt.Stmt) {
 		for _, s := range s.Stmts {
 			c.stmt(s)
 		}
+
+	case *stmt.ClassDecl:
+		obj := &Obj{
+			Kind: ObjType,
+			Type: s.Type,
+			Decl: s,
+		}
+		c.cur.Objs[s.Name] = obj
 
 	default:
 		panic(fmt.Sprintf("typecheck: unknown stmt %T", s))
@@ -165,6 +172,31 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.FuncLiteral:
 		p.typ = e.Type
 		return p
+	case *expr.CompLiteral:
+		// resolve TODO break out into function?
+		if u, unresolved := e.Type.(*tipe.Unresolved); unresolved {
+			if u.Package != "" {
+				// TODO look up package in scope, extract type from it.
+				panic("TODO type in package")
+			}
+			obj := c.cur.LookupRec(u.Name)
+			if obj == nil {
+				c.errorf("type %s not declared", u.Name)
+				p.mode = modeInvalid
+				return p
+			}
+			if obj.Kind != ObjType {
+				c.errorf("symbol %s is not a type", u.Name)
+				p.mode = modeInvalid
+				return p
+			}
+			// TODO: typecheck fields
+			e.Type = obj.Type
+			p.typ = e.Type
+			p.expr = e
+			return p
+		}
+		// TODO map, slice, table, etc.
 	case *expr.Binary:
 		left := c.expr(e.Left)
 		right := c.expr(e.Right)
@@ -519,6 +551,7 @@ func (o ObjKind) String() string {
 type Obj struct {
 	Kind ObjKind
 	Type tipe.Type
+	Decl interface{} // *expr.FuncLiteral, *stmt.ClassDecl
 	Used bool
 }
 

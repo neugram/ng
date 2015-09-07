@@ -69,6 +69,15 @@ var typeTests = []typeTest{
 			{"x", tipe.Int64},
 		},
 	},
+	{
+		[]string{
+			`type A class {
+				X int64
+			}`,
+			`a := A{34, 2}`, // TODO type error
+		},
+		[]identType{{"a", &tipe.Class{Tags: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
+	},
 }
 
 func TestBasic(t *testing.T) {
