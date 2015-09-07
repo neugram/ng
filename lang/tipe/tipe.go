@@ -21,9 +21,9 @@ type Func struct {
 	Results *Tuple
 }
 
-type Struct struct {
+type Class struct {
 	Tags   []string
-	Fields []Type
+	Fields []Type // may be *tipe.Func for methods
 }
 
 type Table struct {
@@ -63,7 +63,7 @@ type Unresolved struct {
 var (
 	_ = Type(Basic(""))
 	_ = Type((*Func)(nil))
-	_ = Type((*Struct)(nil))
+	_ = Type((*Class)(nil))
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Unresolved)(nil))
@@ -71,7 +71,7 @@ var (
 
 func (t Basic) tipe()       {}
 func (t *Func) tipe()       {}
-func (t *Struct) tipe()     {}
+func (t *Class) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Unresolved) tipe() {}
@@ -88,12 +88,12 @@ func (e *Func) Sexp() string {
 	}
 	return fmt.Sprintf("(functype %s %s)", p, r)
 }
-func (e *Struct) Sexp() string {
+func (e *Class) Sexp() string {
 	var fields []string
 	for i, tag := range e.Tags {
 		fields = append(fields, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
 	}
-	return fmt.Sprintf("(structtype %s)", strings.Join(fields, " "))
+	return fmt.Sprintf("(classtype %s)", strings.Join(fields, " "))
 }
 func (e *Table) Sexp() string {
 	u := "nil"

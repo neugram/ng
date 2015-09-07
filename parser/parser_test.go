@@ -316,25 +316,39 @@ var stmtTests = []stmtTest{
 			Value: &expr.BasicLiteral{big.NewInt(4)},
 		},
 	},
-	{"type a int64", &stmt.Type{Name: "a", Type: tipe.Int64}},
 	{
-		"type a struct { x integer, y struct { z int64 }}",
-		&stmt.Type{
+		`type a class {
+			x integer
+			y [|]int64
+
+			func (a) f(x integer) integer {
+				return a.x
+			}
+		}
+		`,
+		&stmt.ClassDecl{
 			Name: "a",
-			Type: &tipe.Struct{
-				Tags: []string{"x", "y"},
-				Fields: []tipe.Type{
-					tipe.Integer,
-					&tipe.Struct{
-						Tags:   []string{"z"},
-						Fields: []tipe.Type{tipe.Int64},
-					},
+			Type: &tipe.Class{
+				Tags:   []string{"x", "y"},
+				Fields: []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
+			},
+			Methods: []*expr.FuncLiteral{{
+				Name:            "f",
+				ReceiverName:    "a",
+				PointerReceiver: true,
+				Type: &tipe.Func{
+					Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+				},
+				ParamNames: []string{"x"},
+				Body: &stmt.Block{Stmts: []stmt.Stmt{
+					&stmt.Return{Exprs: []expr.Expr{&expr.Selector{
+						Left:  &expr.Ident{"a"},
+						Right: &expr.Ident{"x"},
+					}}},
 				}},
+			}},
 		},
-	},
-	{
-		"type a [|]int64",
-		&stmt.Type{Name: "a", Type: &tipe.Table{tipe.Int64}},
 	},
 	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
 }

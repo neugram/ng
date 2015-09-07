@@ -92,7 +92,8 @@ const (
 	Go
 
 	Map
-	Struct
+	Class
+	Interface
 	Type
 )
 
@@ -161,7 +162,8 @@ var keywords = map[string]Token{
 	"goto":        Goto,
 	"go":          Go,
 	"map":         Map,
-	"struct":      Struct,
+	"class":       Class,
+	"interface":   Interface,
 	"type":        Type,
 }
 

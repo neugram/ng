@@ -43,10 +43,13 @@ type BasicLiteral struct {
 }
 
 type FuncLiteral struct {
-	Type        *tipe.Func
-	ParamNames  []string
-	ResultNames []string
-	Body        interface{} // *stmt.Block, breaking the package import cycle
+	Name            string // may be empty
+	ReceiverName    string // if non-empty, this is a method
+	PointerReceiver bool
+	Type            *tipe.Func
+	ParamNames      []string
+	ResultNames     []string
+	Body            interface{} // *stmt.Block, breaking the package import cycle
 }
 
 type CompLiteral struct {
@@ -147,6 +150,7 @@ func (e *Call) Sexp() string {
 	}
 	return fmt.Sprintf("(call %s %s)", exprSexp(e.Func), exprsStr(e.Args))
 }
+
 func (e *FuncLiteral) Sexp() string {
 	body := "nilbody"
 	if e.Body != nil {
@@ -159,8 +163,17 @@ func (e *FuncLiteral) Sexp() string {
 			body = fmt.Sprintf("badbody:%T", e.Body)
 		}
 	}
-	return fmt.Sprintf("(func %s %s)", tipeSexp(e.Type), body)
+	if e.ReceiverName != "" {
+		pointer := ""
+		if e.PointerReceiver {
+			pointer = "*"
+		}
+		return fmt.Sprintf("(method (%s%s) %s %s %s)", pointer, e.ReceiverName, e.Name, tipeSexp(e.Type), body)
+	} else {
+		return fmt.Sprintf("(func %s %s %s)", e.Name, tipeSexp(e.Type), body)
+	}
 }
+
 func (e *CompLiteral) Sexp() string {
 	names := ""
 	if len(e.Names) > 0 {

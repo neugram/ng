@@ -223,8 +223,8 @@ func equalType(t0, t1 tipe.Type) bool {
 		if !equalTuple(t0.Results, t1.Results) {
 			return false
 		}
-	case *tipe.Struct:
-		t1, ok := t1.(*tipe.Struct)
+	case *tipe.Class:
+		t1, ok := t1.(*tipe.Class)
 		if !ok {
 			return false
 		}
@@ -319,8 +319,8 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualExpr(x.Path, y.Path) {
 			return false
 		}
-	case *stmt.Type:
-		y, ok := y.(*stmt.Type)
+	case *stmt.ClassDecl:
+		y, ok := y.(*stmt.ClassDecl)
 		if !ok {
 			return false
 		}
@@ -329,6 +329,14 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		}
 		if !equalType(x.Type, y.Type) {
 			return false
+		}
+		if len(x.Methods) != len(y.Methods) {
+			return false
+		}
+		for i := range x.Methods {
+			if !EqualExpr(x.Methods[i], y.Methods[i]) {
+				return false
+			}
 		}
 	case *stmt.Const:
 		y, ok := y.(*stmt.Const)

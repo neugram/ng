@@ -7,6 +7,7 @@ package stmt
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/tipe"
@@ -22,10 +23,13 @@ type Import struct {
 	Path *expr.BasicLiteral
 }
 
-type Type struct {
-	Name string
-	Type tipe.Type
+type ClassDecl struct {
+	Name    string
+	Type    *tipe.Class
+	Methods []*expr.FuncLiteral
 }
+
+// TODO InterfaceLiteral struct { Name string, MethodNames []string, Methods []*tipe.Func }
 
 type Const struct {
 	Name  string
@@ -72,16 +76,16 @@ type Simple struct {
 	Expr expr.Expr
 }
 
-func (s Import) stmt() {}
-func (s Type) stmt()   {}
-func (s Const) stmt()  {}
-func (s Assign) stmt() {}
-func (s Block) stmt()  {}
-func (s If) stmt()     {}
-func (s For) stmt()    {}
-func (s Range) stmt()  {}
-func (s Return) stmt() {}
-func (s Simple) stmt() {}
+func (s Import) stmt()    {}
+func (s ClassDecl) stmt() {}
+func (s Const) stmt()     {}
+func (s Assign) stmt()    {}
+func (s Block) stmt()     {}
+func (s If) stmt()        {}
+func (s For) stmt()       {}
+func (s Range) stmt()     {}
+func (s Return) stmt()    {}
+func (s Simple) stmt()    {}
 
 func (s *Block) Sexp() string {
 	buf := new(bytes.Buffer)
@@ -95,8 +99,12 @@ func (s *Block) Sexp() string {
 }
 func (e *Return) Sexp() string { return fmt.Sprintf("(return %s)", exprsStr(e.Exprs)) }
 func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, exprSexp(e.Path)) }
-func (e *Type) Sexp() string {
-	return fmt.Sprintf("(typedecl %s %s)", e.Name, typeSexp(e.Type))
+func (e *ClassDecl) Sexp() string {
+	var methods []string
+	for _, m := range e.Methods {
+		methods = append(methods, m.Sexp())
+	}
+	return fmt.Sprintf("(classdecl %s %s %s)", e.Name, typeSexp(e.Type), strings.Join(methods, " "))
 }
 func (e *Const) Sexp() string {
 	return fmt.Sprintf("(constdecl %s %s %s)", e.Name, typeSexp(e.Type), exprSexp(e.Value))

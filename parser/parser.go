@@ -376,10 +376,50 @@ func (p *Parser) parseOut() (names []string, params *tipe.Tuple) {
 	return names, params
 }
 
+func (p *Parser) parseTypeDecl(name string) stmt.Stmt {
+	switch p.s.Token {
+	case token.Interface:
+		p.errorf("TODO interface declaration")
+		return nil
+	case token.Class:
+		p.next()
+		p.expect(token.LeftBrace)
+		p.next()
+		c := &stmt.ClassDecl{
+			Name: name,
+			Type: &tipe.Class{},
+		}
+		for p.s.Token > 0 && p.s.Token != token.RightBrace {
+			if p.s.Token == token.Func {
+				c.Methods = append(c.Methods, p.parseFunc(true))
+			} else {
+				if len(c.Methods) > 0 {
+					p.errorf("class fields must be declared before methods")
+				}
+				n := p.parseIdent().Name
+				t := p.parseType()
+				c.Type.Tags = append(c.Type.Tags, n)
+				c.Type.Fields = append(c.Type.Fields, t)
+			}
+			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
+				p.next()
+			} else if p.s.Token != token.RightBrace {
+				p.expect(token.Comma) // produce error
+			}
+		}
+		p.expect(token.RightBrace)
+		p.next()
+		return c
+	default:
+		p.errorf("expected type declaration, got %s", p.s.Token)
+		return nil
+	}
+}
+
 func (p *Parser) parseType() tipe.Type {
 	t := p.maybeParseType()
 	if t == nil {
-		p.errorf("expected type, got %s", p.s.Token)
+		p.errorf("expected type , got %s", p.s.Token)
 	}
 	return t
 }
@@ -418,25 +458,6 @@ func (p *Parser) maybeParseType() tipe.Type {
 		default:
 			return &tipe.Unresolved{Name: ident.Name}
 		}
-	case token.Struct:
-		p.next()
-		p.expect(token.LeftBrace)
-		p.next()
-		s := &tipe.Struct{}
-		for p.s.Token > 0 && p.s.Token != token.RightBrace {
-			n := p.parseIdent().Name
-			t := p.parseType()
-			s.Tags = append(s.Tags, n)
-			s.Fields = append(s.Fields, t)
-			if p.s.Token == token.Comma {
-				p.next()
-			} else if p.s.Token != token.RightBrace {
-				p.expect(token.Comma) // prodce error
-			}
-		}
-		p.expect(token.RightBrace)
-		p.next()
-		return s
 	case token.LeftBracket:
 		p.next()
 		p.expect(token.Pipe)
@@ -449,8 +470,6 @@ func (p *Parser) maybeParseType() tipe.Type {
 	case token.Func:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Map:
-		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
-	case token.LeftParen:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	default:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
@@ -646,10 +665,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		return s
 	case token.Type:
 		p.next()
-		s := &stmt.Type{
-			Name: p.parseIdent().Name,
-			Type: p.parseType(),
-		}
+		s := p.parseTypeDecl(p.parseIdent().Name)
 		p.expectSemi()
 		return s
 	}
@@ -756,12 +772,37 @@ func (p *Parser) parseStmts() (stmts []stmt.Stmt) {
 	return stmts
 }
 
-func (p *Parser) parseFuncType() (paramNames, resultNames []string, f *tipe.Func) {
-	f = &tipe.Func{}
+// parseFuncType just parses the top of the func (the part woven
+// into the type declaration), not the body.
+func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
+	p.expect(token.Func)
+	p.next()
+
+	f := &expr.FuncLiteral{
+		Type: &tipe.Func{},
+	}
+
+	if method {
+		// func (a) f()
+		// TODO come up with syntax for not-pointer-receiver
+		f.PointerReceiver = true
+		p.expect(token.LeftParen)
+		p.next()
+		f.ReceiverName = p.parseIdent().Name
+		p.expect(token.RightParen)
+		p.next()
+	}
+
+	if p.s.Token == token.Ident {
+		f.Name = p.parseIdent().Name
+	} else if method {
+		p.errorf("class method missing name")
+	}
+
 	p.expect(token.LeftParen)
 	p.next()
 	if p.s.Token != token.RightParen {
-		paramNames, f.Params = p.parseIn()
+		f.ParamNames, f.Type.Params = p.parseIn()
 	}
 	p.expect(token.RightParen)
 	p.next()
@@ -770,17 +811,30 @@ func (p *Parser) parseFuncType() (paramNames, resultNames []string, f *tipe.Func
 		p.expect(token.LeftParen)
 		p.next()
 		if p.s.Token != token.RightParen {
-			resultNames, f.Results = p.parseOut()
+			f.ResultNames, f.Type.Results = p.parseOut()
 		}
 		p.expect(token.RightParen)
 		p.next()
 	} else {
 		typ := p.maybeParseType()
 		if typ != nil {
-			resultNames, f.Results = []string{""}, &tipe.Tuple{Elems: []tipe.Type{typ}}
+			f.ResultNames = []string{""}
+			f.Type.Results = &tipe.Tuple{Elems: []tipe.Type{typ}}
 		}
 	}
-	return paramNames, resultNames, f
+	return f
+}
+
+func (p *Parser) parseFunc(method bool) *expr.FuncLiteral {
+	p.expect(token.Func)
+	f := p.parseFuncType(method)
+	if p.s.Token != token.LeftBrace {
+		p.next()
+		p.errorf("missing function body")
+		return f
+	}
+	f.Body = p.parseBlock()
+	return f
 }
 
 func (p *Parser) parseOperand(lhs bool) expr.Expr {
@@ -798,19 +852,7 @@ func (p *Parser) parseOperand(lhs bool) expr.Expr {
 		p.next()
 		return &expr.Unary{Op: token.LeftParen, Expr: ex}
 	case token.Func:
-		p.next()
-		paramNames, resultNames, ty := p.parseFuncType()
-		if p.s.Token != token.LeftBrace {
-			p.next()
-			return &expr.Bad{p.error("TODO just a function type")}
-		}
-		body := p.parseBlock()
-		return &expr.FuncLiteral{
-			Type:        ty,
-			ParamNames:  paramNames,
-			ResultNames: resultNames,
-			Body:        body,
-		}
+		return p.parseFunc(false)
 	}
 
 	if t := p.maybeParseType(); t != nil {
