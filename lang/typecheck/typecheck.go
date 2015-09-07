@@ -23,6 +23,7 @@ type Checker struct {
 	Defs    map[*expr.Ident]*Obj
 	Values  map[expr.Expr]constant.Value
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
+	Errs    []error
 
 	// TODO NamedInfo map[*tipe.Named]NamedInfo
 
@@ -146,18 +147,23 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.typ = obj.Type
 		return p
 	case *expr.BasicLiteral:
-		p.mode = modeConst
 		// TODO: use constant.Value in BasicLiteral directly.
 		switch v := e.Value.(type) {
 		case *big.Int:
+			p.mode = modeConst
 			p.typ = tipe.UntypedInteger
 			p.val = constant.MakeFromLiteral(v.String(), gotoken.INT, 0)
 		case *big.Float:
+			p.mode = modeConst
 			p.typ = tipe.UntypedFloat
 			p.val = constant.MakeFromLiteral(v.String(), gotoken.FLOAT, 0)
 		case string:
+			p.mode = modeVar
 			p.typ = tipe.String
 		}
+		return p
+	case *expr.FuncLiteral:
+		p.typ = e.Type
 		return p
 	case *expr.Binary:
 		left := c.expr(e.Left)
@@ -184,7 +190,48 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		switch p.mode {
 		case modeVar:
 			// function call
-			c.errorf("TODO function call")
+			funct := p.typ.(*tipe.Func)
+			var params, results []tipe.Type
+			if funct.Params != nil {
+				params = funct.Params.Elems
+			}
+			if funct.Results != nil {
+				results = funct.Results.Elems
+			}
+
+			switch len(results) {
+			case 0:
+				p.typ = nil
+			case 1:
+				p.typ = results[0]
+			default:
+				p.typ = funct.Results
+			}
+
+			if len(e.Args) != len(params) {
+				p.mode = modeInvalid
+				c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), funct)
+			}
+
+			if p.mode != modeInvalid {
+				var argsp []partial
+				for i, arg := range e.Args {
+					t := params[i]
+					argp := c.expr(arg)
+					c.convert(&argp, t)
+					if argp.mode == modeInvalid {
+						p.mode = modeInvalid
+						c.errorf("cannot use type %s as type %s in argument to function", argp.typ, t)
+						break
+					}
+					argsp = append(argsp, argp)
+				}
+			}
+			if p.mode == modeInvalid {
+				return p
+			}
+			p.expr = e
+			return p
 		case modeTypeExpr:
 			// type conversion
 			if len(e.Args) == 0 {
@@ -216,6 +263,7 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 	_, tIsConst := t.(tipe.Basic)
 	if p.mode == modeConst && tIsConst {
 		// TODO or integer -> string conversion
+		fmt.Printf("convert round p.typ=%s, p.val=%s, t=%s\n", p.typ, p.val, t)
 		if round(p.val, t.(tipe.Basic)) == nil {
 			// p.val does not fit in t
 			c.errorf("constant %s does not fit in %s", p.val, t)
@@ -225,10 +273,9 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 	}
 
 	if !convertible(p.typ, t) {
-		// TODO p.typ and t have identical underlying types
 		// TODO p is assignable to t, lots of possibilities
 		// (interface satisfaction, etc)
-		c.errorf("TODO non-const convert")
+		c.errorf("cannot use %s as %s", p.typ, t)
 		p.mode = modeInvalid
 		return
 	}
@@ -273,7 +320,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 			c.errorf("cannot convert %s to %s", p.typ, t)
 		}
 	} else {
-		switch t := tipe.Underlying(t).(type) {
+		switch t := t.(type) {
 		case tipe.Basic:
 			switch p.mode {
 			case modeConst:
@@ -322,7 +369,9 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 }
 
 func (c *Checker) errorf(format string, args ...interface{}) {
-	fmt.Printf("typecheck error: %s\n", fmt.Sprintf(format, args...))
+	err := fmt.Errorf(format, args...)
+	c.Errs = append(c.Errs, err)
+	fmt.Printf("typecheck error: %s\n", err)
 }
 
 func (c *Checker) pushScope() {
@@ -474,11 +523,11 @@ type Obj struct {
 }
 
 func isTyped(t tipe.Type) bool {
-	return tipe.Underlying(t) != tipe.Invalid && !isUntyped(t)
+	return t != tipe.Invalid && !isUntyped(t)
 }
 
 func isUntyped(t tipe.Type) bool {
-	switch tipe.Underlying(t) {
+	switch t {
 	case tipe.UntypedBool, tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
 		return true
 	}

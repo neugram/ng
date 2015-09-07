@@ -60,6 +60,15 @@ var typeTests = []typeTest{
 			{"z", tipe.String},
 		},
 	},
+	{
+		[]string{
+			"add := func(x, y integer) int64 { return int64(x) + int64(y) }",
+			"x := add(3, 4)",
+		},
+		[]identType{
+			{"x", tipe.Int64},
+		},
+	},
 }
 
 func TestBasic(t *testing.T) {
@@ -74,9 +83,12 @@ func TestBasic(t *testing.T) {
 		}
 
 		c := New()
-		for _, s := range stmts {
+		for si, s := range stmts {
 			t.Logf("Add((%p)%s)", s, s.Sexp())
 			c.Add(s)
+			if len(c.Errs) > 0 {
+				t.Fatalf("%d: Add(%q): %v", i, test.stmts[si], c.Errs[0])
+			}
 		}
 		t.Logf("%s", c)
 
