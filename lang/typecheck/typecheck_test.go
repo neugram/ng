@@ -74,7 +74,7 @@ var typeTests = []typeTest{
 			`type A class {
 				X int64
 			}`,
-			`a := A{34, 2}`, // TODO type error
+			`a := A{34}`,
 		},
 		[]identType{{"a", &tipe.Class{Tags: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
 	},

@@ -25,6 +25,9 @@ type Func struct {
 type Class struct {
 	Tags   []string
 	Fields []Type // may be *tipe.Func for methods
+
+	MethodNames []string
+	Methods     []Type
 }
 
 type Table struct {
@@ -90,11 +93,14 @@ func (e *Func) Sexp() string {
 	return fmt.Sprintf("(functype %s %s)", p, r)
 }
 func (e *Class) Sexp() string {
-	var fields []string
+	var s []string
 	for i, tag := range e.Tags {
-		fields = append(fields, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
+		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
 	}
-	return fmt.Sprintf("(classtype %s)", strings.Join(fields, " "))
+	for i, tag := range e.MethodNames {
+		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Methods[i].Sexp()))
+	}
+	return fmt.Sprintf("(classtype %s)", strings.Join(s, " "))
 }
 func (e *Table) Sexp() string {
 	u := "nil"
@@ -155,8 +161,19 @@ func Equal(x, y Type) bool {
 				return false
 			}
 		}
+		if !reflect.DeepEqual(x.MethodNames, y.MethodNames) {
+			return false
+		}
+		if len(x.Methods) != len(y.Methods) {
+			return false
+		}
+		for i := range x.Methods {
+			if !Equal(x.Methods[i], y.Methods[i]) {
+				return false
+			}
+		}
 		return true
 	}
-	fmt.Printf("tipe.Equal TODO\n")
+	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false
 }

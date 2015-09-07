@@ -25,15 +25,8 @@ type Checker struct {
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 	Errs    []error
 
-	// TODO NamedInfo map[*tipe.Named]NamedInfo
-
 	cur *Scope
 }
-
-// TODO type NamedInfo struct {
-//	Obj *Obj
-//	Methods []*Obj
-//}
 
 func New() *Checker {
 	return &Checker{
@@ -92,9 +85,7 @@ func (c *Checker) stmt(s stmt.Stmt) {
 			for i, lhs := range s.Left {
 				p := partials[i]
 				lhsP := c.expr(lhs)
-				if isUntyped(p.typ) {
-					c.constrainUntyped(&p, lhsP.typ)
-				}
+				c.assign(&p, lhsP.typ)
 			}
 		}
 
@@ -173,12 +164,15 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.typ = e.Type
 		return p
 	case *expr.CompLiteral:
+		p.mode = modeVar
+		className := fmt.Sprintf("%s", e.Type)
 		// resolve TODO break out into function?
 		if u, unresolved := e.Type.(*tipe.Unresolved); unresolved {
 			if u.Package != "" {
 				// TODO look up package in scope, extract type from it.
 				panic("TODO type in package")
 			}
+			className = u.Name
 			obj := c.cur.LookupRec(u.Name)
 			if obj == nil {
 				c.errorf("type %s not declared", u.Name)
@@ -190,13 +184,44 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				p.mode = modeInvalid
 				return p
 			}
-			// TODO: typecheck fields
 			e.Type = obj.Type
-			p.typ = e.Type
-			p.expr = e
+		}
+		class, isClass := e.Type.(*tipe.Class)
+		if !isClass {
+			c.errorf("cannot construct type %s with a composite literal", e.Type)
+			p.mode = modeInvalid
 			return p
 		}
-		// TODO map, slice, table, etc.
+		elemsp := make([]partial, len(e.Elements))
+		for i, elem := range e.Elements {
+			elemsp[i] = c.expr(elem)
+			if elemsp[i].mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		if len(e.Names) == 0 {
+			if len(e.Elements) != len(class.Fields) {
+				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), className, len(class.Fields))
+				p.mode = modeInvalid
+				return p
+			}
+			for i, ft := range class.Fields {
+				c.assign(&elemsp[i], ft)
+				if elemsp[i].mode == modeInvalid {
+					p.mode = modeInvalid
+					return p
+				}
+			}
+		} else {
+			panic("TODO: named CompLiteral")
+		}
+		if p.mode != modeInvalid {
+			p.typ = e.Type
+			p.expr = e
+		}
+		return p
+
 	case *expr.Binary:
 		left := c.expr(e.Left)
 		right := c.expr(e.Right)
@@ -288,6 +313,17 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 	}
 	panic(fmt.Sprintf("expr TODO: %T", e))
+}
+
+func (c *Checker) assign(p *partial, t tipe.Type) {
+	if isUntyped(p.typ) {
+		c.constrainUntyped(p, t)
+		return
+	}
+	if !tipe.Equal(p.typ, t) { // TODO interfaces, etc
+		c.errorf("cannot assign %s to %s", p.typ, t)
+		p.mode = modeInvalid
+	}
 }
 
 func (c *Checker) convert(p *partial, t tipe.Type) {
