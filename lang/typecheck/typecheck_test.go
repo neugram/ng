@@ -78,6 +78,12 @@ var typeTests = []typeTest{
 		},
 		[]identType{{"a", &tipe.Class{Tags: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
 	},
+	{
+		[]string{
+			`a := [|]int64{{|"Col1","Col2"|}, {1, 2}, {3, 4}}`,
+		},
+		[]identType{{"a", &tipe.Table{tipe.Int64}}},
+	},
 }
 
 func TestBasic(t *testing.T) {

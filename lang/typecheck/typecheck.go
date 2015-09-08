@@ -122,6 +122,32 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 	return p
 }
 
+func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
+	switch t := t.(type) {
+	case *tipe.Table:
+		t.Type, resolved = c.resolve(t.Type)
+		return t, resolved
+	case *tipe.Unresolved:
+		if t.Package != "" {
+			// TODO look up package in scope, extract type from it.
+			panic("TODO type in package")
+		}
+		obj := c.cur.LookupRec(t.Name)
+		if obj == nil {
+			c.errorf("type %s not declared", t.Name)
+			return t, false
+		}
+		if obj.Kind != ObjType {
+			c.errorf("symbol %s is not a type", t.Name)
+			return t, false
+		}
+		return obj.Type, true
+		// TODO many more types
+	default:
+		return t, true
+	}
+}
+
 func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	fmt.Printf("exprPartial(%s)\n", e.Sexp())
 	p.expr = e
@@ -166,25 +192,12 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.CompLiteral:
 		p.mode = modeVar
 		className := fmt.Sprintf("%s", e.Type)
-		// resolve TODO break out into function?
-		if u, unresolved := e.Type.(*tipe.Unresolved); unresolved {
-			if u.Package != "" {
-				// TODO look up package in scope, extract type from it.
-				panic("TODO type in package")
-			}
-			className = u.Name
-			obj := c.cur.LookupRec(u.Name)
-			if obj == nil {
-				c.errorf("type %s not declared", u.Name)
-				p.mode = modeInvalid
-				return p
-			}
-			if obj.Kind != ObjType {
-				c.errorf("symbol %s is not a type", u.Name)
-				p.mode = modeInvalid
-				return p
-			}
-			e.Type = obj.Type
+		if t, resolved := c.resolve(e.Type); resolved {
+			e.Type = t
+			p.typ = t
+		} else {
+			p.mode = modeInvalid
+			return p
 		}
 		class, isClass := e.Type.(*tipe.Class)
 		if !isClass {
@@ -217,8 +230,62 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			panic("TODO: named CompLiteral")
 		}
 		if p.mode != modeInvalid {
-			p.typ = e.Type
 			p.expr = e
+		}
+		return p
+
+	case *expr.TableLiteral:
+		p.mode = modeVar
+
+		var elemType tipe.Type
+		if t, resolved := c.resolve(e.Type); resolved {
+			t, isTable := t.(*tipe.Table)
+			if !isTable {
+				c.errorf("type %s is not a table", t)
+				p.mode = modeInvalid
+				return p
+			}
+			elemType = t.Type
+			e.Type = t
+			p.typ = t
+		} else {
+			p.mode = modeInvalid
+			return p
+		}
+
+		for _, colNameExpr := range e.ColNames {
+			colp := c.expr(colNameExpr)
+			c.assign(&colp, tipe.String)
+			if colp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		if len(e.Rows) == 0 {
+			return p
+		}
+
+		// Check everyone agrees on the width.
+		w := len(e.Rows[0])
+		if len(e.ColNames) > 0 && len(e.ColNames) != w {
+			c.errorf("table literal has %d column names but a width of %d", len(e.ColNames), w)
+			p.mode = modeInvalid
+			return p
+		}
+		for _, r := range e.Rows {
+			if len(r) != w {
+				c.errorf("table literal has rows of different lengths (%d and %d)", w, len(r))
+				p.mode = modeInvalid
+				return p
+			}
+			for _, elem := range r {
+				elemp := c.expr(elem)
+				c.assign(&elemp, elemType)
+				if elemp.mode == modeInvalid {
+					p.mode = modeInvalid
+					return p
+				}
+			}
 		}
 		return p
 
@@ -316,6 +383,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 }
 
 func (c *Checker) assign(p *partial, t tipe.Type) {
+	if p.mode == modeInvalid {
+		return
+	}
 	if isUntyped(p.typ) {
 		c.constrainUntyped(p, t)
 		return

@@ -173,6 +173,15 @@ func Equal(x, y Type) bool {
 			}
 		}
 		return true
+	case *Table:
+		y, ok := y.(*Table)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		return Equal(x.Type, y.Type)
 	}
 	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false
