@@ -76,7 +76,7 @@ var typeTests = []typeTest{
 			}`,
 			`a := A{34}`,
 		},
-		[]identType{{"a", &tipe.Class{Tags: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
+		[]identType{{"a", &tipe.Class{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
 	},
 	{
 		[]string{

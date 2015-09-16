@@ -420,7 +420,7 @@ func (p *Parser) parseTypeDecl(name string) stmt.Stmt {
 					p.errorf("field %s redeclared in class %s", n, c.Name)
 				} else {
 					tags[n] = true
-					c.Type.Tags = append(c.Type.Tags, n)
+					c.Type.FieldNames = append(c.Type.FieldNames, n)
 					c.Type.Fields = append(c.Type.Fields, t)
 				}
 			}

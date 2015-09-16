@@ -49,6 +49,7 @@ const (
 	modeVar
 	modeBuiltin
 	modeTypeExpr
+	modeFunc
 )
 
 type partial struct {
@@ -58,7 +59,7 @@ type partial struct {
 	expr expr.Expr
 }
 
-func (c *Checker) stmt(s stmt.Stmt) {
+func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 	switch s := s.(type) {
 	case *stmt.Assign:
 		if len(s.Left) != len(s.Right) {
@@ -96,16 +97,94 @@ func (c *Checker) stmt(s stmt.Stmt) {
 		c.pushScope()
 		defer c.popScope()
 		for _, s := range s.Stmts {
-			c.stmt(s)
+			c.stmt(s, retType)
 		}
 
 	case *stmt.ClassDecl:
+		var usesNum bool
+		var resolved bool
+		for i, f := range s.Type.Fields {
+			s.Type.Fields[i], resolved = c.resolve(f)
+			usesNum = usesNum || tipe.UsesNum(s.Type.Fields[i])
+			if !resolved {
+				return
+			}
+		}
+		for i, f := range s.Type.Methods {
+			s.Type.Methods[i], resolved = c.resolve(f)
+			usesNum = usesNum || tipe.UsesNum(s.Type.Methods[i])
+			if !resolved {
+				return
+			}
+		}
+
+		for _, m := range s.Methods {
+			c.pushScope()
+			// TODO add an object for the method reciever name
+			c.expr(m)
+			// TODO: uses num inside a method
+			c.popScope()
+		}
+
+		if usesNum {
+			s.Type.Spec.Num = tipe.Num
+		}
+
 		obj := &Obj{
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
 		}
 		c.cur.Objs[s.Name] = obj
+
+	case *stmt.Return:
+		if (retType == nil || len(retType.Elems) == 0) && len(s.Exprs) > 0 {
+			c.errorf("too many arguments to return")
+		}
+		var partials []partial
+		for _, e := range s.Exprs {
+			partials = append(partials, c.expr(e))
+		}
+		for _, p := range partials {
+			if p.mode == modeInvalid {
+				return
+			}
+		}
+		want := retType.Elems
+		if len(want) == 0 && len(partials) == 0 {
+			return
+		}
+		var got []tipe.Type
+		if tup, ok := partials[0].typ.(*tipe.Tuple); ok {
+			if len(partials) != 1 {
+				c.errorf("multi-value %s in single-value context", partials[0])
+				return
+			}
+			got = tup.Elems
+		} else {
+			for _, p := range partials {
+				if _, ok := p.typ.(*tipe.Tuple); ok {
+					c.errorf("multi-value %s in single-value context", partials[0])
+					return
+				}
+				got = append(got, p.typ)
+			}
+		}
+		if len(got) > len(want) {
+			c.errorf("too many arguments to return")
+			return
+		}
+		if len(got) < len(want) {
+			c.errorf("too few arguments to return")
+			return
+		}
+
+		for i := range want {
+			if !tipe.Equal(got[i], want[i]) {
+				c.errorf("cannot use %s as %s in return argument", got[i], want[i])
+				return
+			}
+		}
 
 	default:
 		panic(fmt.Sprintf("typecheck: unknown stmt %T", s))
@@ -187,7 +266,18 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		return p
 	case *expr.FuncLiteral:
+		c.pushScope()
+		defer c.popScope()
+		for i, t := range e.Type.Params.Elems {
+			obj := &Obj{
+				Kind: ObjVar,
+				Type: t,
+			}
+			c.cur.Objs[e.ParamNames[i]] = obj
+		}
 		p.typ = e.Type
+		p.mode = modeFunc
+		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
 		return p
 	case *expr.CompLiteral:
 		p.mode = modeVar
@@ -586,7 +676,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 }
 
 func (c *Checker) Add(s stmt.Stmt) {
-	c.stmt(s)
+	c.stmt(s, nil)
 }
 
 func (c *Checker) String() string {

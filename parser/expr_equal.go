@@ -231,7 +231,7 @@ func equalType(t0, t1 tipe.Type) bool {
 		if t0 == nil || t1 == nil {
 			return t0 == nil && t1 == nil
 		}
-		if !reflect.DeepEqual(t0.Tags, t1.Tags) {
+		if !reflect.DeepEqual(t0.FieldNames, t1.FieldNames) {
 			return false
 		}
 		if len(t0.Fields) != len(t1.Fields) {

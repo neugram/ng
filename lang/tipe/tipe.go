@@ -18,14 +18,15 @@ type Type interface {
 }
 
 type Func struct {
+	Spec    Specialization
 	Params  *Tuple
 	Results *Tuple
 }
 
 type Class struct {
-	Tags   []string
-	Fields []Type // may be *tipe.Func for methods
-
+	Spec        Specialization
+	FieldNames  []string
+	Fields      []Type
 	MethodNames []string
 	Methods     []Type
 }
@@ -36,6 +37,23 @@ type Table struct {
 
 type Tuple struct {
 	Elems []Type
+}
+
+// Specialization carries any type specialization data particular to this type.
+//
+// Both *Func and *Class can be parameterized over the name num, which can
+// take any of:
+//
+//	integer, int64, float, float32, float64, complex, complex128
+//
+// At the defnition of a class or function, the matching Type will have the
+// Num filed set to Invalid if it is not parameterized, or Num if it is.
+//
+// On a value of a parameterized class or a Call of a parameterized function,
+// Num will either Num or one of the basic numeric types (if specialized).
+type Specialization struct {
+	// Num is the specialization of the type parameter num in
+	Num Basic
 }
 
 type Basic string
@@ -80,6 +98,10 @@ func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Unresolved) tipe() {}
 
+func (e Specialization) Sexp() string {
+	return fmt.Sprintf("(spec num=%s)", e.Num.Sexp())
+}
+
 func (e Basic) Sexp() string { return fmt.Sprintf("(basictype %s)", string(e)) }
 func (e *Func) Sexp() string {
 	p := "nilparams"
@@ -90,17 +112,17 @@ func (e *Func) Sexp() string {
 	if e.Results != nil {
 		p = e.Results.Sexp()
 	}
-	return fmt.Sprintf("(functype %s %s)", p, r)
+	return fmt.Sprintf("(functype %s %s %s)", e.Spec.Sexp(), p, r)
 }
 func (e *Class) Sexp() string {
 	var s []string
-	for i, tag := range e.Tags {
+	for i, tag := range e.FieldNames {
 		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
 	}
 	for i, tag := range e.MethodNames {
 		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Methods[i].Sexp()))
 	}
-	return fmt.Sprintf("(classtype %s)", strings.Join(s, " "))
+	return fmt.Sprintf("(classtype %s %s)", e.Spec.Sexp(), strings.Join(s, " "))
 }
 func (e *Table) Sexp() string {
 	u := "nil"
@@ -137,11 +159,67 @@ func IsNumeric(t Type) bool {
 	return false
 }
 
+func UsesNum(t Type) bool {
+	switch t := t.(type) {
+	case *Func:
+		if t.Params != nil {
+			for _, t := range t.Params.Elems {
+				if UsesNum(t) {
+					return true
+				}
+			}
+		}
+		if t.Results != nil {
+			for _, t := range t.Results.Elems {
+				if UsesNum(t) {
+					return true
+				}
+			}
+		}
+	case *Class:
+		for _, t := range t.Fields {
+			if UsesNum(t) {
+				return true
+			}
+		}
+		for _, t := range t.Methods {
+			if UsesNum(t) {
+				return true
+			}
+		}
+	case *Table:
+		if UsesNum(t.Type) {
+			return true
+		}
+	case Basic:
+		return t == Num
+	}
+	return false
+}
+
 func Equal(x, y Type) bool {
 	if x == y {
 		return true
 	}
 	switch x := x.(type) {
+	case *Func:
+		y, ok := y.(*Func)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if x.Spec != y.Spec {
+			return false
+		}
+		if !Equal(x.Params, y.Params) {
+			return false
+		}
+		if !Equal(x.Results, y.Results) {
+			return false
+		}
+		return true
 	case *Class:
 		y, ok := y.(*Class)
 		if !ok {
@@ -150,7 +228,10 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		if !reflect.DeepEqual(x.Tags, y.Tags) {
+		if x.Spec != y.Spec {
+			return false
+		}
+		if !reflect.DeepEqual(x.FieldNames, y.FieldNames) {
 			return false
 		}
 		if len(x.Fields) != len(y.Fields) {
@@ -182,6 +263,26 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		return Equal(x.Type, y.Type)
+	case *Tuple:
+		y, ok := y.(*Tuple)
+		if !ok {
+			return false
+		}
+		if x == nil && y == nil {
+			return true
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if len(x.Elems) != len(y.Elems) {
+			return false
+		}
+		for i := range x.Elems {
+			if !Equal(x.Elems[i], y.Elems[i]) {
+				return false
+			}
+		}
+		return true
 	}
 	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false

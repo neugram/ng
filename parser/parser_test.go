@@ -329,11 +329,8 @@ var stmtTests = []stmtTest{
 		&stmt.ClassDecl{
 			Name: "a",
 			Type: &tipe.Class{
-				Tags: []string{"x", "y"},
-				Fields: []tipe.Type{
-					tipe.Integer,
-					&tipe.Table{tipe.Int64},
-				},
+				FieldNames:  []string{"x", "y"},
+				Fields:      []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
 				MethodNames: []string{"f"},
 				Methods: []tipe.Type{
 					&tipe.Func{
