@@ -62,6 +62,17 @@ var typeTests = []typeTest{
 	},
 	{
 		[]string{
+			"f := func() int64 { return 7 }",
+			"func g() int64 { return 7 }",
+		},
+		[]identType{
+			{"f", &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
+			{"g", &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
+		},
+	},
+
+	{
+		[]string{
 			"add := func(x, y integer) int64 { return int64(x) + int64(y) }",
 			"x := add(3, 4)",
 		},
@@ -130,7 +141,7 @@ func TestBasic(t *testing.T) {
 		for _, want := range test.want {
 			obj := findDef(want.name)
 			if obj == nil {
-				t.Errorf("%d: want %s=%s, is missing", i, want.name, want.t, want.name)
+				t.Errorf("%d: want %s=%s, is missing", i, want.name, want.t)
 				continue
 			}
 			if !tipe.Equal(obj.Type, want.t) {

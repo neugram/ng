@@ -91,7 +91,18 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		}
 
 	case *stmt.Simple:
-		c.expr(s.Expr)
+		p := c.expr(s.Expr)
+		if p.mode == modeFunc {
+			fn := p.expr.(*expr.FuncLiteral)
+			if fn.Name != "" {
+				obj := &Obj{
+					Kind: ObjVar,
+					Type: p.typ,
+				}
+				// TODO: c.Defs?
+				c.cur.Objs[fn.Name] = obj
+			}
+		}
 
 	case *stmt.Block:
 		c.pushScope()
@@ -144,12 +155,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		c.cur.Objs[s.Name] = obj
 
 	case *stmt.Return:
-		if (retType == nil || len(retType.Elems) == 0) && len(s.Exprs) > 0 {
+		if retType == nil || len(s.Exprs) > len(retType.Elems) {
 			c.errorf("too many arguments to return")
 		}
 		var partials []partial
-		for _, e := range s.Exprs {
+		for i, e := range s.Exprs {
 			partials = append(partials, c.expr(e))
+			c.constrainUntyped(&partials[i], retType.Elems[i])
 		}
 		for _, p := range partials {
 			if p.mode == modeInvalid {
