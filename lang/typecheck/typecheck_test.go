@@ -72,17 +72,33 @@ var typeTests = []typeTest{
 	{
 		[]string{
 			`type A class {
-				X int64
+				X float64
 			}`,
-			`a := A{34}`,
+			`a := A{34.1}`,
+			`b := a.X`,
 		},
-		[]identType{{"a", &tipe.Class{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Int64}}}},
+		[]identType{
+			{"a", &tipe.Class{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Float64}}},
+			{"b", tipe.Float64},
+		},
 	},
 	{
 		[]string{
 			`a := [|]int64{{|"Col1","Col2"|}, {1, 2}, {3, 4}}`,
 		},
 		[]identType{{"a", &tipe.Table{tipe.Int64}}},
+	},
+	{
+		[]string{
+			`type A class {
+				X int64
+				func (a *A) Y() int64 { return a.X }
+				func (a *A) Z() int64 { return a.Y() + a.X }
+			}`,
+			`a := A{34}`,
+			`z := a.Z()`,
+		},
+		[]identType{{"z", tipe.Int64}},
 	},
 }
 

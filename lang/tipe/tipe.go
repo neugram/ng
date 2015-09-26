@@ -39,6 +39,10 @@ type Tuple struct {
 	Elems []Type
 }
 
+type Pointer struct {
+	Elem Type
+}
+
 // Specialization carries any type specialization data particular to this type.
 //
 // Both *Func and *Class can be parameterized over the name num, which can
@@ -88,6 +92,7 @@ var (
 	_ = Type((*Class)(nil))
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
+	_ = Type((*Pointer)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
@@ -96,6 +101,7 @@ func (t *Func) tipe()       {}
 func (t *Class) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
+func (t *Pointer) tipe()    {}
 func (t *Unresolved) tipe() {}
 
 func (e Specialization) Sexp() string {
@@ -137,6 +143,13 @@ func (e *Tuple) Sexp() string {
 		elems = append(elems, t.Sexp())
 	}
 	return fmt.Sprintf("(tupletype %s)", strings.Join(elems, " "))
+}
+func (e *Pointer) Sexp() string {
+	u := "nil"
+	if e.Elem != nil {
+		u = e.Elem.Sexp()
+	}
+	return fmt.Sprintf("(* %s)", u)
 }
 func (e *Unresolved) Sexp() string {
 	if e.Package == "" {
@@ -283,6 +296,15 @@ func Equal(x, y Type) bool {
 			}
 		}
 		return true
+	case *Pointer:
+		y, ok := y.(*Pointer)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		return Equal(x.Elem, y.Elem)
 	}
 	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false

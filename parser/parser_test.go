@@ -321,7 +321,7 @@ var stmtTests = []stmtTest{
 			x integer
 			y [|]int64
 
-			func (a) f(x integer) integer {
+			func (a *a) f(x integer) integer {
 				return a.x
 			}
 		}

@@ -120,7 +120,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 
 		for _, m := range s.Methods {
 			c.pushScope()
-			// TODO add an object for the method reciever name
+			if m.ReceiverName != "" {
+				obj := &Obj{
+					Kind: ObjVar,
+					Type: s.Type,
+				}
+				c.cur.Objs[m.ReceiverName] = obj
+			}
 			c.expr(m)
 			// TODO: uses num inside a method
 			c.popScope()
@@ -268,12 +274,14 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.FuncLiteral:
 		c.pushScope()
 		defer c.popScope()
-		for i, t := range e.Type.Params.Elems {
-			obj := &Obj{
-				Kind: ObjVar,
-				Type: t,
+		if e.Type.Params != nil {
+			for i, t := range e.Type.Params.Elems {
+				obj := &Obj{
+					Kind: ObjVar,
+					Type: t,
+				}
+				c.cur.Objs[e.ParamNames[i]] = obj
 			}
-			c.cur.Objs[e.ParamNames[i]] = obj
 		}
 		p.typ = e.Type
 		p.mode = modeFunc
@@ -402,6 +410,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.Call:
 		p := c.expr(e.Func)
 		switch p.mode {
+		case modeInvalid:
+			return p
 		case modeVar:
 			// function call
 			funct := p.typ.(*tipe.Func)
@@ -466,8 +476,37 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			p.expr = e
 			return p
 		default:
-			panic("unreachable, unknown call mode")
+			panic(fmt.Sprintf("unreachable, unknown call mode: %v", p.mode))
 		}
+	case *expr.Selector:
+		left := c.expr(e.Left)
+		if left.mode == modeInvalid {
+			return left
+		}
+		cls, ok := left.typ.(*tipe.Class)
+		if !ok {
+			p.mode = modeInvalid
+			c.errorf("%s undefined (type %s is not a class)", e, cls)
+			return p
+		}
+		right := e.Right.Name
+		for i, name := range cls.FieldNames {
+			if name == right {
+				p.mode = modeVar
+				p.typ = cls.Fields[i]
+				return
+			}
+		}
+		for i, name := range cls.MethodNames {
+			if name == right {
+				p.mode = modeVar
+				p.typ = cls.Methods[i]
+				return
+			}
+		}
+		p.mode = modeInvalid
+		c.errorf("%s undefined (type %s has no field or method %s)", e, cls, right)
+		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %T", e))
 }

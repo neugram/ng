@@ -488,8 +488,9 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.expect(token.RightBracket)
 		p.next()
 		return &tipe.Table{Type: p.parseType()}
-	case token.Mul: // pointer type
-		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+	case token.Mul:
+		p.next()
+		return &tipe.Pointer{Elem: p.parseType()}
 	case token.Func:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Map:
@@ -808,12 +809,16 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 	}
 
 	if method {
-		// func (a) f()
-		// TODO come up with syntax for not-pointer-receiver
+		// func (a *A) f()
+		// TODO support not-pointer-receiver
 		f.PointerReceiver = true
 		p.expect(token.LeftParen)
 		p.next()
 		f.ReceiverName = p.parseIdent().Name
+		t := p.parseType()
+		if _, ok := t.(*tipe.Pointer); !ok {
+			p.errorf("class method must be defined on class pointer receiver")
+		}
 		p.expect(token.RightParen)
 		p.next()
 	}
