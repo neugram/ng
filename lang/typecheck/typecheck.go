@@ -605,7 +605,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 			case modeConst:
 				p.val = round(p.val, t)
 				if p.val == nil {
-					c.errorf("cannot convert %s to %s", p.typ, t)
+					c.errorf("cannot convert const %s to %s", p.typ, t)
 					// TODO more details about why
 				}
 			case modeVar:
@@ -707,6 +707,12 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			} else {
 				return nil
 			}
+		case tipe.Float32:
+			r, _ := constant.Float32Val(v)
+			return constant.MakeFloat64(float64(r))
+		case tipe.Float64:
+			r, _ := constant.Float64Val(v)
+			return constant.MakeFloat64(float64(r))
 		}
 	case constant.Float:
 		switch t {

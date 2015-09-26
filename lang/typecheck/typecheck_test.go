@@ -126,13 +126,13 @@ func TestBasic(t *testing.T) {
 
 		c := New()
 		for si, s := range stmts {
-			t.Logf("Add((%p)%s)", s, s.Sexp())
+			//t.Logf("Add((%p)%s)", s, s.Sexp())
 			c.Add(s)
 			if len(c.Errs) > 0 {
 				t.Fatalf("%d: Add(%q): %v", i, test.stmts[si], c.Errs[0])
 			}
 		}
-		t.Logf("%s", c)
+		//t.Logf("%s", c)
 
 		findDef := func(name string) *Obj {
 			return c.cur.Objs[name]
