@@ -10,6 +10,7 @@ import (
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/stmt"
 	"numgrad.io/lang/token"
+	"numgrad.io/lang/typecheck"
 )
 
 type Variable struct {
@@ -32,6 +33,7 @@ type Scope struct {
 type Program struct {
 	Pkg       map[string]*Scope // package -> scope
 	Cur       *Scope
+	Types     *typecheck.Checker
 	Returning bool
 	Breaking  bool
 }
@@ -40,6 +42,12 @@ func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
 	if p.Cur == nil {
 		p.Cur = p.Pkg["main"]
 	}
+	p.Types.Errs = p.Types.Errs[:0]
+	p.Types.Add(s)
+	if len(p.Types.Errs) > 0 {
+		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
+	}
+
 	res, err := p.evalStmt(s)
 	if err != nil {
 		return nil, err
@@ -315,8 +323,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 			if p.Returning {
 				p.Returning = false
-			} else if len(fn.Type.Out) > 0 {
-				return nil, fmt.Errorf("missing return %v", fn.Type.Out)
+			} else if len(fn.ResultNames) > 0 {
+				return nil, fmt.Errorf("missing return %v", fn.ResultNames)
 			}
 			return res, nil
 		}

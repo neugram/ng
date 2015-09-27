@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/typecheck"
 	"numgrad.io/parser"
 )
 
@@ -17,9 +18,16 @@ var exprTests = []struct {
 	want *big.Int
 }{
 	{"2+3*(x+y-2)", big.NewInt(23)},
-	{"func() val { return 7 }()", big.NewInt(7)},
+	{"func() num { return 7 }()", big.NewInt(7)},
 	{
-		`func() val {
+		// TODO: I believe our typechecking of this is woefully incomplete.
+		// When the closure func() num is declared, it delcares a new num
+		// parameter. But it closes over z, which inherits the num
+		// parameter from the outer scope. For z to be silently used as a
+		// num here, we are tying the two type parameters together. That's
+		// kind-of a big deal.
+		//
+		`func() num {
 			if x > 2 && x < 500 {
 				return z+1
 			} else {
@@ -29,7 +37,7 @@ var exprTests = []struct {
 		big.NewInt(8),
 	},
 	{
-		`func() val {
+		`func() num {
 			x := 9
 			x++
 			if x > 5 {
@@ -39,9 +47,9 @@ var exprTests = []struct {
 		}()`,
 		big.NewInt(-10),
 	},
-	{
-		`func() val {
-			f := func() val {
+	/* TODO: true {
+		`func() num {
+			f := func() bool {
 				x++
 				return true
 			}
@@ -54,9 +62,9 @@ var exprTests = []struct {
 			return x
 		}()`,
 		big.NewInt(8),
-	},
+	},*/
 	{
-		`func() val {
+		`func() num {
 			v := 2
 			for i := 1; i < 4; i++ {
 				v *= i
@@ -79,29 +87,34 @@ var exprTests = []struct {
 	},*/
 }
 
-func mkBasicProgram() *Program {
+func mkBasicProgram() (*Program, error) {
 	s := &Scope{
-		Var: map[string]*Variable{
-			"x": &Variable{big.NewInt(4)},
-			"y": &Variable{big.NewInt(5)},
-		},
-		Parent: &Scope{
-			Var: map[string]*Variable{
-				"x": &Variable{big.NewInt(1)}, // shadowed by child scope
-				"z": &Variable{big.NewInt(7)},
-			},
-		},
+		Var: map[string]*Variable{},
 	}
-	return &Program{
+	p := &Program{
 		Pkg: map[string]*Scope{
 			"main": s,
 		},
+		Types: typecheck.New(),
 	}
+	if _, err := p.Eval(mustParse("x := 4")); err != nil {
+		return nil, err
+	}
+	if _, err := p.Eval(mustParse("y := 5")); err != nil {
+		return nil, err
+	}
+	if _, err := p.Eval(mustParse("z := 7")); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func TestExprs(t *testing.T) {
 	for _, test := range exprTests {
-		p := mkBasicProgram()
+		p, err := mkBasicProgram()
+		if err != nil {
+			t.Fatalf("mkBasicProgram: %v", err)
+		}
 		s := mustParse(test.stmt)
 		res, err := p.Eval(s)
 		if err != nil {
