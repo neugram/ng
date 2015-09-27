@@ -478,6 +478,8 @@ func (p *Parser) maybeParseType() tipe.Type {
 			return tipe.Float32
 		case "float64":
 			return tipe.Float64
+		case "num":
+			return tipe.Num
 		default:
 			return &tipe.Unresolved{Name: ident.Name}
 		}

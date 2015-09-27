@@ -225,13 +225,13 @@ var parserTests = []parserTest{
 		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
 		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
 	}},
-	{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{&tipe.Unresolved{Name: "num"}}}},
+	{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{tipe.Num}}},
 	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
-		Type: &tipe.Table{&tipe.Unresolved{Name: "num"}},
+		Type: &tipe.Table{tipe.Num},
 		Rows: [][]expr.Expr{{basic(0), basic(1), basic(2)}},
 	}},
 	{`[|]num{{|"Col1"|}, {1}, {2}}`, &expr.TableLiteral{
-		Type:     &tipe.Table{&tipe.Unresolved{Name: "num"}},
+		Type:     &tipe.Table{tipe.Num},
 		ColNames: []expr.Expr{basic("Col1")},
 		Rows:     [][]expr.Expr{{basic(1)}, {basic(2)}},
 	}},
