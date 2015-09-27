@@ -111,6 +111,30 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			c.stmt(s, retType)
 		}
 
+	case *stmt.If:
+		if s.Init != nil {
+			c.pushScope()
+			defer c.popScope()
+			c.stmt(s.Init, retType)
+		}
+		c.expr(s.Cond)
+		c.stmt(s.Body, retType)
+		if s.Else != nil {
+			c.stmt(s.Else, retType)
+		}
+
+	case *stmt.For:
+		if s.Init != nil {
+			c.pushScope()
+			defer c.popScope()
+			c.stmt(s.Init, retType)
+		}
+		c.expr(s.Cond)
+		if s.Post != nil {
+			c.stmt(s.Post, retType)
+		}
+		c.stmt(s.Body, retType)
+
 	case *stmt.ClassDecl:
 		var usesNum bool
 		var resolved bool
@@ -199,7 +223,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 
 		for i := range want {
 			if !tipe.Equal(got[i], want[i]) {
-				c.errorf("cannot use %s as %s in return argument", got[i], want[i])
+				c.errorf("cannot use %s as %s (%T) in return argument", got[i], want[i])
 				return
 			}
 		}
@@ -288,11 +312,17 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		defer c.popScope()
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
+				e.Type.Params.Elems[i], _ = c.resolve(t)
 				obj := &Obj{
 					Kind: ObjVar,
 					Type: t,
 				}
 				c.cur.Objs[e.ParamNames[i]] = obj
+			}
+		}
+		if e.Type.Results != nil {
+			for i, t := range e.Type.Results.Elems {
+				e.Type.Results.Elems[i], _ = c.resolve(t)
 			}
 		}
 		p.typ = e.Type
@@ -399,6 +429,11 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		return p
 
+	case *expr.Unary:
+		switch e.Op {
+		case token.LeftParen, token.Not, token.Sub:
+			return c.expr(e.Expr)
+		}
 	case *expr.Binary:
 		left := c.expr(e.Left)
 		right := c.expr(e.Right)
@@ -424,7 +459,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		switch p.mode {
 		case modeInvalid:
 			return p
-		case modeVar:
+		case modeVar, modeFunc:
 			// function call
 			funct := p.typ.(*tipe.Func)
 			var params, results []tipe.Type
@@ -466,6 +501,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			if p.mode == modeInvalid {
 				return p
 			}
+			p.mode = modeVar
 			p.expr = e
 			return p
 		case modeTypeExpr:
@@ -650,7 +686,6 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 func (c *Checker) errorf(format string, args ...interface{}) {
 	err := fmt.Errorf(format, args...)
 	c.Errs = append(c.Errs, err)
-	fmt.Printf("typecheck error: %s\n", err)
 }
 
 func (c *Checker) pushScope() {
