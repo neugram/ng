@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"numgrad.io/eval"
+	"numgrad.io/lang/typecheck"
 	"numgrad.io/parser"
 )
 
@@ -14,6 +15,7 @@ func main() {
 		Pkg: map[string]*eval.Scope{
 			"main": &eval.Scope{Var: map[string]*eval.Variable{}},
 		},
+		Types: typecheck.New(),
 	}
 	p := parser.New()
 	scanner := bufio.NewScanner(os.Stdin)
