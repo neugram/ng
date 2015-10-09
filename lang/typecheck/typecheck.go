@@ -270,7 +270,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 }
 
 func (c *Checker) exprPartial(e expr.Expr) (p partial) {
-	fmt.Printf("exprPartial(%s)\n", e.Sexp())
+	//fmt.Printf("exprPartial(%s)\n", e.Sexp())
 	p.expr = e
 	switch e := e.(type) {
 	case *expr.Ident:

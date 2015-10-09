@@ -14,95 +14,82 @@ import (
 	"numgrad.io/lang/token"
 )
 
-type Result struct {
-	Stmt stmt.Stmt
-	Err  error
-}
-
 func New() *Parser {
 	p := &Parser{
-		Result:  make(chan Result),
-		Waiting: make(chan bool),
-		s:       newScanner(),
+		s: newScanner(),
 	}
-	go p.forwardWaiting()
 	go p.work()
-	<-p.Waiting
+	<-p.s.needSrc
 	return p
 }
 
-type Parser struct {
-	Result  chan Result
-	Waiting chan bool
+type ParserState int
 
-	inForLoop bool // to resolve composite literal parsing
-	inStmt    bool // true when stmt is partially parsed
-	s         *Scanner
-	err       []Error
+const (
+	StateUnknown ParserState = iota
+	StateStmt
+	StateStmtPartial
+	StateCmd
+	StateCmdPartial
+)
+
+func (p *Parser) ParseLine(line []byte) Result {
+	p.s.addSrc <- append(line, '\n') // TODO: skip the append?
+	<-p.s.needSrc
+	r := p.res
+	p.res = Result{State: r.State}
+	return r
 }
 
-func (p *Parser) Add(b []byte) {
-	p.s.addSrc <- b
+type Parser struct {
+	res Result
+
+	inForLoop bool // to resolve composite literal parsing
+	s         *Scanner
+}
+
+// Result is the result of parsing a line of input.
+// One of Stmts or Cmds will be non-nil (but may be empty).
+type Result struct {
+	State ParserState
+	Stmts []stmt.Stmt
+	Cmds  [][]string
+	Errs  []Error
 }
 
 func (p *Parser) Close() {
 	close(p.s.addSrc)
 }
 
-func (p *Parser) forwardWaiting() {
-	for {
-		more := <-p.s.needSrc
-		if !more {
-			close(p.Waiting)
-			return
-		}
-		p.Waiting <- p.inStmt
-	}
-}
-
 func (p *Parser) work() {
 	p.s.next()
 	for {
-		p.inStmt = false
+		// TODO StateCmd, top-level $$ processing here
+		p.res.State = StateStmt
 		p.next()
 		if p.s.Token == token.Unknown {
 			break
 		}
-		p.inStmt = true
-		r := Result{Stmt: p.parseStmt()}
-		if len(p.err) > 0 {
-			r.Err = Errors(p.err)
-			p.err = nil
-		}
-		p.Result <- r
+		p.res.State = StateStmtPartial
+		p.res.Stmts = append(p.res.Stmts, p.parseStmt())
+		p.res.State = StateStmt
 	}
 }
 
 func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
-	b := make([]byte, 0, len(src)+1)
-	b = append(b, src...)
-	b = append(b, '\n') // TODO: should be unnecessary now we have Close?
 	p := New()
-	p.Add(b)
-	var res Result
-	select {
-	case partial := <-p.Waiting:
-		if partial {
-			panic("unexpected partial statement")
-			return nil, fmt.Errorf("parser.ParseStmt: unexpected partial statement")
-		}
-		return nil, fmt.Errorf("parser.ParseStmt: incomplete result")
-	case res = <-p.Result:
+	defer p.Close()
+	res := p.ParseLine(src)
+	if res.State == StateStmtPartial {
+		return nil, fmt.Errorf("parser.ParseStmt: partial statement")
 	}
-	if res.Err != nil {
-		return nil, err
+	if len(res.Errs) > 0 {
+		return nil, Errors(res.Errs)
 	}
-	partial := <-p.Waiting
-	if partial {
-		return nil, fmt.Errorf("parser.ParseStmt: trailing partial statement")
+	if len(res.Stmts) != 1 {
+		return nil, fmt.Errorf("parser.ParseStmt: expected 1 statement, got %d", len(res.Stmts))
 	}
-	p.Close()
-	return res.Stmt, nil
+	return res.Stmts[0], nil
 }
 
 func (p *Parser) next() {
@@ -658,7 +645,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		return s
 	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul,
-		token.Func, token.LeftBracket, token.LeftParen, token.String:
+		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Shell:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
 		p.expectSemi()
@@ -985,7 +972,7 @@ func (p *Parser) error(msg string) error {
 		Msg:    msg,
 	}
 	panic(fmt.Sprintf("%v\n", err)) // debug
-	p.err = append(p.err, err)
+	p.res.Errs = append(p.res.Errs, err)
 	return err
 }
 

@@ -17,7 +17,7 @@ const bom = 0xFEFF // byte order marker
 func newScanner() *Scanner {
 	s := &Scanner{
 		addSrc:  make(chan []byte),
-		needSrc: make(chan bool),
+		needSrc: make(chan struct{}),
 	}
 	//go s.next()
 	//<-s.needSrc
@@ -32,15 +32,15 @@ type Scanner struct {
 	Literal interface{} // string, *big.Int, *big.Float
 
 	// Scanner state
-	src  []byte
-	r    rune
-	off  int
-	semi bool
-	err  error
+	src     []byte
+	r       rune
+	off     int
+	semi    bool
+	err     error
+	inShell bool
 
 	addSrc  chan []byte
-	needSrc chan bool
-	done    bool
+	needSrc chan struct{}
 }
 
 func (s *Scanner) errorf(format string, a ...interface{}) {
@@ -53,11 +53,10 @@ func (s *Scanner) next() {
 			return
 		}
 		//fmt.Printf("need src\n")
-		s.needSrc <- true
+		s.needSrc <- struct{}{}
 		b := <-s.addSrc
 		//fmt.Printf("adding source: %q\n", string(b))
 		if b == nil {
-			s.needSrc <- false
 			s.Offset = len(s.src)
 			s.Token = token.Unknown
 			s.Literal = nil
@@ -97,6 +96,14 @@ func (s *Scanner) skipWhitespace() {
 func (s *Scanner) scanIdentifier() string {
 	off := s.Offset
 	for unicode.IsLetter(s.r) || unicode.IsDigit(s.r) {
+		s.next()
+	}
+	return string(s.src[off:s.Offset])
+}
+
+func (s *Scanner) scanShellWord() string {
+	off := s.Offset
+	for !(s.r == ' ' || s.r == '\t' || (s.r == '\n' && !s.semi) || s.r == '\r') {
 		s.next()
 	}
 	return string(s.src[off:s.Offset])
@@ -261,6 +268,24 @@ func (s *Scanner) Next() {
 		s.semi = false
 		s.Token = token.Semicolon
 		return
+	case s.inShell:
+		switch r {
+		case '$':
+			s.next()
+			if s.r == '$' {
+				s.Token = token.Shell
+				s.inShell = false
+				return
+			}
+			s.err = fmt.Errorf("parser: unknown $%v in shell expression", r)
+		case '"':
+			s.Literal = s.scanString()
+			s.Token = token.ShellWord
+		default:
+			s.Literal = s.scanShellWord()
+			s.Token = token.ShellWord
+		}
+		return
 	}
 
 	s.next()
@@ -399,6 +424,15 @@ func (s *Scanner) Next() {
 			s.Token = token.LogicalAnd
 		default:
 			s.Token = token.Ref
+		}
+	case '$':
+		switch s.r {
+		case '$':
+			s.next()
+			s.Token = token.Shell
+			s.inShell = true
+			//default:
+			//	s.Token = token.?
 		}
 	case '|':
 		switch s.r {

@@ -40,6 +40,8 @@ const (
 	NotEqual     // !=
 	LessEqual    // <=
 	GreaterEqual // >=
+	Shell        // $$
+	ShellWord    // [^\s]+
 
 	// Statement Operators
 
@@ -121,6 +123,8 @@ var tokens = map[string]Token{
 	"!=":           NotEqual,
 	"<=":           LessEqual,
 	">=":           GreaterEqual,
+	"$$":           Shell,
+	"shellword":    ShellWord,
 	"++":           Inc,
 	"--":           Dec,
 	"AddAssign":    AddAssign,

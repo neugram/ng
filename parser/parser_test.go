@@ -358,6 +358,15 @@ var stmtTests = []stmtTest{
 		},
 	},
 	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
+	/*{
+		`
+		$$
+		ls -a -l
+		echo "hello world"
+		$$
+		`,
+		nil,
+	},*/
 }
 
 func TestParseStmt(t *testing.T) {
