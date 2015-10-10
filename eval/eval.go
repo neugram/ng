@@ -41,17 +41,36 @@ type Program struct {
 }
 
 func (p *Program) EvalCmd(argv []string) error {
-	// TODO stdin, stdout, stderr
+	stdin := os.Stdin // TODO stdio
+	stdout := os.Stdout
+	stderr := os.Stderr
 	switch argv[0] {
 	case "cd":
-		return fmt.Errorf("TODO: cd")
+		dir := ""
+		if len(argv) == 1 {
+			dir = os.Getenv("HOME")
+		} else {
+			dir = argv[1]
+		}
+		if err := os.Chdir(dir); err != nil {
+			return err
+		}
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "%s\n", wd)
+		return nil
+	case "exit", "logout":
+		return fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
 		cmd := exec.Command(argv[0])
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdin = stdin
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
 		cmd.Args = argv
-		return cmd.Run()
+		cmd.Run()
+		return nil
 	}
 }
 
