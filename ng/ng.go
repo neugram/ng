@@ -41,7 +41,10 @@ func main() {
 			fmt.Println(err.Error())
 		}
 		for _, cmd := range res.Cmds {
-			fmt.Printf("cmd: %v\n", cmd)
+			if err := prg.EvalCmd(cmd); err != nil {
+				fmt.Printf("cmmand error: %v\n", err)
+				continue
+			}
 		}
 
 		switch res.State {

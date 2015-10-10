@@ -6,6 +6,8 @@ package eval
 import (
 	"fmt"
 	"math/big"
+	"os"
+	"os/exec"
 
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/stmt"
@@ -36,6 +38,21 @@ type Program struct {
 	Types     *typecheck.Checker
 	Returning bool
 	Breaking  bool
+}
+
+func (p *Program) EvalCmd(argv []string) error {
+	// TODO stdin, stdout, stderr
+	switch argv[0] {
+	case "cd":
+		return fmt.Errorf("TODO: cd")
+	default:
+		cmd := exec.Command(argv[0])
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Args = argv
+		return cmd.Run()
+	}
 }
 
 func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
