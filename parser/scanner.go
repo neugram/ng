@@ -103,7 +103,7 @@ func (s *Scanner) scanIdentifier() string {
 
 func (s *Scanner) scanShellWord() string {
 	off := s.Offset
-	for !(s.r == ' ' || s.r == '\t' || (s.r == '\n' && !s.semi) || s.r == '\r') {
+	for s.r != ' ' && s.r != '\t' && s.r != '\n' && s.r != '\r' {
 		s.next()
 	}
 	return string(s.src[off:s.Offset])
@@ -248,6 +248,30 @@ func (s *Scanner) Next() {
 	s.Literal = nil
 	r := s.r
 	switch {
+	case s.inShell:
+		//fmt.Printf("inShell, r=%q\n", string(r))
+		switch r {
+		case '$':
+			s.next()
+			if s.r == '$' {
+				s.next()
+				s.Token = token.Shell
+				s.inShell = false
+				return
+			}
+			s.err = fmt.Errorf("parser: unknown $%v in shell expression", r)
+		case '"':
+			s.semi = true
+			s.Literal = s.scanString()
+			s.Token = token.ShellWord
+		case '\n':
+			s.Token = token.Semicolon
+		default:
+			s.semi = true
+			s.Literal = s.scanShellWord()
+			s.Token = token.ShellWord
+		}
+		return
 	case unicode.IsLetter(r):
 		lit := s.scanIdentifier()
 		s.Token = token.Keyword(lit)
@@ -267,24 +291,6 @@ func (s *Scanner) Next() {
 	case r == '\n':
 		s.semi = false
 		s.Token = token.Semicolon
-		return
-	case s.inShell:
-		switch r {
-		case '$':
-			s.next()
-			if s.r == '$' {
-				s.Token = token.Shell
-				s.inShell = false
-				return
-			}
-			s.err = fmt.Errorf("parser: unknown $%v in shell expression", r)
-		case '"':
-			s.Literal = s.scanString()
-			s.Token = token.ShellWord
-		default:
-			s.Literal = s.scanShellWord()
-			s.Token = token.ShellWord
-		}
 		return
 	}
 

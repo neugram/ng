@@ -64,15 +64,36 @@ func (p *Parser) Close() {
 func (p *Parser) work() {
 	p.s.next()
 	for {
-		// TODO StateCmd, top-level $$ processing here
-		p.res.State = StateStmt
+		if p.res.State == StateUnknown {
+			p.res.State = StateStmt
+		}
 		p.next()
 		if p.s.Token == token.Unknown {
 			break
 		}
-		p.res.State = StateStmtPartial
-		p.res.Stmts = append(p.res.Stmts, p.parseStmt())
-		p.res.State = StateStmt
+
+		// We parse top-level $$ expression-statements here.
+		//
+		// The normal parser can take care of this, but we want to return
+		// the parsed output of a top-level $$ before the entire expression
+		// is availble, so the REPL can evaluate as we go. That's what
+		// makes a simple expression behave like an interactive shell.
+		if p.res.State != StateCmd && p.s.Token == token.Shell {
+			p.res.State = StateCmd
+		} else if p.res.State == StateCmd {
+			cmd := p.parseCmd()
+			if len(cmd) > 0 {
+				p.res.Cmds = append(p.res.Cmds, cmd)
+			}
+			// TODO StateCmdPartial, lines ending with '\'
+			if p.s.Token == token.Shell {
+				p.res.State = StateUnknown
+			}
+		} else {
+			p.res.State = StateStmtPartial
+			p.res.Stmts = append(p.res.Stmts, p.parseStmt())
+			p.res.State = StateStmt
+		}
 	}
 }
 
@@ -97,6 +118,14 @@ func (p *Parser) next() {
 	if p.s.Token == token.Comment {
 		p.next()
 	}
+}
+
+func (p *Parser) parseCmd() (cmd []string) {
+	for p.s.Token == token.ShellWord {
+		cmd = append(cmd, p.s.Literal.(string))
+		p.next()
+	}
+	return cmd
 }
 
 func (p *Parser) parseExpr() expr.Expr {

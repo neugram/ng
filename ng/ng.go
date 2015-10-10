@@ -40,6 +40,9 @@ func main() {
 		for _, err := range res.Errs {
 			fmt.Println(err.Error())
 		}
+		for _, cmd := range res.Cmds {
+			fmt.Printf("cmd: %v\n", cmd)
+		}
 
 		switch res.State {
 		case parser.StateUnknown:
