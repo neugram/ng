@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +16,29 @@ import (
 	"github.com/peterh/liner"
 )
 
+var (
+	lineNg        = liner.NewLiner() // ng-mode line reader
+	historyNgFile = ""
+	historyNg     = make(chan string, 1)
+	lineSh        = liner.NewLiner() // shell-mode line reader
+	historyShFile = ""
+	historySh     = make(chan string, 1)
+)
+
+func exit(code int) {
+	lineSh.Close()
+	lineNg.Close()
+	os.Exit(code)
+}
+
+func exitf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "ng: "+format, args...)
+	exit(1)
+}
+
 func main() {
+	defer exit(0)
+
 	prg := &eval.Program{
 		Pkg: map[string]*eval.Scope{
 			"main": &eval.Scope{Var: map[string]*eval.Variable{}},
@@ -26,36 +47,47 @@ func main() {
 	}
 	p := parser.New()
 
-	line := liner.NewLiner()
-	defer line.Close()
-	line.SetCompleter(func(line string) []string {
-		// TODO match on word not line.
-		// TODO walk the scope for possible names.
-		var res []string
-		for keyword := range token.Keywords {
-			if strings.HasPrefix(keyword, line) {
-				res = append(res, keyword)
-			}
-		}
-		return res
-	})
-	if f, err := os.Open(historyFile); err == nil {
-		line.ReadHistory(f)
+	lineNg.SetCompleter(completer)
+	if f, err := os.Open(historyNgFile); err == nil {
+		lineNg.ReadHistory(f)
 		f.Close()
 	}
-	go historyWriter()
+	go historyWriter(historyNgFile, historyNg)
 
-	scanner := bufio.NewScanner(os.Stdin)
-	prompt := "ng> "
+	lineSh.SetCompleter(completerSh)
+	if f, err := os.Open(historyShFile); err == nil {
+		lineSh.ReadHistory(f)
+		f.Close()
+	}
+	go historyWriter(historyShFile, historySh)
+
+	state := parser.StateStmt
 	for {
+		var (
+			prompt  string
+			line    *liner.State
+			history chan string
+		)
+		switch state {
+		case parser.StateUnknown:
+			prompt, line, history = "??> ", lineNg, historyNg
+		case parser.StateStmt:
+			prompt, line, history = "ng> ", lineNg, historyNg
+		case parser.StateStmtPartial:
+			prompt, line, history = "..> ", lineNg, historyNg
+		case parser.StateCmd:
+			prompt, line, history = "$ ", lineSh, historySh
+		case parser.StateCmdPartial:
+			prompt, line, history = "..$ ", lineSh, historySh
+		default:
+			exitf("unkown parser state: %v", state)
+		}
 		data, err := line.Prompt(prompt)
 		if err != nil {
-			line.Close()
 			if err == io.EOF {
-				os.Exit(0)
+				exit(0)
 			}
-			fmt.Fprintf(os.Stderr, "ng: error reading input: %v", err)
-			os.Exit(1)
+			exitf("error reading input: %v", err)
 		}
 		line.AppendHistory(data)
 		history <- data
@@ -84,46 +116,27 @@ func main() {
 				continue
 			}
 		}
-
-		switch res.State {
-		case parser.StateUnknown:
-			prompt = "??> "
-		case parser.StateStmt:
-			prompt = "ng> "
-		case parser.StateStmtPartial:
-			prompt = "..> "
-		case parser.StateCmd:
-			prompt = "$ "
-		case parser.StateCmdPartial:
-			prompt = "..$ "
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		state = res.State
 	}
 }
-
-var (
-	historyFile = ""
-	history     = make(chan string, 1)
-)
 
 func init() {
 	if home := os.Getenv("HOME"); home != "" {
-		historyFile = filepath.Join(home, ".ng_history")
+		historyNgFile = filepath.Join(home, ".ng_history")
+		historyShFile = filepath.Join(home, ".ng_sh_history")
 	}
 }
 
-func historyWriter() {
+func historyWriter(dst string, src <-chan string) {
 	var batch []string
 	ticker := time.Tick(250 * time.Millisecond)
 	for {
 		select {
-		case line := <-history:
+		case line := <-src:
 			batch = append(batch, line)
 		case <-ticker:
-			if len(batch) > 0 && historyFile != "" {
-				f, err := os.OpenFile(historyFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
+			if len(batch) > 0 && dst != "" {
+				f, err := os.OpenFile(dst, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
 				if err == nil {
 					for _, line := range batch {
 						fmt.Fprintf(f, "%s\n", line)
@@ -134,4 +147,22 @@ func historyWriter() {
 			batch = nil
 		}
 	}
+}
+
+func completer(line string) []string {
+	// TODO match on word not line.
+	// TODO walk the scope for possible names.
+	var res []string
+	for keyword := range token.Keywords {
+		if strings.HasPrefix(keyword, line) {
+			res = append(res, keyword)
+		}
+	}
+	return res
+}
+
+func completerSh(line string) []string {
+	// TODO scan path
+	var res []string
+	return res
 }
