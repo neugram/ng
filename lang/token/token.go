@@ -147,7 +147,7 @@ var tokens = map[string]Token{
 	"Pipe":         Pipe,
 }
 
-var keywords = map[string]Token{
+var Keywords = map[string]Token{
 	"package":     Package,
 	"import":      Import,
 	"func":        Func,
@@ -172,16 +172,16 @@ var keywords = map[string]Token{
 }
 
 func Keyword(n string) Token {
-	return keywords[n]
+	return Keywords[n]
 }
 
-var tokenStrings = make(map[Token]string, len(tokens)+len(keywords))
+var tokenStrings = make(map[Token]string, len(tokens)+len(Keywords))
 
 func init() {
 	for s, t := range tokens {
 		tokenStrings[t] = s
 	}
-	for s, t := range keywords {
+	for s, t := range Keywords {
 		tokenStrings[t] = s
 	}
 }
