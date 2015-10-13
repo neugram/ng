@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
+	"os"
+	"runtime/debug"
 
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/stmt"
@@ -62,6 +64,17 @@ func (p *Parser) Close() {
 }
 
 func (p *Parser) work() {
+	defer func() {
+		// Work is processed on a separate goroutine. Avoid panicing
+		// here so there's an oppertunity to clean up terminal state.
+		if x := recover(); x != nil {
+			err := p.errorf("panic: %v", x)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			debug.PrintStack()
+			close(p.s.needSrc)
+		}
+	}()
+
 	p.s.next()
 	for {
 		if p.res.State == StateUnknown {
@@ -624,7 +637,7 @@ func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
 }
 
 func extractRange(s stmt.Stmt) (res *stmt.Range) {
-	defer fmt.Printf("extractRange(%s) res=%s\n", s.Sexp(), res)
+	//defer fmt.Printf("extractRange(%s) res=%s\n", s.Sexp(), res)
 	a, ok := s.(*stmt.Assign)
 	if !ok || len(a.Right) != 1 {
 		return nil
@@ -1000,7 +1013,6 @@ func (p *Parser) error(msg string) error {
 		Offset: p.s.Offset,
 		Msg:    msg,
 	}
-	panic(fmt.Sprintf("%v\n", err)) // debug
 	p.res.Errs = append(p.res.Errs, err)
 	return err
 }
