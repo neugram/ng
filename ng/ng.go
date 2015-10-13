@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,17 +18,21 @@ import (
 )
 
 var (
-	lineNg        = liner.NewLiner() // ng-mode line reader
+	lineNg        *liner.State // ng-mode line reader
 	historyNgFile = ""
 	historyNg     = make(chan string, 1)
-	lineSh        = liner.NewLiner() // shell-mode line reader
+	lineSh        *liner.State // shell-mode line reader
 	historyShFile = ""
 	historySh     = make(chan string, 1)
 )
 
-func exit(code int) {
+func cleanup() {
 	lineSh.Close()
 	lineNg.Close()
+}
+
+func exit(code int) {
+	cleanup()
 	os.Exit(code)
 }
 
@@ -37,8 +42,19 @@ func exitf(format string, args ...interface{}) {
 }
 
 func main() {
-	defer exit(0)
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+	go func() {
+		<-ch
+		exitf("interrupted")
+	}()
 
+	lineNg = liner.NewLiner()
+	lineSh = liner.NewLiner()
+	loop()
+}
+
+func loop() {
 	prg := &eval.Program{
 		Pkg: map[string]*eval.Scope{
 			"main": &eval.Scope{Var: map[string]*eval.Variable{}},
