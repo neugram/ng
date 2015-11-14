@@ -18,6 +18,8 @@ import (
 )
 
 var (
+	origMode liner.ModeApplier
+
 	lineNg        *liner.State // ng-mode line reader
 	historyNgFile = ""
 	historyNg     = make(chan string, 1)
@@ -41,6 +43,14 @@ func exitf(format string, args ...interface{}) {
 	exit(1)
 }
 
+func mode() liner.ModeApplier {
+	m, err := liner.TerminalMode()
+	if err != nil {
+		exitf("terminal mode: %v", err)
+	}
+	return m
+}
+
 func main() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
@@ -49,6 +59,7 @@ func main() {
 		exitf("interrupted")
 	}()
 
+	origMode = mode()
 	lineNg = liner.NewLiner()
 	lineSh = liner.NewLiner()
 	loop()
@@ -105,6 +116,9 @@ func loop() {
 			}
 			exitf("error reading input: %v", err)
 		}
+		if data == "" {
+			continue
+		}
 		line.AppendHistory(data)
 		history <- data
 		res := p.ParseLine([]byte(data))
@@ -126,12 +140,15 @@ func loop() {
 		for _, err := range res.Errs {
 			fmt.Println(err.Error())
 		}
+		editMode := mode()
+		origMode.ApplyMode()
 		for _, cmd := range res.Cmds {
 			if err := prg.EvalCmd(cmd); err != nil {
 				fmt.Printf("cmmand error: %v\n", err)
 				continue
 			}
 		}
+		editMode.ApplyMode()
 		state = res.State
 	}
 }
