@@ -87,6 +87,11 @@ type TableIndex struct {
 	Rows     Range
 }
 
+type Shell struct {
+	Cmds [][]string
+	// TODO: stdin, stdout, stderr as args
+}
+
 var (
 	_ = Expr((*Binary)(nil))
 	_ = Expr((*Unary)(nil))
@@ -99,6 +104,7 @@ var (
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
 	_ = Expr((*TableIndex)(nil))
+	_ = Expr((*Shell)(nil))
 )
 
 func (e *Binary) expr()       {}
@@ -112,6 +118,7 @@ func (e *TableLiteral) expr() {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
 func (e *TableIndex) expr()   {}
+func (e *Shell) expr()        {}
 
 func (e *Binary) Sexp() string {
 	if e == nil {
@@ -218,6 +225,14 @@ func (e *TableIndex) Sexp() string {
 		return fmt.Sprintf("(%s%s)", rs, exact)
 	}
 	return fmt.Sprintf("(tableindex %s%s %s %s", exprSexp(e.Expr), names, rangeSexp(e.Cols), rangeSexp(e.Rows))
+}
+
+func (e *Shell) Sexp() string {
+	var cmds []string
+	for _, cmd := range e.Cmds {
+		cmds = append(cmds, "("+strings.Join(cmd, " ")+")")
+	}
+	return fmt.Sprintf("(shell %s)", strings.Join(cmds, " "))
 }
 
 func tipeSexp(t tipe.Type) string {

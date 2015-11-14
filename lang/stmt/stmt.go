@@ -19,8 +19,9 @@ type Stmt interface {
 }
 
 type Import struct {
-	Name string
-	Path *expr.BasicLiteral
+	Name   string
+	Path   string
+	FromGo bool
 }
 
 type ClassDecl struct {
@@ -98,7 +99,7 @@ func (s *Block) Sexp() string {
 	return buf.String()
 }
 func (e *Return) Sexp() string { return fmt.Sprintf("(return %s)", exprsStr(e.Exprs)) }
-func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, exprSexp(e.Path)) }
+func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, e.Path) }
 func (e *ClassDecl) Sexp() string {
 	var methods []string
 	for _, m := range e.Methods {

@@ -316,7 +316,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Name != y.Name {
 			return false
 		}
-		if !EqualExpr(x.Path, y.Path) {
+		if x.Path != y.Path {
 			return false
 		}
 	case *stmt.ClassDecl:

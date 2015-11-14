@@ -71,6 +71,7 @@ const (
 
 	Package
 	Import
+	Importgo
 
 	Func
 	Return
@@ -150,6 +151,7 @@ var tokens = map[string]Token{
 var Keywords = map[string]Token{
 	"package":     Package,
 	"import":      Import,
+	"importgo":    Importgo,
 	"func":        Func,
 	"return":      Return,
 	"switch":      Switch,

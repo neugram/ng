@@ -8,6 +8,7 @@ package tipe
 
 import (
 	"fmt"
+	gotypes "go/types"
 	"reflect"
 	"strings"
 )
@@ -41,6 +42,23 @@ type Tuple struct {
 
 type Pointer struct {
 	Elem Type
+}
+
+// Go is a type imported from Go.
+// It has an equivalent type in this system.
+//
+// Either GoType or GoPkg is set.
+//
+// Technically in go/types a *gotypes.Package is not a type, but we
+// model a package as a type for neugram, so we fake it.
+type Go struct {
+	GoType     gotypes.Type
+	GoPkg      *gotypes.Package
+	Equivalent Type
+}
+
+type Package struct {
+	Exports map[string]Type
 }
 
 // Specialization carries any type specialization data particular to this type.
@@ -93,6 +111,8 @@ var (
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
+	_ = Type((*Go)(nil))
+	_ = Type((*Package)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
@@ -102,6 +122,8 @@ func (t *Class) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
+func (t *Go) tipe()         {}
+func (t *Package) tipe()    {}
 func (t *Unresolved) tipe() {}
 
 func (e Specialization) Sexp() string {
@@ -150,6 +172,20 @@ func (e *Pointer) Sexp() string {
 		u = e.Elem.Sexp()
 	}
 	return fmt.Sprintf("(* %s)", u)
+}
+func (e *Go) Sexp() string {
+	u := "nilgo"
+	if e.Equivalent != nil {
+		u = e.Equivalent.Sexp()
+	}
+	return fmt.Sprintf("(gotype %s)", u)
+}
+func (e *Package) Sexp() string {
+	var elems []string
+	for n, t := range e.Exports {
+		elems = append(elems, "("+n+" "+t.Sexp()+")")
+	}
+	return fmt.Sprintf("(package %s)", strings.Join(elems, " "))
 }
 func (e *Unresolved) Sexp() string {
 	if e.Package == "" {
@@ -292,6 +328,45 @@ func Equal(x, y Type) bool {
 		}
 		for i := range x.Elems {
 			if !Equal(x.Elems[i], y.Elems[i]) {
+				return false
+			}
+		}
+		return true
+	case *Go:
+		y, ok := y.(*Go)
+		if !ok {
+			return false
+		}
+		if x == nil && y == nil {
+			return true
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if !Equal(x.Equivalent, y.Equivalent) {
+			return false
+		}
+		return true
+	case *Package:
+		y, ok := y.(*Package)
+		if !ok {
+			return false
+		}
+		if x == nil && y == nil {
+			return true
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if len(x.Exports) != len(y.Exports) {
+			return false
+		}
+		for xn, xt := range x.Exports {
+			yt, ok := y.Exports[xn]
+			if !ok {
+				return false
+			}
+			if !Equal(xt, yt) {
 				return false
 			}
 		}

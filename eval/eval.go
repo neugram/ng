@@ -8,9 +8,11 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"runtime/debug"
 
 	"numgrad.io/lang/expr"
 	"numgrad.io/lang/stmt"
+	"numgrad.io/lang/tipe"
 	"numgrad.io/lang/token"
 	"numgrad.io/lang/typecheck"
 )
@@ -74,7 +76,16 @@ func (p *Program) EvalCmd(argv []string) error {
 	}
 }
 
-func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
+func (p *Program) Eval(s stmt.Stmt) (res []interface{}, err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			err = fmt.Errorf("ng eval panic: %v", x)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			debug.PrintStack()
+			res = nil
+		}
+	}()
+
 	if p.Cur == nil {
 		p.Cur = p.Pkg["main"]
 	}
@@ -84,7 +95,7 @@ func (p *Program) Eval(s stmt.Stmt) ([]interface{}, error) {
 		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
 	}
 
-	res, err := p.evalStmt(s)
+	res, err = p.evalStmt(s)
 	if err != nil {
 		return nil, err
 	}
@@ -217,6 +228,12 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			return nil, err
 		}
 		return res, nil
+	case *stmt.Import:
+		typ := p.Types.Lookup(s.Name).Type.(*tipe.Go)
+		equiv := typ.Equivalent.(*tipe.Package)
+		fmt.Printf("import %s %#v: %#+v\n", s.Name, s, equiv)
+		// TODO: p.Cur. set something or other here
+		return nil, nil
 	}
 	if s == nil {
 		return nil, fmt.Errorf("Parser.evalStmt: statement is nil")
@@ -364,6 +381,13 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 			return res, nil
 		}
+	case *expr.Shell:
+		for _, cmd := range e.Cmds {
+			if err := p.EvalCmd(cmd); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
 	}
 	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
 }

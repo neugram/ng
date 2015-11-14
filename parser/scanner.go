@@ -234,7 +234,7 @@ func (s *Scanner) scanComment() string {
 
 func (s *Scanner) Next() {
 	/*defer func() {
-		fmt.Printf("Scanner.Next s.Token=%s, s.Offset=%d, s.off=%d", s.Token, s.Offset, s.off)
+		fmt.Printf("Scanner.Next s.Token=%s, s.inShell=%v", s.Token, s.inShell)
 		if s.Literal != nil {
 			fmt.Printf(" Literal=%s", s.Literal)
 		}
@@ -257,6 +257,7 @@ func (s *Scanner) Next() {
 				s.next()
 				s.Token = token.Shell
 				s.inShell = false
+				s.semi = true
 				return
 			}
 			s.err = fmt.Errorf("parser: unknown $%v in shell expression", r)

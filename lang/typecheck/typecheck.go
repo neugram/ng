@@ -8,7 +8,9 @@ import (
 	"bytes"
 	"fmt"
 	"go/constant"
+	"go/importer"
 	gotoken "go/token"
+	gotypes "go/types"
 	"math/big"
 
 	"numgrad.io/lang/expr"
@@ -228,8 +230,49 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			}
 		}
 
+	case *stmt.Import:
+		c.checkImport(s)
+
 	default:
 		panic(fmt.Sprintf("typecheck: unknown stmt %T", s))
+	}
+}
+
+func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
+	names := gopkg.Scope().Names()
+
+	pkg := &tipe.Package{
+		Exports: make(map[string]tipe.Type),
+	}
+	for _, name := range names {
+		pkg.Exports[name] = nil // TODO
+	}
+
+	return &tipe.Go{
+		GoPkg:      gopkg,
+		Equivalent: pkg,
+	}
+}
+
+func (c *Checker) checkImport(s *stmt.Import) {
+	if s.FromGo {
+		pkg, err := importer.Default().Import(s.Path)
+		if err != nil {
+			c.errorf("importing go package: %v", err)
+			return
+		}
+		if s.Name == "" {
+			s.Name = pkg.Name()
+		}
+		obj := &Obj{
+			Kind: ObjVar, // TODO: new ObjKind
+			Type: c.goPackage(pkg),
+			// TODO Decl?
+		}
+		fmt.Printf("typechecking import %s\n", s.Name)
+		c.cur.Objs[s.Name] = obj
+	} else {
+		c.errorf("TODO import of non-Go package")
 	}
 }
 
@@ -555,6 +598,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.mode = modeInvalid
 		c.errorf("%s undefined (type %s has no field or method %s)", e, cls, right)
 		return p
+	case *expr.Shell:
+		p.mode = modeVoid
+		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %T", e))
 }
@@ -769,6 +815,10 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 
 func (c *Checker) Add(s stmt.Stmt) {
 	c.stmt(s, nil)
+}
+
+func (c *Checker) Lookup(name string) *Obj {
+	return c.cur.LookupRec(name)
 }
 
 func (c *Checker) String() string {

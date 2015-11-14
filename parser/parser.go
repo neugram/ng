@@ -100,6 +100,8 @@ func (p *Parser) work() {
 			}
 			// TODO StateCmdPartial, lines ending with '\'
 			if p.s.Token == token.Shell {
+				p.next()
+				p.expect(token.Semicolon)
 				p.res.State = StateUnknown
 			}
 		} else {
@@ -723,6 +725,22 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseTypeDecl(p.parseIdent().Name)
 		p.expectSemi()
 		return s
+	case token.Importgo:
+		p.next()
+		name := ""
+		if p.s.Token == token.Ident {
+			name = p.s.Literal.(string)
+			p.next()
+		}
+		p.expect(token.String)
+		s := &stmt.Import{
+			Name:   name,
+			Path:   p.s.Literal.(string),
+			FromGo: true,
+		}
+		p.next()
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
@@ -915,6 +933,15 @@ func (p *Parser) parseOperand() expr.Expr {
 		return &expr.Unary{Op: token.LeftParen, Expr: ex}
 	case token.Func:
 		return p.parseFunc(false)
+	case token.Shell:
+		p.next()
+		x := &expr.Shell{}
+		for p.s.Token > 0 && p.s.Token != token.Shell {
+			x.Cmds = append(x.Cmds, p.parseCmd())
+		}
+		p.expect(token.Shell)
+		p.next()
+		return x
 	}
 
 	if t := p.maybeParseType(); t != nil {
