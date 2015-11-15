@@ -180,6 +180,56 @@ Start with Go's types.
 - keep byte, mostly a placeholder for passing to Go code
 - later: introduce imaginary numbers
 
+# importgo
+
+A valid program:
+
+```
+importgo "fmt"
+fmt.Printf("hello, world")
+```
+
+There's a bit of a song and dance to get here.
+
+First off, the typechecker should rely on nothing but the export data
+of the Go package (as represented by a *types.Package object).
+This is because the typechecker will be used in a numgrad -> Go
+compiler later down the road, and we should be able to compile without
+loading the package into the compiler.
+
+Second, the evaluator should eventually use -buildmode=plugin:
+
+https://docs.google.com/document/d/1nr-TQHw_er6GOQRsF6T43GGhFDelrAP0NqSS_00RgZQ/preview
+
+The plugin API will allow loading package functions and global
+variables by a method, ```Lookup(name string) (interface{}, error)```.
+We want access to types as well, so for any Go package we want to
+load, we need to generate a Go package that wraps it, and exposes a
+global variable containing the zero value of the exported types:
+
+```
+package wrap_bytes
+
+import "bytes"
+
+var ExportData string // loadable as *types.Package for "bytes"
+
+var Exports = map[string]interface{}{
+	...,
+	"Buffer": *bytes.Buffer(nil),
+}
+```
+
+So the evaluator will:
+
+1. Attempt to load this compiled wrapper package. If it doesn't exist,
+generate the code, compile it, and load it as a plugin.
+
+1. Provide ExportData contents to the numgrad typechecker.
+
+1. Lookup Exports and Use the reflect package on the values in Exports
+to create Go types and call Go functions and methods.
+
 # Syntax
 
 Almost entirely derived from Go.
