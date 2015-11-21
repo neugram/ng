@@ -1,9 +1,9 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package typecheck
 
-import "numgrad.io/lang/tipe"
+import "neugram.io/lang/tipe"
 
 var base = &Scope{Objs: make(map[string]*Obj)}
 

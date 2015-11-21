@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package sqlframe
@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"numgrad.io/frame/internal/frametest"
+	"neugram.io/frame/internal/frametest"
 )
 
 func createDB(t *testing.T) (db *sql.DB, cleanup func()) {

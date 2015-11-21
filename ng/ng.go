@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"numgrad.io/eval"
-	"numgrad.io/lang/token"
-	"numgrad.io/lang/typecheck"
-	"numgrad.io/parser"
+	"neugram.io/eval"
+	"neugram.io/lang/token"
+	"neugram.io/lang/typecheck"
+	"neugram.io/parser"
 
 	"github.com/peterh/liner"
 )

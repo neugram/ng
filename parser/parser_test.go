@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package parser
@@ -8,10 +8,10 @@ import (
 	"math/big"
 	"testing"
 
-	"numgrad.io/lang/expr"
-	"numgrad.io/lang/stmt"
-	"numgrad.io/lang/tipe"
-	"numgrad.io/lang/token"
+	"neugram.io/lang/expr"
+	"neugram.io/lang/stmt"
+	"neugram.io/lang/tipe"
+	"neugram.io/lang/token"
 )
 
 type parserTest struct {
@@ -196,7 +196,7 @@ var parserTests = []parserTest{
 	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
-	{`"hello \"numgrad\""`, &expr.BasicLiteral{`hello \"numgrad\"`}},
+	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello \"neugram\"`}},
 	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
 	{"x[4]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Exact: &expr.BasicLiteral{big.NewInt(4)}}}},
 	{"x[1+2]", &expr.TableIndex{

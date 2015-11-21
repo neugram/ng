@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package memframe_test
@@ -6,9 +6,9 @@ package memframe_test
 import (
 	"testing"
 
-	"numgrad.io/frame"
-	"numgrad.io/frame/internal/frametest"
-	"numgrad.io/frame/memframe"
+	"neugram.io/frame"
+	"neugram.io/frame/internal/frametest"
+	"neugram.io/frame/memframe"
 )
 
 func TestLoadPresidents(t *testing.T) {

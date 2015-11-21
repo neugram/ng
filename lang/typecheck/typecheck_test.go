@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package typecheck
@@ -6,9 +6,9 @@ package typecheck
 import (
 	"testing"
 
-	"numgrad.io/lang/stmt"
-	"numgrad.io/lang/tipe"
-	"numgrad.io/parser"
+	"neugram.io/lang/stmt"
+	"neugram.io/lang/tipe"
+	"neugram.io/parser"
 )
 
 type identType struct {

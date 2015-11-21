@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package sqlframe
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"numgrad.io/frame"
+	"neugram.io/frame"
 )
 
 func sqliteLoad(db *sql.DB, table string) (frame.Frame, error) {

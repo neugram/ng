@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package parser
@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"numgrad.io/lang/token"
+	"neugram.io/lang/token"
 )
 
 const bom = 0xFEFF // byte order marker
@@ -44,7 +44,7 @@ type Scanner struct {
 }
 
 func (s *Scanner) errorf(format string, a ...interface{}) {
-	s.err = fmt.Errorf("numgrad: scanner: %s (off %d)", fmt.Sprintf(format, a...), s.Offset)
+	s.err = fmt.Errorf("neugram: scanner: %s (off %d)", fmt.Sprintf(format, a...), s.Offset)
 }
 
 func (s *Scanner) next() {

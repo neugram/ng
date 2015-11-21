@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package eval
@@ -8,9 +8,9 @@ import (
 	"math/big"
 	"testing"
 
-	"numgrad.io/lang/stmt"
-	"numgrad.io/lang/typecheck"
-	"numgrad.io/parser"
+	"neugram.io/lang/stmt"
+	"neugram.io/lang/typecheck"
+	"neugram.io/parser"
 )
 
 var exprTests = []struct {

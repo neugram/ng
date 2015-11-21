@@ -1,12 +1,12 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
-// Package token defines data structures representing Numengrad tokens.
+// Package token defines data structures representing Neugram tokens.
 package token
 
 import "fmt"
 
-// Token is a numgrad lexical token.
+// Token is a neugram lexical token.
 type Token int
 
 const (

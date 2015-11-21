@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package parser
@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"numgrad.io/lang/expr"
-	"numgrad.io/lang/stmt"
+	"neugram.io/lang/expr"
+	"neugram.io/lang/stmt"
 )
 
 type sExpr interface {
@@ -20,7 +20,7 @@ type sExpr interface {
 }
 
 func printToFile(x sExpr) (path string, err error) {
-	f, err := ioutil.TempFile("", "numgrad-diff-")
+	f, err := ioutil.TempFile("", "neugram-diff-")
 	if err != nil {
 		return "", err
 	}

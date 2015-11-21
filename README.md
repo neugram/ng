@@ -1,6 +1,6 @@
-# Numengrad is a data processing package.
+# Neugram is a data processing package.
 
-Numengrad is a numerical processing library written in Go. Because in
+Neugram is a numerical processing library written in Go. Because in
 practice numerical processing is all about finding an moving data
 around, and often doing parts of the processing elsewhere (for example,
 inside an SQL query's WHERE clause), the library includes a small
@@ -11,7 +11,7 @@ The key data structure is the table. A table has a small (known)
 number of named columns and many rows.
 
 Very imporant: it's easy to import Go packages and call Go from inside
-Numengrad. Serious work should be implemented in Go, Numengrad is the
+Neugram. Serious work should be implemented in Go, Neugram is the
 numerical glue.
 
 # Files and Packages
@@ -160,7 +160,7 @@ f := func(x int) {
 }
 ```
 
-But in Numgrad it silently becomes:
+But in Neugram it silently becomes:
 
 ```
 var f func(x int)
@@ -193,7 +193,7 @@ There's a bit of a song and dance to get here.
 
 First off, the typechecker should rely on nothing but the export data
 of the Go package (as represented by a *types.Package object).
-This is because the typechecker will be used in a numgrad -> Go
+This is because the typechecker will be used in a neugram -> Go
 compiler later down the road, and we should be able to compile without
 loading the package into the compiler.
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Numgrad Authors. All rights reserved.
+// Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
 package parser
@@ -10,10 +10,10 @@ import (
 	"os"
 	"runtime/debug"
 
-	"numgrad.io/lang/expr"
-	"numgrad.io/lang/stmt"
-	"numgrad.io/lang/tipe"
-	"numgrad.io/lang/token"
+	"neugram.io/lang/expr"
+	"neugram.io/lang/stmt"
+	"neugram.io/lang/tipe"
+	"neugram.io/lang/token"
 )
 
 func New() *Parser {
@@ -1015,7 +1015,7 @@ type Errors []Error
 
 func (e Errors) Error() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("numgrad: parser erorrs:\n")
+	buf.WriteString("neugram: parser erorrs:\n")
 	for _, err := range e {
 		fmt.Fprintf(buf, "off %5d: %v\n", err.Offset, err.Msg)
 	}
@@ -1028,7 +1028,7 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	return fmt.Sprintf("numgrad: parser: %s (off %d)", e.Msg, e.Offset)
+	return fmt.Sprintf("neugram: parser: %s (off %d)", e.Msg, e.Offset)
 }
 
 func (p *Parser) errorf(format string, a ...interface{}) error {
