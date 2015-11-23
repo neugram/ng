@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/constant"
-	"go/importer"
+	goimporter "go/importer"
 	gotoken "go/token"
 	gotypes "go/types"
 	"math/big"
@@ -20,6 +20,8 @@ import (
 )
 
 type Checker struct {
+	ImportGo func(path string) (*gotypes.Package, error)
+
 	// TODO: we could put these on our AST. Should we?
 	Types   map[expr.Expr]tipe.Type
 	Defs    map[*expr.Ident]*Obj
@@ -32,9 +34,10 @@ type Checker struct {
 
 func New() *Checker {
 	return &Checker{
-		Types:  make(map[expr.Expr]tipe.Type),
-		Defs:   make(map[*expr.Ident]*Obj),
-		Values: make(map[expr.Expr]constant.Value),
+		ImportGo: goimporter.Default().Import,
+		Types:    make(map[expr.Expr]tipe.Type),
+		Defs:     make(map[*expr.Ident]*Obj),
+		Values:   make(map[expr.Expr]constant.Value),
 		cur: &Scope{
 			Parent: base,
 			Objs:   make(map[string]*Obj),
@@ -238,6 +241,60 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 	}
 }
 
+var goErrorID = gotypes.Universe.Lookup("error").Id()
+
+func fromGoType(t gotypes.Type) (res tipe.Type) {
+	defer func() {
+		if res == nil {
+			fmt.Printf("typecheck: unknown go type: %v\n", t)
+		}
+	}()
+	switch t := t.(type) {
+	case *gotypes.Basic:
+		switch t.Kind() {
+		case gotypes.Bool:
+			return tipe.Bool
+		case gotypes.String:
+			return tipe.String
+		case gotypes.Int64:
+			return tipe.Int64
+		case gotypes.Float32:
+			return tipe.Float32
+		case gotypes.Float64:
+			return tipe.Float64
+		}
+	case *gotypes.Named:
+		if t.Obj().Id() == goErrorID {
+			fmt.Printf("found an error type\n")
+		}
+		return fromGoType(t.Underlying())
+
+	case *gotypes.Interface:
+		res := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
+		for i := 0; i < t.NumMethods(); i++ {
+			m := t.Method(i)
+			res.Methods[m.Name()] = fromGoType(m.Type()).(*tipe.Func)
+		}
+		return res
+	case *gotypes.Signature:
+		p := t.Params()
+		r := t.Results()
+		res := &tipe.Func{
+			Params:   &tipe.Tuple{Elems: make([]tipe.Type, p.Len())},
+			Results:  &tipe.Tuple{Elems: make([]tipe.Type, r.Len())},
+			Variadic: t.Variadic(),
+		}
+		for i := 0; i < p.Len(); i++ {
+			res.Params.Elems[i] = fromGoType(p.At(i).Type())
+		}
+		for i := 0; i < r.Len(); i++ {
+			res.Results.Elems[i] = fromGoType(r.At(i).Type())
+		}
+		return res
+	}
+	return nil
+}
+
 func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
 	names := gopkg.Scope().Names()
 
@@ -245,7 +302,11 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
 		Exports: make(map[string]tipe.Type),
 	}
 	for _, name := range names {
-		pkg.Exports[name] = nil // TODO
+		obj := gopkg.Scope().Lookup(name)
+		if !obj.Exported() {
+			continue
+		}
+		pkg.Exports[name] = fromGoType(obj.Type())
 	}
 
 	return &tipe.Go{
@@ -256,7 +317,7 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
 
 func (c *Checker) checkImport(s *stmt.Import) {
 	if s.FromGo {
-		pkg, err := importer.Default().Import(s.Path)
+		pkg, err := c.ImportGo(s.Path)
 		if err != nil {
 			c.errorf("importing go package: %v", err)
 			return
