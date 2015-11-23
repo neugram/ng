@@ -98,6 +98,8 @@ const (
 	Float32 Basic = "float32"
 	Float64 Basic = "float64"
 
+	GoInt Basic = "goint"
+
 	UntypedBool    Basic = "untyped bool" // TODO remove if we are not going to have named types
 	UntypedInteger Basic = "untyped integer"
 	UntypedFloat   Basic = "untyped float"
@@ -218,6 +220,7 @@ func IsNumeric(t Type) bool {
 	switch b {
 	case Num, Integer, Float, Complex,
 		Int64, Float32, Float64,
+		GoInt,
 		UntypedInteger, UntypedFloat, UntypedComplex:
 		return true
 	}

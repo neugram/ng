@@ -39,7 +39,7 @@ func New() *Checker {
 		Defs:     make(map[*expr.Ident]*Obj),
 		Values:   make(map[expr.Expr]constant.Value),
 		cur: &Scope{
-			Parent: base,
+			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
 	}
@@ -262,10 +262,12 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.Float32
 		case gotypes.Float64:
 			return tipe.Float64
+		case gotypes.Int:
+			return tipe.GoInt
 		}
 	case *gotypes.Named:
 		if t.Obj().Id() == goErrorID {
-			fmt.Printf("found an error type\n")
+			return Universe.Objs["error"].Type
 		}
 		return fromGoType(t.Underlying())
 
