@@ -270,7 +270,8 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 			return Universe.Objs["error"].Type
 		}
 		return fromGoType(t.Underlying())
-
+	case *gotypes.Slice:
+		return &tipe.Table{Type: fromGoType(t.Elem())}
 	case *gotypes.Interface:
 		res := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
 		for i := 0; i < t.NumMethods(); i++ {
@@ -297,7 +298,7 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 	return nil
 }
 
-func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
+func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Package {
 	names := gopkg.Scope().Names()
 
 	pkg := &tipe.Package{
@@ -310,11 +311,7 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Go {
 		}
 		pkg.Exports[name] = fromGoType(obj.Type())
 	}
-
-	return &tipe.Go{
-		GoPkg:      gopkg,
-		Equivalent: pkg,
-	}
+	return pkg
 }
 
 func (c *Checker) checkImport(s *stmt.Import) {
@@ -332,7 +329,10 @@ func (c *Checker) checkImport(s *stmt.Import) {
 			Type: c.goPackage(pkg),
 			// TODO Decl?
 		}
-		fmt.Printf("typechecking import %s\n", s.Name)
+		/* TODO store this in a side table return &tipe.Go{
+			GoPkg:      gopkg,
+			Equivalent: pkg,
+		}*/
 		c.cur.Objs[s.Name] = obj
 	} else {
 		c.errorf("TODO import of non-Go package")
@@ -585,7 +585,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				p.typ = funct.Results
 			}
 
-			if len(e.Args) != len(params) {
+			if (!funct.Variadic && len(e.Args) != len(params)) || (funct.Variadic && len(e.Args) < len(params)-1) {
 				p.mode = modeInvalid
 				c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), funct)
 			}
@@ -637,29 +637,40 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		if left.mode == modeInvalid {
 			return left
 		}
-		cls, ok := left.typ.(*tipe.Class)
-		if !ok {
+		switch lt := left.typ.(type) {
+		case *tipe.Class:
+			right := e.Right.Name
+			for i, name := range lt.FieldNames {
+				if name == right {
+					p.mode = modeVar
+					p.typ = lt.Fields[i]
+					return
+				}
+			}
+			for i, name := range lt.MethodNames {
+				if name == right {
+					p.mode = modeVar // modeFunc?
+					p.typ = lt.Methods[i]
+					return
+				}
+			}
 			p.mode = modeInvalid
-			c.errorf("%s undefined (type %s is not a class)", e, cls)
+			c.errorf("%s undefined (type %s has no field or method %s)", e, lt, right)
+			return p
+		case *tipe.Package:
+			for name, t := range lt.Exports {
+				if name == e.Right.Name {
+					p.mode = modeVar // TODO modeFunc?
+					p.typ = t
+					return p
+				}
+			}
+			p.mode = modeInvalid
+			c.errorf("%s not in package %s", e, lt)
 			return p
 		}
-		right := e.Right.Name
-		for i, name := range cls.FieldNames {
-			if name == right {
-				p.mode = modeVar
-				p.typ = cls.Fields[i]
-				return
-			}
-		}
-		for i, name := range cls.MethodNames {
-			if name == right {
-				p.mode = modeVar
-				p.typ = cls.Methods[i]
-				return
-			}
-		}
 		p.mode = modeInvalid
-		c.errorf("%s undefined (type %s has no field or method %s)", e, cls, right)
+		c.errorf("%s undefined (type %s is not a class or package)", e, left.typ)
 		return p
 	case *expr.Shell:
 		p.mode = modeVoid

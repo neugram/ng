@@ -8,7 +8,6 @@ package tipe
 
 import (
 	"fmt"
-	gotypes "go/types"
 	"reflect"
 	"strings"
 )
@@ -45,6 +44,8 @@ type Pointer struct {
 	Elem Type
 }
 
+/*
+TODO remove, replace with side table.
 // Go is a type imported from Go.
 // It has an equivalent type in this system.
 //
@@ -57,6 +58,7 @@ type Go struct {
 	GoPkg      *gotypes.Package
 	Equivalent Type
 }
+*/
 
 type Package struct {
 	Exports map[string]Type
@@ -118,7 +120,6 @@ var (
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
-	_ = Type((*Go)(nil))
 	_ = Type((*Package)(nil))
 	_ = Type((*Interface)(nil))
 	_ = Type((*Unresolved)(nil))
@@ -130,7 +131,6 @@ func (t *Class) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
-func (t *Go) tipe()         {}
 func (t *Package) tipe()    {}
 func (t *Interface) tipe()  {}
 func (t *Unresolved) tipe() {}
@@ -182,13 +182,7 @@ func (e *Pointer) Sexp() string {
 	}
 	return fmt.Sprintf("(* %s)", u)
 }
-func (e *Go) Sexp() string {
-	u := "nilgo"
-	if e.Equivalent != nil {
-		u = e.Equivalent.Sexp()
-	}
-	return fmt.Sprintf("(gotype %s)", u)
-}
+
 func (e *Package) Sexp() string {
 	var elems []string
 	for n, t := range e.Exports {
@@ -349,21 +343,6 @@ func Equal(x, y Type) bool {
 			if !Equal(x.Elems[i], y.Elems[i]) {
 				return false
 			}
-		}
-		return true
-	case *Go:
-		y, ok := y.(*Go)
-		if !ok {
-			return false
-		}
-		if x == nil && y == nil {
-			return true
-		}
-		if x == nil || y == nil {
-			return false
-		}
-		if !Equal(x.Equivalent, y.Equivalent) {
-			return false
 		}
 		return true
 	case *Package:

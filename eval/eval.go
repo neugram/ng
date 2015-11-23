@@ -229,9 +229,8 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		}
 		return res, nil
 	case *stmt.Import:
-		typ := p.Types.Lookup(s.Name).Type.(*tipe.Go)
-		equiv := typ.Equivalent.(*tipe.Package)
-		fmt.Printf("import %s %#v: %#+v\n", s.Name, s, equiv)
+		typ := p.Types.Lookup(s.Name).Type.(*tipe.Package)
+		fmt.Printf("import %s %#v: %s\n", s.Name, s, typ)
 		// TODO: p.Cur. set something or other here
 		return nil, nil
 	}
