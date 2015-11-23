@@ -19,9 +19,10 @@ type Type interface {
 }
 
 type Func struct {
-	Spec    Specialization
-	Params  *Tuple
-	Results *Tuple
+	Spec     Specialization
+	Params   *Tuple
+	Results  *Tuple
+	Variadic bool // last value of Params is a slice
 }
 
 type Class struct {
@@ -59,6 +60,10 @@ type Go struct {
 
 type Package struct {
 	Exports map[string]Type
+}
+
+type Interface struct {
+	Methods map[string]*Func
 }
 
 // Specialization carries any type specialization data particular to this type.
@@ -113,6 +118,7 @@ var (
 	_ = Type((*Pointer)(nil))
 	_ = Type((*Go)(nil))
 	_ = Type((*Package)(nil))
+	_ = Type((*Interface)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
@@ -124,6 +130,7 @@ func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
 func (t *Go) tipe()         {}
 func (t *Package) tipe()    {}
+func (t *Interface) tipe()  {}
 func (t *Unresolved) tipe() {}
 
 func (e Specialization) Sexp() string {
@@ -187,6 +194,15 @@ func (e *Package) Sexp() string {
 	}
 	return fmt.Sprintf("(package %s)", strings.Join(elems, " "))
 }
+
+func (e *Interface) Sexp() string {
+	var s []string
+	for name, fn := range e.Methods {
+		s = append(s, fmt.Sprintf("(%s %s)", name, fn.Sexp()))
+	}
+	return fmt.Sprintf("(interfacetype %s)", strings.Join(s, " "))
+}
+
 func (e *Unresolved) Sexp() string {
 	if e.Package == "" {
 		return fmt.Sprintf("(unresolved %s)", e.Name)
@@ -363,6 +379,30 @@ func Equal(x, y Type) bool {
 		}
 		for xn, xt := range x.Exports {
 			yt, ok := y.Exports[xn]
+			if !ok {
+				return false
+			}
+			if !Equal(xt, yt) {
+				return false
+			}
+		}
+		return true
+	case *Interface:
+		y, ok := y.(*Interface)
+		if !ok {
+			return false
+		}
+		if x == nil && y == nil {
+			return true
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if len(x.Methods) != len(y.Methods) {
+			return false
+		}
+		for xn, xt := range x.Methods {
+			yt, ok := y.Methods[xn]
 			if !ok {
 				return false
 			}
