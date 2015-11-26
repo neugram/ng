@@ -26,6 +26,7 @@ type Checker struct {
 	Types   map[expr.Expr]tipe.Type
 	Defs    map[*expr.Ident]*Obj
 	Values  map[expr.Expr]constant.Value
+	GoPkgs  map[*tipe.Package]*gotypes.Package
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 	Errs    []error
 
@@ -38,6 +39,7 @@ func New() *Checker {
 		Types:    make(map[expr.Expr]tipe.Type),
 		Defs:     make(map[*expr.Ident]*Obj),
 		Values:   make(map[expr.Expr]constant.Value),
+		GoPkgs:   make(map[*tipe.Package]*gotypes.Package),
 		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
@@ -302,6 +304,8 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Package {
 	names := gopkg.Scope().Names()
 
 	pkg := &tipe.Package{
+		IsGo:    true,
+		Path:    gopkg.Path(),
 		Exports: make(map[string]tipe.Type),
 	}
 	for _, name := range names {
@@ -316,23 +320,21 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Package {
 
 func (c *Checker) checkImport(s *stmt.Import) {
 	if s.FromGo {
-		pkg, err := c.ImportGo(s.Path)
+		gopkg, err := c.ImportGo(s.Path)
 		if err != nil {
 			c.errorf("importing go package: %v", err)
 			return
 		}
 		if s.Name == "" {
-			s.Name = pkg.Name()
+			s.Name = gopkg.Name()
 		}
+		pkg := c.goPackage(gopkg)
+		c.GoPkgs[pkg] = gopkg
 		obj := &Obj{
 			Kind: ObjVar, // TODO: new ObjKind
-			Type: c.goPackage(pkg),
+			Type: pkg,
 			// TODO Decl?
 		}
-		/* TODO store this in a side table return &tipe.Go{
-			GoPkg:      gopkg,
-			Equivalent: pkg,
-		}*/
 		c.cur.Objs[s.Name] = obj
 	} else {
 		c.errorf("TODO import of non-Go package")
@@ -344,6 +346,8 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 	p = c.exprPartial(e)
 	if p.mode == modeConst {
 		c.Values[p.expr] = p.val
+	}
+	if p.mode != modeInvalid {
 		c.Types[p.expr] = p.typ
 	}
 	return p

@@ -61,6 +61,8 @@ type Go struct {
 */
 
 type Package struct {
+	IsGo    bool
+	Path    string
 	Exports map[string]Type
 }
 
@@ -171,7 +173,11 @@ func (e *Table) Sexp() string {
 func (e *Tuple) Sexp() string {
 	var elems []string
 	for _, t := range e.Elems {
-		elems = append(elems, t.Sexp())
+		ts := "<nil>"
+		if t != nil {
+			ts = t.Sexp()
+		}
+		elems = append(elems, ts)
 	}
 	return fmt.Sprintf("(tupletype %s)", strings.Join(elems, " "))
 }
@@ -186,7 +192,11 @@ func (e *Pointer) Sexp() string {
 func (e *Package) Sexp() string {
 	var elems []string
 	for n, t := range e.Exports {
-		elems = append(elems, "("+n+" "+t.Sexp()+")")
+		ts := "<nil>"
+		if t != nil {
+			ts = t.Sexp()
+		}
+		elems = append(elems, "("+n+" "+ts+")")
 	}
 	return fmt.Sprintf("(package %s)", strings.Join(elems, " "))
 }

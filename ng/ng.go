@@ -11,7 +11,6 @@ import (
 
 	"neugram.io/eval"
 	"neugram.io/lang/token"
-	"neugram.io/lang/typecheck"
 	"neugram.io/parser"
 
 	"github.com/peterh/liner"
@@ -66,12 +65,7 @@ func main() {
 }
 
 func loop() {
-	prg := &eval.Program{
-		Pkg: map[string]*eval.Scope{
-			"main": &eval.Scope{Var: map[string]*eval.Variable{}},
-		},
-		Types: typecheck.New(),
-	}
+	prg := eval.New()
 	p := parser.New()
 
 	lineNg.SetCompleter(completer)

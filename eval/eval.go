@@ -5,11 +5,14 @@ package eval
 
 import (
 	"fmt"
+	goimporter "go/importer"
+	gotypes "go/types"
 	"math/big"
 	"os"
 	"os/exec"
 	"runtime/debug"
 
+	"neugram.io/eval/gowrap"
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
@@ -25,7 +28,9 @@ type Variable struct {
 	//	float64
 	//	*big.Int
 	//	*big.Float
-	//	*Struct
+	//
+	//	*expr.FuncLiteral ?
+	// 	*GoPkg
 	Value interface{}
 }
 
@@ -34,12 +39,34 @@ type Scope struct {
 	Var    map[string]*Variable // variable name -> variable
 }
 
+func New() *Program {
+	p := &Program{
+		Pkg: map[string]*Scope{
+			"main": &Scope{Var: map[string]*Variable{}},
+		},
+		Types: typecheck.New(),
+	}
+	p.Types.ImportGo = p.importGo
+	return p
+}
+
 type Program struct {
 	Pkg       map[string]*Scope // package -> scope
 	Cur       *Scope
 	Types     *typecheck.Checker
 	Returning bool
 	Breaking  bool
+}
+
+func (p *Program) importGo(path string) (*gotypes.Package, error) {
+	if gowrap.Pkgs[path] == nil {
+		return nil, fmt.Errorf("neugram: Go package %q not known", path)
+	}
+	pkg, err := goimporter.Default().Import(path)
+	if err != nil {
+		return nil, err
+	}
+	return pkg, err
 }
 
 func (p *Program) EvalCmd(argv []string) error {
@@ -230,8 +257,12 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		return res, nil
 	case *stmt.Import:
 		typ := p.Types.Lookup(s.Name).Type.(*tipe.Package)
-		fmt.Printf("import %s %#v: %s\n", s.Name, s, typ)
-		// TODO: p.Cur. set something or other here
+		p.Cur.Var[s.Name] = &Variable{
+			Value: &GoPkg{
+				Type:  typ,
+				GoPkg: p.Types.GoPkgs[typ],
+			},
+		}
 		return nil, nil
 	}
 	if s == nil {
@@ -267,7 +298,7 @@ func (p *Program) evalExprAndReadVar(e expr.Expr) (interface{}, error) {
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
 	switch v := e.(type) {
-	case *expr.FuncLiteral:
+	case *expr.FuncLiteral, *GoFunc:
 		// lack of symmetry with BasicLiteral is unfortunate
 		return v, nil
 	case *expr.BasicLiteral:
@@ -365,6 +396,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO function arguments
 		switch fn := res.(type) {
 		case *expr.FuncLiteral:
 			p.pushScope()
@@ -379,6 +411,14 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 				return nil, fmt.Errorf("missing return %v", fn.ResultNames)
 			}
 			return res, nil
+		case *GoFunc:
+			res, err := fn.call()
+			if err != nil {
+				return nil, err
+			}
+			return res, nil
+		default:
+			return nil, fmt.Errorf("do not know how to call %T", fn)
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
@@ -387,6 +427,30 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 		}
 		return nil, nil
+	case *expr.Selector:
+		lhs, err := p.evalExprAndReadVar(e.Left)
+		if err != nil {
+			return nil, err
+		}
+		switch lhs := lhs.(type) {
+		case *GoPkg:
+			v := lhs.Type.Exports[e.Right.Name]
+			if v == nil {
+				return nil, fmt.Errorf("%s not found in Go package %s", e, e.Left)
+			}
+			switch v := v.(type) {
+			case *tipe.Func:
+				res := &GoFunc{
+					Type: v,
+					Func: gowrap.Pkgs[lhs.Type.Path].Exports[e.Right.Name],
+					// TODO
+				}
+				return []interface{}{res}, nil
+			}
+			return nil, fmt.Errorf("TODO GoPkg: %#+v\n", lhs)
+		}
+
+		return nil, fmt.Errorf("unexpected selector LHS: %s", e.Left.Sexp())
 	}
 	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
 }
