@@ -379,6 +379,105 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	}
 }
 
+func (c *Checker) exprPartialCall(e *expr.Call) partial {
+	p := c.expr(e.Func)
+	switch p.mode {
+	default:
+		panic(fmt.Sprintf("unreachable, unknown call mode: %v", p.mode))
+	case modeInvalid:
+		return p
+	case modeTypeExpr:
+		// type conversion
+		if len(e.Args) == 0 {
+			p.mode = modeInvalid
+			c.errorf("type conversion to %s is missing an argument", p.typ)
+			return p
+		} else if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("type conversion to %s has too many arguments", p.typ)
+			return p
+		}
+		t := p.typ
+		p = c.expr(e.Args[0])
+		if p.mode == modeInvalid {
+			return p
+		}
+		c.convert(&p, t)
+		p.expr = e
+		return p
+	case modeVar, modeFunc:
+		// function call, below
+	}
+
+	funct := p.typ.(*tipe.Func)
+	var params, results []tipe.Type
+	if funct.Params != nil {
+		params = funct.Params.Elems
+	}
+	if funct.Results != nil {
+		results = funct.Results.Elems
+	}
+
+	switch len(results) {
+	case 0:
+		p.typ = nil
+	case 1:
+		p.typ = results[0]
+	default:
+		p.typ = funct.Results
+	}
+	p.mode = modeVar
+	p.expr = e
+
+	if funct.Variadic {
+		if len(e.Args) < len(params)-1 {
+			p.mode = modeInvalid
+			c.errorf("too few arguments (%d) to variadic function %s", len(e.Args), funct)
+			return p
+		}
+		for i := 0; i < len(params)-1; i++ {
+			t := params[i]
+			argp := c.expr(e.Args[i])
+			c.convert(&argp, t)
+			if argp.mode == modeInvalid {
+				p.mode = modeInvalid
+				c.errorf("cannot use type %s as type %s in argument %d to function", argp.typ, t, i)
+				return p
+			}
+		}
+		vart := params[len(params)-1].(*tipe.Table).Type
+		varargs := e.Args[len(params)-1:]
+		for _, arg := range varargs {
+			argp := c.expr(arg)
+			c.convert(&argp, vart)
+			if argp.mode == modeInvalid {
+				p.mode = modeInvalid
+				c.errorf("cannot use type %s as type %s in variadic argument to function", argp.typ, vart)
+				return p
+			}
+		}
+		return p
+	}
+
+	if len(e.Args) != len(params) {
+		p.mode = modeInvalid
+		c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), funct)
+		return p
+	}
+	for i, arg := range e.Args {
+		t := params[i]
+		argp := c.expr(arg)
+		c.convert(&argp, t)
+		if argp.mode == modeInvalid {
+			p.mode = modeInvalid
+			c.errorf("cannot use type %s as type %s in argument to function", argp.typ, t)
+			break
+		}
+	}
+
+	return p
+}
+
 func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	//fmt.Printf("exprPartial(%s)\n", e.Sexp())
 	p.expr = e
@@ -565,77 +664,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 
 		return left
 	case *expr.Call:
-		p := c.expr(e.Func)
-		switch p.mode {
-		case modeInvalid:
-			return p
-		case modeVar, modeFunc:
-			// function call
-			funct := p.typ.(*tipe.Func)
-			var params, results []tipe.Type
-			if funct.Params != nil {
-				params = funct.Params.Elems
-			}
-			if funct.Results != nil {
-				results = funct.Results.Elems
-			}
-
-			switch len(results) {
-			case 0:
-				p.typ = nil
-			case 1:
-				p.typ = results[0]
-			default:
-				p.typ = funct.Results
-			}
-
-			if (!funct.Variadic && len(e.Args) != len(params)) || (funct.Variadic && len(e.Args) < len(params)-1) {
-				p.mode = modeInvalid
-				c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), funct)
-			}
-
-			if p.mode != modeInvalid {
-				var argsp []partial
-				for i, arg := range e.Args {
-					t := params[i]
-					argp := c.expr(arg)
-					c.convert(&argp, t)
-					if argp.mode == modeInvalid {
-						p.mode = modeInvalid
-						c.errorf("cannot use type %s as type %s in argument to function", argp.typ, t)
-						break
-					}
-					argsp = append(argsp, argp)
-				}
-			}
-			if p.mode == modeInvalid {
-				return p
-			}
-			p.mode = modeVar
-			p.expr = e
-			return p
-		case modeTypeExpr:
-			// type conversion
-			if len(e.Args) == 0 {
-				p.mode = modeInvalid
-				c.errorf("type conversion to %s is missing an argument", p.typ)
-				return p
-			} else if len(e.Args) != 1 {
-				p.mode = modeInvalid
-				c.errorf("type conversion to %s has too many arguments", p.typ)
-				return p
-			}
-			t := p.typ
-			p = c.expr(e.Args[0])
-			if p.mode == modeInvalid {
-				return p
-			}
-			c.convert(&p, t)
-			p.expr = e
-			return p
-		default:
-			panic(fmt.Sprintf("unreachable, unknown call mode: %v", p.mode))
-		}
+		return c.exprPartialCall(e)
 	case *expr.Selector:
 		left := c.expr(e.Left)
 		if left.mode == modeInvalid {
@@ -698,7 +727,7 @@ func (c *Checker) assign(p *partial, t tipe.Type) {
 }
 
 func (c *Checker) convert(p *partial, t tipe.Type) {
-	fmt.Printf("Checker.convert(p=%#+v, t=%s)\n", p, t)
+	//fmt.Printf("Checker.convert(p=%#+v, t=%s)\n", p, t)
 	_, tIsConst := t.(tipe.Basic)
 	if p.mode == modeConst && tIsConst {
 		// TODO or integer -> string conversion
@@ -711,9 +740,7 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 		}
 	}
 
-	if !convertible(p.typ, t) {
-		// TODO p is assignable to t, lots of possibilities
-		// (interface satisfaction, etc)
+	if !convertible(t, p.typ) {
 		c.errorf("cannot use %s as %s", p.typ, t)
 		p.mode = modeInvalid
 		return
@@ -727,17 +754,23 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 }
 
 func convertible(dst, src tipe.Type) bool {
-	if dst == src {
+	if tipe.Equal(dst, src) {
 		return true
 	}
-	// TODO several other forms of "identical" types,
-	// e.g. maps where keys and value are identical,
-
 	// numerics can be converted to one another
 	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
 		return true
 	}
+	if idst, ok := dst.(*tipe.Interface); ok {
+		// Everything can be converted to interface{}.
+		if len(idst.Methods) == 0 {
+			return true
+		}
+		// TODO matching method sets
+	}
 
+	// TODO several other forms of "identical" types,
+	// e.g. maps where keys and value are identical,
 	return false
 }
 
