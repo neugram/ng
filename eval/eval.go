@@ -307,6 +307,12 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v.Value, nil
 	case bool, int64, float32, float64, *big.Int, *big.Float:
 		return v, nil
+	case int: // GoInt
+		return v, nil
+	case nil:
+		// TODO an extremeley dubious decision
+		// only here for now due to fmt.Println returning (int, error)
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
 	}
@@ -396,9 +402,21 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		// TODO function arguments
+
+		args := make([]interface{}, len(e.Args))
+		for i, arg := range e.Args {
+			// TODO calling g(f()) where:
+			//	g(T, U) and f() (T, U)
+			v, err := p.evalExprAndReadVar(arg)
+			if err != nil {
+				return nil, err
+			}
+			args[i] = v
+		}
+
 		switch fn := res.(type) {
 		case *expr.FuncLiteral:
+			// TODO function arguments
 			p.pushScope()
 			defer p.popScope()
 			res, err := p.evalStmt(fn.Body.(*stmt.Block))
@@ -412,7 +430,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 			return res, nil
 		case *GoFunc:
-			res, err := fn.call()
+			res, err := fn.call(args...)
 			if err != nil {
 				return nil, err
 			}
