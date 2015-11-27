@@ -416,3 +416,15 @@ func Equal(x, y Type) bool {
 	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false
 }
+
+func (t Interface) String() string {
+	if len(t.Methods) == 0 {
+		return "interface{}"
+	}
+	s := "interface{"
+	for name, m := range t.Methods {
+		s += "\t" + name + m.Sexp() // TODO .String()
+	}
+	s += "\n}"
+	return s
+}
