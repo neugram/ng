@@ -29,8 +29,11 @@ type Variable struct {
 	//	*big.Int
 	//	*big.Float
 	//
-	//	*expr.FuncLiteral ?
+	//	*expr.FuncLiteral
+	//
+	//	*GoFunc
 	// 	*GoPkg
+	// 	*GoValue
 	Value interface{}
 }
 
@@ -307,12 +310,10 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v.Value, nil
 	case bool, int64, float32, float64, *big.Int, *big.Float:
 		return v, nil
-	case int: // GoInt
+	case int, string: // TODO: are these all GoValues now?
 		return v, nil
-	case nil:
-		// TODO an extremeley dubious decision
-		// only here for now due to fmt.Println returning (int, error)
-		return nil, nil
+	case *GoValue:
+		return v.Value, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
 	}

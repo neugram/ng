@@ -93,6 +93,8 @@ const (
 	Invalid Basic = "invalid"
 	Num     Basic = "num" // type parameter
 	Bool    Basic = "bool"
+	Byte    Basic = "byte"
+	Rune    Basic = "rune"
 	Integer Basic = "integer"
 	Float   Basic = "float"
 	Complex Basic = "complex"

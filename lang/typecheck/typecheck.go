@@ -27,6 +27,7 @@ type Checker struct {
 	Defs    map[*expr.Ident]*Obj
 	Values  map[expr.Expr]constant.Value
 	GoPkgs  map[*tipe.Package]*gotypes.Package
+	GoTypes map[gotypes.Type]tipe.Type
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 	Errs    []error
 
@@ -40,6 +41,7 @@ func New() *Checker {
 		Defs:     make(map[*expr.Ident]*Obj),
 		Values:   make(map[expr.Expr]constant.Value),
 		GoPkgs:   make(map[*tipe.Package]*gotypes.Package),
+		GoTypes:  make(map[gotypes.Type]tipe.Type),
 		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
@@ -245,10 +247,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 
 var goErrorID = gotypes.Universe.Lookup("error").Id()
 
-func fromGoType(t gotypes.Type) (res tipe.Type) {
+func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 	defer func() {
 		if res == nil {
 			fmt.Printf("typecheck: unknown go type: %v\n", t)
+		} else {
+			c.GoTypes[t] = res
 		}
 	}()
 	switch t := t.(type) {
@@ -256,6 +260,10 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 		switch t.Kind() {
 		case gotypes.Bool:
 			return tipe.Bool
+		case gotypes.Byte:
+			return tipe.Byte
+		case gotypes.Rune:
+			return tipe.Rune
 		case gotypes.String:
 			return tipe.String
 		case gotypes.Int64:
@@ -271,14 +279,14 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 		if t.Obj().Id() == goErrorID {
 			return Universe.Objs["error"].Type
 		}
-		return fromGoType(t.Underlying())
+		return c.fromGoType(t.Underlying())
 	case *gotypes.Slice:
-		return &tipe.Table{Type: fromGoType(t.Elem())}
+		return &tipe.Table{Type: c.fromGoType(t.Elem())}
 	case *gotypes.Interface:
 		res := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
-			res.Methods[m.Name()] = fromGoType(m.Type()).(*tipe.Func)
+			res.Methods[m.Name()] = c.fromGoType(m.Type()).(*tipe.Func)
 		}
 		return res
 	case *gotypes.Signature:
@@ -290,10 +298,10 @@ func fromGoType(t gotypes.Type) (res tipe.Type) {
 			Variadic: t.Variadic(),
 		}
 		for i := 0; i < p.Len(); i++ {
-			res.Params.Elems[i] = fromGoType(p.At(i).Type())
+			res.Params.Elems[i] = c.fromGoType(p.At(i).Type())
 		}
 		for i := 0; i < r.Len(); i++ {
-			res.Results.Elems[i] = fromGoType(r.At(i).Type())
+			res.Results.Elems[i] = c.fromGoType(r.At(i).Type())
 		}
 		return res
 	}
@@ -313,7 +321,7 @@ func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Package {
 		if !obj.Exported() {
 			continue
 		}
-		pkg.Exports[name] = fromGoType(obj.Type())
+		pkg.Exports[name] = c.fromGoType(obj.Type())
 	}
 	return pkg
 }

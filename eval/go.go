@@ -18,6 +18,11 @@ type GoPkg struct {
 	Wrap  *gowrap.Pkg
 }
 
+type GoValue struct {
+	Type  tipe.Type
+	Value interface{}
+}
+
 type GoFunc struct {
 	Type *tipe.Func
 	Func interface{}
@@ -44,7 +49,10 @@ func (f GoFunc) call(args ...interface{}) (res []interface{}, err error) {
 
 	res = make([]interface{}, len(vres))
 	for i, v := range vres {
-		res[i] = v.Interface()
+		res[i] = &GoValue{
+			Type:  f.Type.Results.Elems[i],
+			Value: v.Interface(),
+		}
 	}
 	return res, nil
 }

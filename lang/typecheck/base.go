@@ -10,6 +10,8 @@ var Universe = &Scope{Objs: make(map[string]*Obj)}
 func init() {
 	var basic = []tipe.Basic{
 		tipe.Bool,
+		tipe.Byte,
+		tipe.Rune,
 		tipe.Integer,
 		tipe.Float,
 		tipe.Complex,
