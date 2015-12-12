@@ -1,16 +1,37 @@
-// Copyright 2015 The Neugram Authors. All rights reserved.
-// See the LICENSE file for rights to use this source code.
+// Generated file, do not edit.
 
 package gowrap
 
 import "fmt"
 
-// TODO: generate this file
-
 var wrap_fmt = &Pkg{
 	Exports: map[string]interface{}{
-		"Println": fmt.Println,
-		"Printf":  fmt.Printf,
+
+		"Errorf":     fmt.Errorf,
+		"Formatter":  fmt.Formatter(nil),
+		"Fprint":     fmt.Fprint,
+		"Fprintf":    fmt.Fprintf,
+		"Fprintln":   fmt.Fprintln,
+		"Fscan":      fmt.Fscan,
+		"Fscanf":     fmt.Fscanf,
+		"Fscanln":    fmt.Fscanln,
+		"GoStringer": fmt.GoStringer(nil),
+		"Print":      fmt.Print,
+		"Printf":     fmt.Printf,
+		"Println":    fmt.Println,
+		"Scan":       fmt.Scan,
+		"ScanState":  fmt.ScanState(nil),
+		"Scanf":      fmt.Scanf,
+		"Scanln":     fmt.Scanln,
+		"Scanner":    fmt.Scanner(nil),
+		"Sprint":     fmt.Sprint,
+		"Sprintf":    fmt.Sprintf,
+		"Sprintln":   fmt.Sprintln,
+		"Sscan":      fmt.Sscan,
+		"Sscanf":     fmt.Sscanf,
+		"Sscanln":    fmt.Sscanln,
+		"State":      fmt.State(nil),
+		"Stringer":   fmt.Stringer(nil),
 	},
 }
 
