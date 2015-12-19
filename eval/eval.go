@@ -327,6 +327,31 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 	}
 }
 
+func (p *Program) callFuncLiteral(f *expr.FuncLiteral, args []interface{}) ([]interface{}, error) {
+	p.pushScope()
+	defer p.popScope()
+
+	if f.Type.Variadic {
+		return nil, fmt.Errorf("TODO call FuncLiteral with variadic args")
+	} else {
+		for i, name := range f.ParamNames {
+			v := &Variable{Value: args[i]}
+			p.Cur.Var[name] = v
+		}
+	}
+
+	res, err := p.evalStmt(f.Body.(*stmt.Block))
+	if err != nil {
+		return nil, err
+	}
+	if p.Returning {
+		p.Returning = false
+	} else if len(f.ResultNames) > 0 {
+		return nil, fmt.Errorf("missing return %v", f.ResultNames)
+	}
+	return res, nil
+}
+
 func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 	switch e := e.(type) {
 	case *expr.BasicLiteral, *expr.FuncLiteral:
@@ -425,21 +450,9 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 
 		switch fn := res.(type) {
 		case *expr.FuncLiteral:
-			// TODO function arguments
-			p.pushScope()
-			defer p.popScope()
-			res, err := p.evalStmt(fn.Body.(*stmt.Block))
-			if err != nil {
-				return nil, err
-			}
-			if p.Returning {
-				p.Returning = false
-			} else if len(fn.ResultNames) > 0 {
-				return nil, fmt.Errorf("missing return %v", fn.ResultNames)
-			}
-			return res, nil
+			return p.callFuncLiteral(fn, args)
 		case *GoFunc:
-			res, err := fn.call(args...)
+			res, err := fn.call(args)
 			if err != nil {
 				return nil, err
 			}

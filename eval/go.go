@@ -28,7 +28,7 @@ type GoFunc struct {
 	Func interface{}
 }
 
-func (f GoFunc) call(args ...interface{}) (res []interface{}, err error) {
+func (f GoFunc) call(args []interface{}) (res []interface{}, err error) {
 	var vres []reflect.Value
 	v := reflect.ValueOf(f.Func)
 	if f.Type.Variadic {
