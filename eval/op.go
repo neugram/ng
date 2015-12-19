@@ -48,6 +48,11 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 				z := big.NewFloat(0)
 				return z.Add(x, y), nil
 			}
+		case string:
+			switch y := y.(type) {
+			case string:
+				return x + y, nil
+			}
 		}
 	case token.Sub:
 		switch x := x.(type) {
