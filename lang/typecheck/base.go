@@ -5,7 +5,24 @@ package typecheck
 
 import "neugram.io/lang/tipe"
 
-var Universe = &Scope{Objs: make(map[string]*Obj)}
+var Universe = &Scope{Objs: universeObjs}
+
+var universeObjs = map[string]*Obj{
+	"true":  &Obj{Kind: ObjVar, Type: tipe.Bool},
+	"false": &Obj{Kind: ObjVar, Type: tipe.Bool},
+	"error": &Obj{
+		Kind: ObjType,
+		Type: &tipe.Interface{
+			Methods: map[string]*tipe.Func{
+				"Error": &tipe.Func{
+					Results: &tipe.Tuple{
+						Elems: []tipe.Type{tipe.String},
+					},
+				},
+			},
+		},
+	},
+}
 
 func init() {
 	var basic = []tipe.Basic{
@@ -23,17 +40,5 @@ func init() {
 	}
 	for _, t := range basic {
 		Universe.Objs[string(t)] = &Obj{Kind: ObjType, Type: t}
-	}
-	Universe.Objs["error"] = &Obj{
-		Kind: ObjType,
-		Type: &tipe.Interface{
-			Methods: map[string]*tipe.Func{
-				"Error": &tipe.Func{
-					Results: &tipe.Tuple{
-						Elems: []tipe.Type{tipe.String},
-					},
-				},
-			},
-		},
 	}
 }

@@ -42,10 +42,18 @@ type Scope struct {
 	Var    map[string]*Variable // variable name -> variable
 }
 
+var universeScope = &Scope{Var: map[string]*Variable{
+	"true":  &Variable{Value: true},
+	"false": &Variable{Value: false},
+}}
+
 func New() *Program {
 	p := &Program{
 		Pkg: map[string]*Scope{
-			"main": &Scope{Var: map[string]*Variable{}},
+			"main": &Scope{
+				Parent: universeScope,
+				Var:    map[string]*Variable{},
+			},
 		},
 		Types: typecheck.New(),
 	}
