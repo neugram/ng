@@ -339,7 +339,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 		pkg := c.goPackage(gopkg)
 		c.GoPkgs[pkg] = gopkg
 		obj := &Obj{
-			Kind: ObjVar, // TODO: new ObjKind
+			Kind: ObjPkg,
 			Type: pkg,
 			// TODO Decl?
 		}
@@ -501,7 +501,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		// TODO: is a partial's mode just an ObjKind?
 		// not every partial has an Obj, but we could reuse the type.
 		switch obj.Kind {
-		case ObjVar:
+		case ObjVar, ObjPkg:
 			p.mode = modeVar
 		case ObjType:
 			p.mode = modeTypeExpr
@@ -527,6 +527,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.FuncLiteral:
 		c.pushScope()
 		defer c.popScope()
+		c.cur.foundInParent = make(map[string]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
 				e.Type.Params.Elems[i], _ = c.resolve(t)
@@ -542,9 +543,12 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				e.Type.Results.Elems[i], _ = c.resolve(t)
 			}
 		}
+		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
+		for name := range c.cur.foundInParent {
+			e.Type.FreeVars = append(e.Type.FreeVars, name)
+		}
 		p.typ = e.Type
 		p.mode = modeFunc
-		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
 		return p
 	case *expr.CompLiteral:
 		p.mode = modeVar
@@ -970,17 +974,22 @@ type Scope struct {
 	Parent *Scope
 	Objs   map[string]*Obj
 
+	foundInParent map[string]bool
 	// TODO: NumSpec tipe.Type?
 }
 
 func (s *Scope) LookupRec(name string) *Obj {
-	for s != nil {
-		if o := s.Objs[name]; o != nil {
-			return o
-		}
-		s = s.Parent
+	if o := s.Objs[name]; o != nil {
+		return o
 	}
-	return nil
+	if s.Parent == nil {
+		return nil
+	}
+	o := s.Parent.LookupRec(name)
+	if o != nil && s.foundInParent != nil && o.Kind == ObjVar {
+		s.foundInParent[name] = true
+	}
+	return o
 }
 
 type ObjKind int
@@ -988,6 +997,7 @@ type ObjKind int
 const (
 	ObjUnknown ObjKind = iota
 	ObjVar
+	ObjPkg
 	ObjType
 )
 
@@ -997,6 +1007,8 @@ func (o ObjKind) String() string {
 		return "ObjUnknown"
 	case ObjVar:
 		return "ObjVar"
+	case ObjPkg:
+		return "ObjPkg"
 	case ObjType:
 		return "ObjType"
 	default:

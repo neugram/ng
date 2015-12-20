@@ -22,6 +22,7 @@ type Func struct {
 	Params   *Tuple
 	Results  *Tuple
 	Variadic bool // last value of Params is a slice
+	FreeVars []string
 }
 
 type Class struct {
