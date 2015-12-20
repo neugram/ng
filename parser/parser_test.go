@@ -317,20 +317,64 @@ var stmtTests = []stmtTest{
 		},
 	},
 	{
-		`type a class {
+		`type A integer`,
+		&stmt.TypeDecl{Name: "A", Type: tipe.Integer},
+	},
+	{
+		`type S struct { x integer }`,
+		&stmt.TypeDecl{
+			Name: "S",
+			Type: &tipe.Struct{
+				FieldNames: []string{"x"},
+				Fields:     []tipe.Type{tipe.Integer},
+			},
+		},
+	},
+	{
+		`methodik AnInt integer {
+			func (a) f() integer { return a }
+		}
+		`,
+		&stmt.MethodikDecl{
+			Name: "AnInt",
+			Type: &tipe.Methodik{
+				Type:        tipe.Integer,
+				MethodNames: []string{"f"},
+				Methods: []tipe.Type{
+					&tipe.Func{
+						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					},
+				},
+			},
+			Methods: []*expr.FuncLiteral{{
+				Name:         "f",
+				ReceiverName: "a",
+				Type: &tipe.Func{
+					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+				},
+				Body: &stmt.Block{Stmts: []stmt.Stmt{
+					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"a"}}},
+				}},
+			}},
+		},
+	},
+	{
+		`methodik T *struct{
 			x integer
 			y [|]int64
-
-			func (a *a) f(x integer) integer {
+		} {
+			func (a) f(x integer) integer {
 				return a.x
 			}
 		}
 		`,
-		&stmt.ClassDecl{
-			Name: "a",
-			Type: &tipe.Class{
-				FieldNames:  []string{"x", "y"},
-				Fields:      []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
+		&stmt.MethodikDecl{
+			Name: "T",
+			Type: &tipe.Methodik{
+				Type: &tipe.Struct{
+					FieldNames: []string{"x", "y"},
+					Fields:     []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
+				},
 				MethodNames: []string{"f"},
 				Methods: []tipe.Type{
 					&tipe.Func{

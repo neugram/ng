@@ -32,6 +32,8 @@ type Checker struct {
 	Errs    []error
 
 	cur *Scope
+
+	memory *tipe.Memory
 }
 
 func New() *Checker {
@@ -46,6 +48,7 @@ func New() *Checker {
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
+		memory: tipe.NewMemory(),
 	}
 }
 
@@ -144,16 +147,32 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		}
 		c.stmt(s.Body, retType)
 
-	case *stmt.ClassDecl:
-		var usesNum bool
-		var resolved bool
-		for i, f := range s.Type.Fields {
-			s.Type.Fields[i], resolved = c.resolve(f)
-			usesNum = usesNum || tipe.UsesNum(s.Type.Fields[i])
-			if !resolved {
-				return
+	case *stmt.TypeDecl:
+		if t, ok := s.Type.(*tipe.Struct); ok {
+			var usesNum bool
+			var resolved bool
+			for i, f := range t.Fields {
+				t.Fields[i], resolved = c.resolve(f)
+				usesNum = usesNum || tipe.UsesNum(t.Fields[i])
+				if !resolved {
+					return
+				}
+			}
+			if usesNum {
+				t.Spec.Num = tipe.Num
 			}
 		}
+
+		obj := &Obj{
+			Kind: ObjType,
+			Type: s.Type,
+			Decl: s,
+		}
+		c.cur.Objs[s.Name] = obj
+
+	case *stmt.MethodikDecl:
+		var usesNum bool
+		var resolved bool
 		for i, f := range s.Type.Methods {
 			s.Type.Methods[i], resolved = c.resolve(f)
 			usesNum = usesNum || tipe.UsesNum(s.Type.Methods[i])
@@ -552,7 +571,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		return p
 	case *expr.CompLiteral:
 		p.mode = modeVar
-		className := fmt.Sprintf("%s", e.Type)
+		structName := fmt.Sprintf("%s", e.Type)
 		if t, resolved := c.resolve(e.Type); resolved {
 			e.Type = t
 			p.typ = t
@@ -560,8 +579,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
-		class, isClass := e.Type.(*tipe.Class)
-		if !isClass {
+		t, isStruct := tipe.Underlying(e.Type).(*tipe.Struct)
+		if !isStruct {
 			c.errorf("cannot construct type %s with a composite literal", e.Type)
 			p.mode = modeInvalid
 			return p
@@ -575,12 +594,12 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			}
 		}
 		if len(e.Names) == 0 {
-			if len(e.Elements) != len(class.Fields) {
-				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), className, len(class.Fields))
+			if len(e.Elements) != len(t.Fields) {
+				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
 				p.mode = modeInvalid
 				return p
 			}
-			for i, ft := range class.Fields {
+			for i, ft := range t.Fields {
 				c.assign(&elemsp[i], ft)
 				if elemsp[i].mode == modeInvalid {
 					p.mode = modeInvalid
@@ -678,24 +697,27 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.Call:
 		return c.exprPartialCall(e)
 	case *expr.Selector:
+		right := e.Right.Name
 		left := c.expr(e.Left)
 		if left.mode == modeInvalid {
 			return left
 		}
-		switch lt := left.typ.(type) {
-		case *tipe.Class:
-			right := e.Right.Name
+
+		methodNames, methods := c.memory.Methods(left.typ)
+		for i, name := range methodNames {
+			if name == right {
+				p.mode = modeVar // modeFunc?
+				p.typ = methods[i]
+				return
+			}
+		}
+
+		switch lt := tipe.Underlying(left.typ).(type) {
+		case *tipe.Struct:
 			for i, name := range lt.FieldNames {
 				if name == right {
 					p.mode = modeVar
 					p.typ = lt.Fields[i]
-					return
-				}
-			}
-			for i, name := range lt.MethodNames {
-				if name == right {
-					p.mode = modeVar // modeFunc?
-					p.typ = lt.Methods[i]
 					return
 				}
 			}
@@ -715,7 +737,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			return p
 		}
 		p.mode = modeInvalid
-		c.errorf("%s undefined (type %s is not a class or package)", e, left.typ)
+		c.errorf("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
 	case *expr.Shell:
 		p.mode = modeVoid

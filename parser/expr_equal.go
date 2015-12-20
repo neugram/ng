@@ -223,13 +223,16 @@ func equalType(t0, t1 tipe.Type) bool {
 		if !equalTuple(t0.Results, t1.Results) {
 			return false
 		}
-	case *tipe.Class:
-		t1, ok := t1.(*tipe.Class)
+	case *tipe.Struct:
+		t1, ok := t1.(*tipe.Struct)
 		if !ok {
 			return false
 		}
 		if t0 == nil || t1 == nil {
 			return t0 == nil && t1 == nil
+		}
+		if t0.Spec != t1.Spec {
+			return false
 		}
 		if !reflect.DeepEqual(t0.FieldNames, t1.FieldNames) {
 			return false
@@ -239,6 +242,28 @@ func equalType(t0, t1 tipe.Type) bool {
 		}
 		for i := range t0.Fields {
 			if !equalType(t0.Fields[i], t1.Fields[i]) {
+				return false
+			}
+		}
+	case *tipe.Methodik:
+		t1, ok := t1.(*tipe.Methodik)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if t0.Spec != t1.Spec {
+			return false
+		}
+		if !reflect.DeepEqual(t0.MethodNames, t1.MethodNames) {
+			return false
+		}
+		if len(t0.Methods) != len(t1.Methods) {
+			return false
+		}
+		for i := range t0.Methods {
+			if !equalType(t0.Methods[i], t1.Methods[i]) {
 				return false
 			}
 		}
@@ -319,8 +344,8 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Path != y.Path {
 			return false
 		}
-	case *stmt.ClassDecl:
-		y, ok := y.(*stmt.ClassDecl)
+	case *stmt.MethodikDecl:
+		y, ok := y.(*stmt.MethodikDecl)
 		if !ok {
 			return false
 		}
@@ -337,6 +362,17 @@ func EqualStmt(x, y stmt.Stmt) bool {
 			if !EqualExpr(x.Methods[i], y.Methods[i]) {
 				return false
 			}
+		}
+	case *stmt.TypeDecl:
+		y, ok := y.(*stmt.TypeDecl)
+		if !ok {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
 		}
 	case *stmt.Const:
 		y, ok := y.(*stmt.Const)

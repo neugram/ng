@@ -24,9 +24,14 @@ type Import struct {
 	FromGo bool
 }
 
-type ClassDecl struct {
+type TypeDecl struct {
+	Name string
+	Type tipe.Type
+}
+
+type MethodikDecl struct {
 	Name    string
-	Type    *tipe.Class
+	Type    *tipe.Methodik
 	Methods []*expr.FuncLiteral
 }
 
@@ -77,16 +82,17 @@ type Simple struct {
 	Expr expr.Expr
 }
 
-func (s Import) stmt()    {}
-func (s ClassDecl) stmt() {}
-func (s Const) stmt()     {}
-func (s Assign) stmt()    {}
-func (s Block) stmt()     {}
-func (s If) stmt()        {}
-func (s For) stmt()       {}
-func (s Range) stmt()     {}
-func (s Return) stmt()    {}
-func (s Simple) stmt()    {}
+func (s Import) stmt()       {}
+func (s TypeDecl) stmt()     {}
+func (s MethodikDecl) stmt() {}
+func (s Const) stmt()        {}
+func (s Assign) stmt()       {}
+func (s Block) stmt()        {}
+func (s If) stmt()           {}
+func (s For) stmt()          {}
+func (s Range) stmt()        {}
+func (s Return) stmt()       {}
+func (s Simple) stmt()       {}
 
 func (s *Block) Sexp() string {
 	buf := new(bytes.Buffer)
@@ -100,12 +106,15 @@ func (s *Block) Sexp() string {
 }
 func (e *Return) Sexp() string { return fmt.Sprintf("(return %s)", exprsStr(e.Exprs)) }
 func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, e.Path) }
-func (e *ClassDecl) Sexp() string {
+func (e *TypeDecl) Sexp() string {
+	return fmt.Sprintf("(typedecl %s %s)", e.Name, typeSexp(e.Type))
+}
+func (e *MethodikDecl) Sexp() string {
 	var methods []string
 	for _, m := range e.Methods {
 		methods = append(methods, m.Sexp())
 	}
-	return fmt.Sprintf("(classdecl %s %s %s)", e.Name, typeSexp(e.Type), strings.Join(methods, " "))
+	return fmt.Sprintf("(methodikdecl %s %s %s)", e.Name, typeSexp(e.Type), strings.Join(methods, " "))
 }
 func (e *Const) Sexp() string {
 	return fmt.Sprintf("(constdecl %s %s %s)", e.Name, typeSexp(e.Type), exprSexp(e.Value))

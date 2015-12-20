@@ -82,14 +82,14 @@ var typeTests = []typeTest{
 	},
 	{
 		[]string{
-			`type A class {
+			`type A struct {
 				X float64
 			}`,
 			`a := A{34.1}`,
 			`b := a.X`,
 		},
 		[]identType{
-			{"a", &tipe.Class{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Float64}}},
+			{"a", &tipe.Struct{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Float64}}},
 			{"b", tipe.Float64},
 		},
 	},
@@ -101,11 +101,11 @@ var typeTests = []typeTest{
 	},
 	{
 		[]string{
-			`type A class {
-				X int64
-				func (a *A) Y() int64 { return a.X }
-				func (a *A) Z() int64 { return a.Y() + a.X }
-			}`,
+			`methodik A struct{ X int64 } {
+				func (a) Y() int64 { return a.X }
+				func (a) Z() int64 { return a.Y() + a.X }
+			}
+			`,
 			`a := A{34}`,
 			`z := a.Z()`,
 		},

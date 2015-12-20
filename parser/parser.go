@@ -417,57 +417,37 @@ func (p *Parser) parseOut() (names []string, params *tipe.Tuple) {
 	return names, params
 }
 
-func (p *Parser) parseTypeDecl(name string) stmt.Stmt {
-	switch p.s.Token {
-	case token.Interface:
-		p.errorf("TODO interface declaration")
-		return nil
-	case token.Class:
-		p.next()
-		p.expect(token.LeftBrace)
-		p.next()
-		c := &stmt.ClassDecl{
-			Name: name,
-			Type: &tipe.Class{},
-		}
-		tags := make(map[string]bool)
-		for p.s.Token > 0 && p.s.Token != token.RightBrace {
-			if p.s.Token == token.Func {
-				m := p.parseFunc(true)
-				if tags[m.Name] {
-					p.errorf("field %s redeclared in class %s", m.Name, c.Name)
-				} else {
-					tags[m.Name] = true
-					c.Type.MethodNames = append(c.Type.MethodNames, m.Name)
-					c.Type.Methods = append(c.Type.Methods, m.Type)
-					c.Methods = append(c.Methods, m)
-				}
-			} else {
-				n := p.parseIdent().Name
-				t := p.parseType()
-				if len(c.Methods) > 0 {
-					p.errorf("class fields must be declared before methods")
-				} else if tags[n] {
-					p.errorf("field %s redeclared in class %s", n, c.Name)
-				} else {
-					tags[n] = true
-					c.Type.FieldNames = append(c.Type.FieldNames, n)
-					c.Type.Fields = append(c.Type.Fields, t)
-				}
-			}
-			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
-				p.next()
-			} else if p.s.Token != token.RightBrace {
-				p.expect(token.Comma) // produce error
-			}
-		}
-		p.expect(token.RightBrace)
-		p.next()
-		return c
-	default:
-		p.errorf("expected type declaration, got %s", p.s.Token)
-		return nil
+func (p *Parser) parseMethodik(name string) stmt.Stmt {
+	c := &stmt.MethodikDecl{
+		Name: name,
+		Type: &tipe.Methodik{
+			// TODO Spec
+			Type: p.parseType(),
+		},
 	}
+	p.expect(token.LeftBrace)
+	p.next()
+
+	tags := make(map[string]bool)
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		p.expect(token.Func)
+		m := p.parseFunc(true)
+		if tags[m.Name] {
+			p.errorf("func %s redeclared in methodik %s", m.Name, c.Name)
+		} else {
+			tags[m.Name] = true
+			c.Type.MethodNames = append(c.Type.MethodNames, m.Name)
+			c.Type.Methods = append(c.Type.Methods, m.Type)
+			c.Methods = append(c.Methods, m)
+		}
+		if p.s.Token == token.Semicolon {
+			p.next()
+		}
+	}
+	p.expect(token.RightBrace)
+	p.next()
+
+	return c
 }
 
 func (p *Parser) parseType() tipe.Type {
@@ -524,6 +504,31 @@ func (p *Parser) maybeParseType() tipe.Type {
 	case token.Mul:
 		p.next()
 		return &tipe.Pointer{Elem: p.parseType()}
+	case token.Struct:
+		p.next()
+		p.expect(token.LeftBrace)
+		p.next()
+		s := &tipe.Struct{}
+		tags := make(map[string]bool)
+		for p.s.Token > 0 && p.s.Token != token.RightBrace {
+			n := p.parseIdent().Name
+			t := p.parseType()
+			if tags[n] {
+				p.errorf("field %s redeclared in struct %s", n, s)
+			} else {
+				tags[n] = true
+				s.FieldNames = append(s.FieldNames, n)
+				s.Fields = append(s.Fields, t)
+			}
+			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
+				p.next()
+			} else if p.s.Token != token.RightBrace {
+				p.expect(token.Comma) // produce error
+			}
+		}
+		p.expect(token.RightBrace)
+		p.next()
+		return s
 	case token.Func:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Map:
@@ -720,9 +725,17 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s.Value = p.parseExpr()
 		p.expectSemi()
 		return s
+	case token.Methodik:
+		p.next()
+		m := p.parseMethodik(p.parseIdent().Name)
+		p.expectSemi()
+		return m
 	case token.Type:
 		p.next()
-		s := p.parseTypeDecl(p.parseIdent().Name)
+		s := &stmt.TypeDecl{
+			Name: p.parseIdent().Name,
+			Type: p.parseType(),
+		}
 		p.expectSemi()
 		return s
 	case token.Importgo:
@@ -858,16 +871,11 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 	}
 
 	if method {
-		// func (a *A) f()
-		// TODO support not-pointer-receiver
-		f.PointerReceiver = true
+		// func (a) f()
+		f.PointerReceiver = true // TODO remove?
 		p.expect(token.LeftParen)
 		p.next()
 		f.ReceiverName = p.parseIdent().Name
-		t := p.parseType()
-		if _, ok := t.(*tipe.Pointer); !ok {
-			p.errorf("class method must be defined on class pointer receiver")
-		}
 		p.expect(token.RightParen)
 		p.next()
 	}

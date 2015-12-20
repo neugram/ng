@@ -9,6 +9,7 @@ package tipe
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -25,10 +26,15 @@ type Func struct {
 	FreeVars []string
 }
 
-type Class struct {
+type Struct struct {
+	Spec       Specialization
+	FieldNames []string
+	Fields     []Type
+}
+
+type Methodik struct {
 	Spec        Specialization
-	FieldNames  []string
-	Fields      []Type
+	Type        Type
 	MethodNames []string
 	Methods     []Type
 }
@@ -73,7 +79,7 @@ type Interface struct {
 
 // Specialization carries any type specialization data particular to this type.
 //
-// Both *Func and *Class can be parameterized over the name num, which can
+// *Func, *Struct, *Methodik can be parameterized over the name num, which can
 // take any of:
 //
 //	integer, int64, float, float32, float64, complex, complex128
@@ -121,7 +127,8 @@ type Unresolved struct {
 var (
 	_ = Type(Basic(""))
 	_ = Type((*Func)(nil))
-	_ = Type((*Class)(nil))
+	_ = Type((*Struct)(nil))
+	_ = Type((*Methodik)(nil))
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
@@ -132,7 +139,8 @@ var (
 
 func (t Basic) tipe()       {}
 func (t *Func) tipe()       {}
-func (t *Class) tipe()      {}
+func (t *Struct) tipe()     {}
+func (t *Methodik) tipe()   {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
@@ -156,15 +164,23 @@ func (e *Func) Sexp() string {
 	}
 	return fmt.Sprintf("(functype %s %s %s)", e.Spec.Sexp(), p, r)
 }
-func (e *Class) Sexp() string {
+func (e *Struct) Sexp() string {
 	var s []string
 	for i, tag := range e.FieldNames {
 		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
 	}
+	return fmt.Sprintf("(structtype %s %s)", e.Spec.Sexp(), strings.Join(s, " "))
+}
+func (e *Methodik) Sexp() string {
+	u := "nil"
+	if e.Type != nil {
+		u = e.Type.Sexp()
+	}
+	var s []string
 	for i, tag := range e.MethodNames {
 		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Methods[i].Sexp()))
 	}
-	return fmt.Sprintf("(classtype %s %s)", e.Spec.Sexp(), strings.Join(s, " "))
+	return fmt.Sprintf("(methodiktype %s %s %s)", e.Spec.Sexp(), u, strings.Join(s, " "))
 }
 func (e *Table) Sexp() string {
 	u := "nil"
@@ -251,12 +267,13 @@ func UsesNum(t Type) bool {
 				}
 			}
 		}
-	case *Class:
+	case *Struct:
 		for _, t := range t.Fields {
 			if UsesNum(t) {
 				return true
 			}
 		}
+	case *Methodik:
 		for _, t := range t.Methods {
 			if UsesNum(t) {
 				return true
@@ -295,8 +312,8 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		return true
-	case *Class:
-		y, ok := y.(*Class)
+	case *Struct:
+		y, ok := y.(*Struct)
 		if !ok {
 			return false
 		}
@@ -316,6 +333,21 @@ func Equal(x, y Type) bool {
 			if !Equal(x.Fields[i], y.Fields[i]) {
 				return false
 			}
+		}
+		return true
+	case *Methodik:
+		y, ok := y.(*Methodik)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if x.Spec != y.Spec {
+			return false
+		}
+		if !Equal(x.Type, y.Type) {
+			return false
 		}
 		if !reflect.DeepEqual(x.MethodNames, y.MethodNames) {
 			return false
@@ -430,4 +462,68 @@ func (t Interface) String() string {
 	}
 	s += "\n}"
 	return s
+}
+
+func Underlying(t Type) Type {
+	if t == nil {
+		return nil
+	}
+	switch t := t.(type) {
+	// TODO case *Named:
+	case *Methodik:
+		return Underlying(t.Type)
+	default:
+		return t
+	}
+}
+
+type Memory struct {
+	methodNames map[Type][]string
+	methods     map[Type][]Type
+}
+
+func NewMemory() *Memory {
+	return &Memory{
+		methodNames: make(map[Type][]string),
+		methods:     make(map[Type][]Type),
+	}
+}
+
+func (m *Memory) Methods(t Type) ([]string, []Type) {
+	names := m.methodNames[t]
+	if names != nil {
+		return names, m.methods[t]
+	}
+	methodset := make(map[string]Type)
+	methods(t, methodset, 0)
+
+	for name := range methodset {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var methods []Type
+	for _, name := range names {
+		methods = append(methods, methodset[name])
+	}
+	m.methodNames[t] = names
+	m.methods[t] = methods
+	return names, methods
+}
+
+func methods(t Type, methodset map[string]Type, pointersRemoved int) {
+	switch t := t.(type) {
+	// TODO case *Named:
+	case *Pointer:
+		if pointersRemoved < 1 {
+			methods(t.Elem, methodset, pointersRemoved+1)
+		}
+	case *Methodik:
+		for i, name := range t.MethodNames {
+			if methodset[name] != nil {
+				continue
+			}
+			methodset[name] = t.Methods[i]
+		}
+		methods(t.Type, methodset, pointersRemoved)
+	}
 }
