@@ -20,6 +20,7 @@ import (
 	"neugram.io/lang/typecheck"
 )
 
+// A Variable is an addressable Value.
 type Variable struct {
 	// Value has the type:
 	//	nil
@@ -30,11 +31,12 @@ type Variable struct {
 	//	*big.Float
 	//
 	//	*expr.FuncLiteral
+	//	*Closure
 	//
 	//	*GoFunc
 	// 	*GoPkg
 	// 	*GoValue
-	Value interface{}
+	Value interface{} // TODO introduce a Value type
 }
 
 type Scope struct {
@@ -42,10 +44,25 @@ type Scope struct {
 	Var    map[string]*Variable // variable name -> variable
 }
 
+func (s *Scope) lookup(name string) *Variable {
+	if v := s.Var[name]; v != nil {
+		return v
+	}
+	if s.Parent != nil {
+		return s.Parent.lookup(name)
+	}
+	return nil
+}
+
 var universeScope = &Scope{Var: map[string]*Variable{
 	"true":  &Variable{Value: true},
 	"false": &Variable{Value: false},
 }}
+
+type Closure struct {
+	Func  *expr.FuncLiteral
+	Scope *Scope
+}
 
 func New() *Program {
 	p := &Program{
@@ -309,7 +326,7 @@ func (p *Program) evalExprAndReadVar(e expr.Expr) (interface{}, error) {
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
 	switch v := e.(type) {
-	case *expr.FuncLiteral, *GoFunc:
+	case *expr.FuncLiteral, *GoFunc, *Closure:
 		// lack of symmetry with BasicLiteral is unfortunate
 		return v, nil
 	case *expr.BasicLiteral:
@@ -325,6 +342,13 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
 	}
+}
+
+func (p *Program) callClosure(c *Closure, args []interface{}) ([]interface{}, error) {
+	oldCur := p.Cur
+	p.Cur = c.Scope
+	defer func() { p.Cur = oldCur }()
+	return p.callFuncLiteral(c.Func, args)
 }
 
 func (p *Program) callFuncLiteral(f *expr.FuncLiteral, args []interface{}) ([]interface{}, error) {
@@ -354,13 +378,26 @@ func (p *Program) callFuncLiteral(f *expr.FuncLiteral, args []interface{}) ([]in
 
 func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 	switch e := e.(type) {
-	case *expr.BasicLiteral, *expr.FuncLiteral:
+	case *expr.BasicLiteral:
 		return []interface{}{e}, nil
+	case *expr.FuncLiteral:
+		if len(e.Type.FreeVars) == 0 {
+			return []interface{}{e}, nil
+		}
+		c := &Closure{
+			Func: e,
+			Scope: &Scope{
+				Parent: p.Cur,
+				Var:    make(map[string]*Variable),
+			},
+		}
+		for _, name := range e.Type.FreeVars {
+			c.Scope.Var[name] = p.Cur.lookup(name)
+		}
+		return []interface{}{c}, nil
 	case *expr.Ident:
-		for sc := p.Cur; sc != nil; sc = sc.Parent {
-			if v, ok := sc.Var[e.Name]; ok {
-				return []interface{}{v}, nil
-			}
+		if v := p.Cur.lookup(e.Name); v != nil {
+			return []interface{}{v}, nil
 		}
 		return nil, fmt.Errorf("eval: undefined identifier: %q", e.Name)
 	case *expr.Unary:
@@ -449,6 +486,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 
 		switch fn := res.(type) {
+		case *Closure:
+			return p.callClosure(fn, args)
 		case *expr.FuncLiteral:
 			return p.callFuncLiteral(fn, args)
 		case *GoFunc:
