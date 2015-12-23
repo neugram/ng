@@ -59,6 +59,53 @@ var universeScope = &Scope{Var: map[string]*Variable{
 	"false": &Variable{Value: false},
 }}
 
+func zeroVariable(t tipe.Type) *Variable {
+	switch t := t.(type) {
+	case tipe.Basic:
+		// TODO: propogate specialization context for Num
+		switch t {
+		case tipe.Bool:
+			return &Variable{Value: false}
+		case tipe.Byte:
+			return &Variable{Value: byte(0)}
+		case tipe.Rune:
+			return &Variable{Value: rune(0)}
+		//case tipe.Integer:
+		//case tipe.Float:
+		//case tipe.Complex:
+		case tipe.String:
+			return &Variable{Value: ""}
+		case tipe.Int64:
+			return &Variable{Value: int64(0)}
+		case tipe.Float32:
+			return &Variable{Value: float32(0)}
+		case tipe.Float64:
+			return &Variable{Value: float64(0)}
+		default:
+			panic(fmt.Sprintf("TODO zero Basic: %s", t))
+		}
+	case *tipe.Func:
+		return &Variable{Value: nil}
+	case *tipe.Struct:
+		s := &Struct{Fields: make([]*Variable, len(t.Fields))}
+		for i, ft := range t.Fields {
+			s.Fields[i] = zeroVariable(ft)
+		}
+		return &Variable{Value: s}
+	case *tipe.Methodik:
+		return &Variable{Value: nil}
+	// TODO _ = Type((*Table)(nil))
+	case *tipe.Pointer:
+		return &Variable{Value: nil}
+	default:
+		panic(fmt.Sprintf("don't know the zero value of type %T", t))
+	}
+}
+
+type Struct struct {
+	Fields []*Variable
+}
+
 type Closure struct {
 	Func  *expr.FuncLiteral
 	Scope *Scope
@@ -131,7 +178,7 @@ func (p *Program) EvalCmd(argv []string) error {
 	}
 }
 
-func (p *Program) Eval(s stmt.Stmt) (res []interface{}, err error) {
+func (p *Program) Eval(s stmt.Stmt) (res []interface{}, resType tipe.Type, err error) {
 	defer func() {
 		if x := recover(); x != nil {
 			err = fmt.Errorf("ng eval panic: %v", x)
@@ -145,22 +192,22 @@ func (p *Program) Eval(s stmt.Stmt) (res []interface{}, err error) {
 		p.Cur = p.Pkg["main"]
 	}
 	p.Types.Errs = p.Types.Errs[:0]
-	p.Types.Add(s)
+	resType = p.Types.Add(s)
 	if len(p.Types.Errs) > 0 {
-		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
+		return nil, nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
 	}
 
 	res, err = p.evalStmt(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for i, v := range res {
 		res[i], err = p.readVar(v)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return res, nil
+	return res, resType, nil
 }
 
 func (p *Program) pushScope() {
@@ -186,11 +233,11 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			// TODO: order of evaluation, left-then-right,
 			// or right-then-left?
 			for i, lhs := range s.Left {
-				v, err := p.evalExpr(lhs)
+				v, err := p.evalExprAsVar(lhs)
 				if err != nil {
 					return nil, err
 				}
-				vars[i] = v[0].(*Variable)
+				vars[i] = v
 			}
 		}
 		vals := make([]interface{}, 0, len(s.Left))
@@ -292,11 +339,27 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			},
 		}
 		return nil, nil
+	case *stmt.TypeDecl:
+		return nil, nil
 	}
 	if s == nil {
 		return nil, fmt.Errorf("Parser.evalStmt: statement is nil")
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
+}
+
+func (p *Program) evalExprAsVar(e expr.Expr) (*Variable, error) {
+	res, err := p.evalExpr(e)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 1 {
+		return nil, fmt.Errorf("eval: too many results %v", res)
+	}
+	if v, ok := res[0].(*Variable); ok {
+		return v, nil
+	}
+	return &Variable{res[0]}, nil
 }
 
 func (p *Program) evalExprAndReadVars(e expr.Expr) ([]interface{}, error) {
@@ -339,6 +402,8 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v, nil
 	case *GoValue:
 		return v.Value, nil
+	case *Struct:
+		return v, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
 	}
@@ -380,6 +445,40 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 	switch e := e.(type) {
 	case *expr.BasicLiteral:
 		return []interface{}{e}, nil
+	case *expr.CompLiteral:
+		switch t := e.Type.(type) {
+		case *tipe.Struct:
+			s := &Struct{
+				Fields: make([]*Variable, len(t.Fields)),
+			}
+			if len(e.Keys) > 0 {
+				named := make(map[string]expr.Expr)
+				for i, elem := range e.Elements {
+					named[e.Keys[i].(*expr.Ident).Name] = elem
+				}
+				for i, ft := range t.Fields {
+					expr, ok := named[t.FieldNames[i]]
+					if ok {
+						v, err := p.evalExprAndReadVar(expr)
+						if err != nil {
+							return nil, err
+						}
+						s.Fields[i] = &Variable{Value: v}
+					} else {
+						s.Fields[i] = zeroVariable(ft)
+					}
+				}
+				return []interface{}{s}, nil
+			}
+			for i, expr := range e.Elements {
+				v, err := p.evalExprAndReadVar(expr)
+				if err != nil {
+					return nil, err
+				}
+				s.Fields[i] = &Variable{Value: v}
+			}
+			return []interface{}{s}, nil
+		}
 	case *expr.FuncLiteral:
 		if len(e.Type.FreeVars) == 0 {
 			return []interface{}{e}, nil
@@ -512,6 +611,15 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			return nil, err
 		}
 		switch lhs := lhs.(type) {
+		case *Struct:
+			t := p.Types.Types[e.Left].(*tipe.Struct)
+			name := e.Right.Name
+			for i, n := range t.FieldNames {
+				if n == name {
+					return []interface{}{lhs.Fields[i]}, nil
+				}
+			}
+			return nil, fmt.Errorf("unknown field %s in %s", name, t)
 		case *GoPkg:
 			v := lhs.Type.Exports[e.Right.Name]
 			if v == nil {

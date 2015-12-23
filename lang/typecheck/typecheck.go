@@ -71,7 +71,7 @@ type partial struct {
 	expr expr.Expr
 }
 
-func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
+func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	switch s := s.(type) {
 	case *stmt.Assign:
 		if len(s.Left) != len(s.Right) {
@@ -101,6 +101,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 				c.assign(&p, lhsP.typ)
 			}
 		}
+		return nil
 
 	case *stmt.Simple:
 		p := c.expr(s.Expr)
@@ -115,6 +116,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 				c.cur.Objs[fn.Name] = obj
 			}
 		}
+		return p.typ
 
 	case *stmt.Block:
 		c.pushScope()
@@ -122,6 +124,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		for _, s := range s.Stmts {
 			c.stmt(s, retType)
 		}
+		return nil
 
 	case *stmt.If:
 		if s.Init != nil {
@@ -134,6 +137,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		if s.Else != nil {
 			c.stmt(s.Else, retType)
 		}
+		return nil
 
 	case *stmt.For:
 		if s.Init != nil {
@@ -146,6 +150,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			c.stmt(s.Post, retType)
 		}
 		c.stmt(s.Body, retType)
+		return nil
 
 	case *stmt.TypeDecl:
 		if t, ok := s.Type.(*tipe.Struct); ok {
@@ -155,7 +160,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 				t.Fields[i], resolved = c.resolve(f)
 				usesNum = usesNum || tipe.UsesNum(t.Fields[i])
 				if !resolved {
-					return
+					return nil
 				}
 			}
 			if usesNum {
@@ -169,6 +174,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			Decl: s,
 		}
 		c.cur.Objs[s.Name] = obj
+		return nil
 
 	case *stmt.MethodikDecl:
 		var usesNum bool
@@ -177,7 +183,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			s.Type.Methods[i], resolved = c.resolve(f)
 			usesNum = usesNum || tipe.UsesNum(s.Type.Methods[i])
 			if !resolved {
-				return
+				return nil
 			}
 		}
 
@@ -205,6 +211,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 			Decl: s,
 		}
 		c.cur.Objs[s.Name] = obj
+		return nil
 
 	case *stmt.Return:
 		if retType == nil || len(s.Exprs) > len(retType.Elems) {
@@ -217,47 +224,49 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) {
 		}
 		for _, p := range partials {
 			if p.mode == modeInvalid {
-				return
+				return nil
 			}
 		}
 		want := retType.Elems
 		if len(want) == 0 && len(partials) == 0 {
-			return
+			return nil
 		}
 		var got []tipe.Type
 		if tup, ok := partials[0].typ.(*tipe.Tuple); ok {
 			if len(partials) != 1 {
 				c.errorf("multi-value %s in single-value context", partials[0])
-				return
+				return nil
 			}
 			got = tup.Elems
 		} else {
 			for _, p := range partials {
 				if _, ok := p.typ.(*tipe.Tuple); ok {
 					c.errorf("multi-value %s in single-value context", partials[0])
-					return
+					return nil
 				}
 				got = append(got, p.typ)
 			}
 		}
 		if len(got) > len(want) {
 			c.errorf("too many arguments to return")
-			return
+			return nil
 		}
 		if len(got) < len(want) {
 			c.errorf("too few arguments to return")
-			return
+			return nil
 		}
 
 		for i := range want {
 			if !tipe.Equal(got[i], want[i]) {
 				c.errorf("cannot use %s as %s (%T) in return argument", got[i], want[i])
-				return
+				return nil
 			}
 		}
+		return nil
 
 	case *stmt.Import:
 		c.checkImport(s)
+		return nil
 
 	default:
 		panic(fmt.Sprintf("typecheck: unknown stmt %T", s))
@@ -593,7 +602,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				return p
 			}
 		}
-		if len(e.Names) == 0 {
+		if len(e.Keys) == 0 {
 			if len(e.Elements) != len(t.Fields) {
 				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
 				p.mode = modeInvalid
@@ -607,7 +616,28 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				}
 			}
 		} else {
-			panic("TODO: named CompLiteral")
+			namedp := make(map[string]partial)
+			for i, elemp := range elemsp {
+				ident, ok := e.Keys[i].(*expr.Ident)
+				if !ok {
+					c.errorf("invalid field name %s in struct initializer", e.Keys[i])
+					p.mode = modeInvalid
+					return p
+				}
+				namedp[ident.Name] = elemp
+			}
+			for i, ft := range t.Fields {
+				elemp, found := namedp[t.FieldNames[i]]
+				if !found {
+					continue
+				}
+				c.assign(&elemp, ft)
+				if elemp.mode == modeInvalid {
+					p.mode = modeInvalid
+					return p
+				}
+			}
+			//panic("TODO: named CompLiteral")
 		}
 		if p.mode != modeInvalid {
 			p.expr = e
@@ -958,8 +988,8 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 	return nil
 }
 
-func (c *Checker) Add(s stmt.Stmt) {
-	c.stmt(s, nil)
+func (c *Checker) Add(s stmt.Stmt) tipe.Type {
+	return c.stmt(s, nil)
 }
 
 func (c *Checker) Lookup(name string) *Obj {

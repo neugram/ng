@@ -54,7 +54,7 @@ type FuncLiteral struct {
 
 type CompLiteral struct {
 	Type     tipe.Type
-	Names    []string // TODO use
+	Keys     []Expr
 	Elements []Expr
 }
 
@@ -182,11 +182,7 @@ func (e *FuncLiteral) Sexp() string {
 }
 
 func (e *CompLiteral) Sexp() string {
-	names := ""
-	if len(e.Names) > 0 {
-		names = "(" + strings.Join(e.Names, " ") + ")"
-	}
-	return fmt.Sprintf("(comp %s %s %s)", tipeSexp(e.Type), names, exprsStr(e.Elements))
+	return fmt.Sprintf("(comp %s %s %s)", tipeSexp(e.Type), exprsStr(e.Keys), exprsStr(e.Elements))
 }
 func (e *TableLiteral) Sexp() string {
 	rows := ""

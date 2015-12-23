@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"neugram.io/eval"
+	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
 	"neugram.io/parser"
 
@@ -118,7 +119,7 @@ func loop() {
 		res := p.ParseLine([]byte(data))
 
 		for _, s := range res.Stmts {
-			v, err := prg.Eval(s)
+			v, t, err := prg.Eval(s)
 			if err != nil {
 				fmt.Printf("eval error: %v\n", err)
 				continue
@@ -126,7 +127,8 @@ func loop() {
 			switch len(v) {
 			case 0:
 			case 1:
-				fmt.Println(v[0])
+				printValue(t, v[0])
+				fmt.Print("\n")
 			default:
 				fmt.Println(v)
 			}
@@ -144,6 +146,32 @@ func loop() {
 		}
 		editMode.ApplyMode()
 		state = res.State
+	}
+}
+
+func printValue(t tipe.Type, v interface{}) {
+	// This is, effectively, a primitive type-aware printf implementation
+	// that understands the neugram evaluator data layout. A far better
+	// version of this would be an "ngfmt" package, that implemented the
+	// printing command in neugram, using a "ngreflect" package. But it
+	// will be a while until I build a reflect package, so this will have
+	// to do.
+	//
+	// Still: avoid putting too much machinary in this. At some point soon
+	// it's not worth the effort.
+	switch t := tipe.Underlying(t).(type) {
+	case *tipe.Struct:
+		fmt.Print("{")
+		for i, name := range t.FieldNames {
+			fmt.Printf("%s: ", name)
+			printValue(t.Fields[i], v.(*eval.Struct).Fields[i].Value)
+			if i < len(t.FieldNames)-1 {
+				fmt.Print(", ")
+			}
+		}
+		fmt.Print("}")
+	default:
+		fmt.Print(v)
 	}
 }
 

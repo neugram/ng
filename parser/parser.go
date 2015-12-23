@@ -1008,8 +1008,25 @@ func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
 func (p *Parser) parseCompLiteral(x *expr.CompLiteral) {
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
-		// TODO FieldName: value
-		x.Elements = append(x.Elements, p.parseExpr())
+		e := p.parseExpr()
+		if p.s.Token == token.Colon {
+			p.next()
+			v := p.parseExpr()
+
+			if len(x.Elements) > 0 && len(x.Keys) == 0 {
+				p.errorf("mixture of keyed fields and value initializers")
+				continue
+			}
+
+			x.Keys = append(x.Keys, e)
+			x.Elements = append(x.Elements, v)
+		} else {
+			if len(x.Elements) > 0 && len(x.Keys) > 0 {
+				p.errorf("mixture of keyed fields and value initializers")
+				continue
+			}
+			x.Elements = append(x.Elements, e)
+		}
 		if p.s.Token != token.Comma {
 			break
 		}

@@ -97,13 +97,13 @@ func mkBasicProgram() (*Program, error) {
 		},
 		Types: typecheck.New(),
 	}
-	if _, err := p.Eval(mustParse("x := 4")); err != nil {
+	if _, _, err := p.Eval(mustParse("x := 4")); err != nil {
 		return nil, err
 	}
-	if _, err := p.Eval(mustParse("y := 5")); err != nil {
+	if _, _, err := p.Eval(mustParse("y := 5")); err != nil {
 		return nil, err
 	}
-	if _, err := p.Eval(mustParse("z := 7")); err != nil {
+	if _, _, err := p.Eval(mustParse("z := 7")); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -116,7 +116,7 @@ func TestExprs(t *testing.T) {
 			t.Fatalf("mkBasicProgram: %v", err)
 		}
 		s := mustParse(test.stmt)
-		res, err := p.Eval(s)
+		res, _, err := p.Eval(s)
 		if err != nil {
 			t.Errorf("Eval(%s) error: %v", s.Sexp(), err)
 		}
