@@ -4,7 +4,6 @@
 package eval
 
 import (
-	"fmt"
 	gotypes "go/types"
 	"reflect"
 
@@ -29,11 +28,11 @@ type GoFunc struct {
 }
 
 func (f GoFunc) call(args []interface{}) (res []interface{}, err error) {
+	var vargs []reflect.Value
 	var vres []reflect.Value
 	v := reflect.ValueOf(f.Func)
 	if f.Type.Variadic {
 		nonVarLen := len(f.Type.Params.Elems) - 1
-		var vargs []reflect.Value
 		for i := 0; i < nonVarLen; i++ {
 			vargs = append(vargs, reflect.ValueOf(args[i]))
 		}
@@ -44,7 +43,11 @@ func (f GoFunc) call(args []interface{}) (res []interface{}, err error) {
 		}
 		vres = v.CallSlice(vargs)
 	} else {
-		return nil, fmt.Errorf("Call GoFunc TODO")
+		var vargs []reflect.Value
+		for _, arg := range args {
+			vargs = append(vargs, reflect.ValueOf(arg))
+		}
+		vres = v.Call(vargs)
 	}
 
 	res = make([]interface{}, len(vres))
