@@ -294,6 +294,12 @@ func Equal(x, y Type) bool {
 		return true
 	}
 	switch x := x.(type) {
+	case Basic:
+		y, ok := y.(Basic)
+		if !ok {
+			return false
+		}
+		return x == y
 	case *Func:
 		y, ok := y.(*Func)
 		if !ok {
