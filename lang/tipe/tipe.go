@@ -51,6 +51,11 @@ type Pointer struct {
 	Elem Type
 }
 
+type Map struct {
+	Key   Type
+	Value Type
+}
+
 /*
 TODO remove, replace with side table.
 // Go is a type imported from Go.
@@ -132,6 +137,7 @@ var (
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
+	_ = Type((*Map)(nil))
 	_ = Type((*Package)(nil))
 	_ = Type((*Interface)(nil))
 	_ = Type((*Unresolved)(nil))
@@ -144,6 +150,7 @@ func (t *Methodik) tipe()   {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
+func (t *Map) tipe()        {}
 func (t *Package) tipe()    {}
 func (t *Interface) tipe()  {}
 func (t *Unresolved) tipe() {}
@@ -206,6 +213,16 @@ func (e *Pointer) Sexp() string {
 		u = e.Elem.Sexp()
 	}
 	return fmt.Sprintf("(* %s)", u)
+}
+func (e *Map) Sexp() string {
+	k, v := "nil", "nil"
+	if e.Key != nil {
+		k = e.Key.Sexp()
+	}
+	if e.Value != nil {
+		v = e.Value.Sexp()
+	}
+	return fmt.Sprintf("(map %s %s)", k, v)
 }
 
 func (e *Package) Sexp() string {
@@ -453,6 +470,18 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		return Equal(x.Elem, y.Elem)
+	case *Map:
+		y, ok := y.(*Map)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if !Equal(x.Key, y.Key) {
+			return false
+		}
+		return Equal(x.Value, y.Value)
 	}
 	fmt.Printf("tipe.Equal TODO %T\n", x)
 	return false

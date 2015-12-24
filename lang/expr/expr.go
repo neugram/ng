@@ -54,8 +54,14 @@ type FuncLiteral struct {
 
 type CompLiteral struct {
 	Type     tipe.Type
-	Keys     []Expr
+	Keys     []Expr // TODO: could make this []string
 	Elements []Expr
+}
+
+type MapLiteral struct {
+	Type   tipe.Type
+	Keys   []Expr
+	Values []Expr
 }
 
 type TableLiteral struct {
@@ -100,6 +106,7 @@ var (
 	_ = Expr((*BasicLiteral)(nil))
 	_ = Expr((*FuncLiteral)(nil))
 	_ = Expr((*CompLiteral)(nil))
+	_ = Expr((*MapLiteral)(nil))
 	_ = Expr((*TableLiteral)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
@@ -114,6 +121,7 @@ func (e *Selector) expr()     {}
 func (e *BasicLiteral) expr() {}
 func (e *FuncLiteral) expr()  {}
 func (e *CompLiteral) expr()  {}
+func (e *MapLiteral) expr()   {}
 func (e *TableLiteral) expr() {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
@@ -183,6 +191,9 @@ func (e *FuncLiteral) Sexp() string {
 
 func (e *CompLiteral) Sexp() string {
 	return fmt.Sprintf("(comp %s %s %s)", tipeSexp(e.Type), exprsStr(e.Keys), exprsStr(e.Elements))
+}
+func (e *MapLiteral) Sexp() string {
+	return fmt.Sprintf("(map %s %s %s)", tipeSexp(e.Type), exprsStr(e.Keys), exprsStr(e.Values))
 }
 func (e *TableLiteral) Sexp() string {
 	rows := ""

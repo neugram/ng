@@ -246,6 +246,8 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			switch xpr := x.(type) {
 			case *expr.TableLiteral:
 				p.parseTableLiteral(xpr)
+			case *expr.MapLiteral:
+				p.parseMapLiteral(xpr)
 			case *expr.CompLiteral:
 				p.parseCompLiteral(xpr)
 			}
@@ -534,7 +536,16 @@ func (p *Parser) maybeParseType() tipe.Type {
 	case token.Func:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Map:
-		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+		// map[T]U
+		s := &tipe.Map{}
+		p.next()
+		p.expect(token.LeftBracket)
+		p.next()
+		s.Key = p.parseType()
+		p.expect(token.RightBracket)
+		p.next()
+		s.Value = p.parseType()
+		return s
 	default:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	}
@@ -695,7 +706,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 			p.expectSemi()
 		}
 		return s
-	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul,
+	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul, token.Map,
 		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Shell:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
@@ -960,9 +971,12 @@ func (p *Parser) parseOperand() expr.Expr {
 	}
 
 	if t := p.maybeParseType(); t != nil {
-		if t, ok := t.(*tipe.Table); ok {
+		switch t := t.(type) {
+		case *tipe.Table:
 			return &expr.TableLiteral{Type: t}
-		} else {
+		case *tipe.Map:
+			return &expr.MapLiteral{Type: t}
+		default:
 			return &expr.CompLiteral{Type: t}
 		}
 	}
@@ -1009,6 +1023,24 @@ func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
 		}
 		p.next()
 	}
+	p.next()
+}
+
+func (p *Parser) parseMapLiteral(x *expr.MapLiteral) {
+	p.next()
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		k := p.parseExpr()
+		p.expect(token.Colon)
+		p.next()
+		v := p.parseExpr()
+		x.Keys = append(x.Keys, k)
+		x.Values = append(x.Values, v)
+		if p.s.Token != token.Comma {
+			break
+		}
+		p.next()
+	}
+	p.expect(token.RightBrace)
 	p.next()
 }
 

@@ -63,6 +63,42 @@ func EqualExpr(x, y expr.Expr) bool {
 			return x == nil && y == nil
 		}
 		return equalFuncLiteral(x, y)
+	case *expr.CompLiteral:
+		y, ok := y.(*expr.CompLiteral)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		if !equalExprs(x.Keys, y.Keys) {
+			return false
+		}
+		if !equalExprs(x.Elements, y.Elements) {
+			return false
+		}
+		return true
+	case *expr.MapLiteral:
+		y, ok := y.(*expr.MapLiteral)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		if !equalExprs(x.Keys, y.Keys) {
+			return false
+		}
+		if !equalExprs(x.Values, y.Values) {
+			return false
+		}
+		return true
 	case *expr.TableLiteral:
 		y, ok := y.(*expr.TableLiteral)
 		if !ok {
@@ -244,6 +280,20 @@ func equalType(t0, t1 tipe.Type) bool {
 			if !equalType(t0.Fields[i], t1.Fields[i]) {
 				return false
 			}
+		}
+	case *tipe.Map:
+		t1, ok := t1.(*tipe.Map)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if !equalType(t0.Key, t1.Key) {
+			return false
+		}
+		if !equalType(t0.Value, t1.Value) {
+			return false
 		}
 	case *tipe.Methodik:
 		t1, ok := t1.(*tipe.Methodik)

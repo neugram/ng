@@ -308,6 +308,7 @@ var stmtTests = []stmtTest{
 		},
 	},
 	{"const x = 4", &stmt.Const{Name: "x", Value: &expr.BasicLiteral{big.NewInt(4)}}},
+	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
 	{
 		"const x int64 = 4",
 		&stmt.Const{
@@ -401,6 +402,16 @@ var stmtTests = []stmtTest{
 			}},
 		},
 	},
+	{"S{ X: 7 }", &stmt.Simple{&expr.CompLiteral{
+		Type:     &tipe.Unresolved{Name: "S"},
+		Keys:     []expr.Expr{&expr.Ident{"X"}},
+		Elements: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
+	}}},
+	{`map[string]string{ "foo": "bar" }`, &stmt.Simple{&expr.MapLiteral{
+		Type:   &tipe.Map{Key: tipe.String, Value: tipe.String},
+		Keys:   []expr.Expr{basic("foo")},
+		Values: []expr.Expr{basic("bar")},
+	}}},
 	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
 	/*{
 		`
