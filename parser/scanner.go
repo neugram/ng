@@ -6,6 +6,7 @@ package parser
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 
@@ -188,7 +189,6 @@ func (s *Scanner) scanString() string {
 		}
 		s.next()
 		if r == '\\' {
-			// TODO: we can do a lot of error checking here.
 			if s.r == '"' {
 				s.next()
 			}
@@ -197,7 +197,12 @@ func (s *Scanner) scanString() string {
 			break
 		}
 	}
-	return string(s.src[off : s.Offset-1])
+
+	str := `"` + string(s.src[off:s.Offset-1]) + `"`
+	if _, err := strconv.Unquote(str); err != nil {
+		s.errorf("string literal %v", err)
+	}
+	return str
 }
 
 func (s *Scanner) scanComment() string {
@@ -258,9 +263,11 @@ func (s *Scanner) Next() {
 				s.Token = token.Shell
 				s.inShell = false
 				s.semi = true
-				return
+			} else {
+				s.semi = true
+				s.Literal = "$" + s.scanShellWord()
+				s.Token = token.ShellWord
 			}
-			s.err = fmt.Errorf("parser: unknown $%v in shell expression", r)
 		case '"':
 			s.semi = true
 			s.Literal = s.scanString()

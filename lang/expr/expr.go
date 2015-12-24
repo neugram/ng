@@ -143,7 +143,7 @@ func (e *BasicLiteral) Sexp() string {
 	if e == nil {
 		return "nillit"
 	}
-	return fmt.Sprintf("(lit %T %s)", e.Value, e.Value)
+	return fmt.Sprintf("(lit %T %q)", e.Value, e.Value)
 }
 func (e *Ident) Sexp() string {
 	if e == nil {

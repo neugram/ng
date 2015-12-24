@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"runtime/debug"
+	"strconv"
 
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
@@ -276,7 +277,8 @@ func (p *Parser) parseTableIndex() *expr.TableIndex {
 	// Cols
 	for p.s.Token == token.String {
 		// "Col1"|"Col2"
-		x.ColNames = append(x.ColNames, p.s.Literal.(string))
+		name, _ := strconv.Unquote(p.s.Literal.(string))
+		x.ColNames = append(x.ColNames, name)
 		p.next()
 		if p.s.Token != token.Pipe {
 			break
@@ -929,8 +931,13 @@ func (p *Parser) parseOperand() expr.Expr {
 	case token.Ident:
 		x := p.parseIdent()
 		return x
-	case token.Int, token.Float, token.Imaginary, token.String:
+	case token.Int, token.Float, token.Imaginary:
 		x := &expr.BasicLiteral{Value: p.s.Literal}
+		p.next()
+		return x
+	case token.String:
+		s, _ := strconv.Unquote(p.s.Literal.(string))
+		x := &expr.BasicLiteral{Value: s}
 		p.next()
 		return x
 	case token.LeftParen:

@@ -196,7 +196,7 @@ var parserTests = []parserTest{
 	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
-	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello \"neugram\"`}},
+	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
 	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
 	{"x[4]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Exact: &expr.BasicLiteral{big.NewInt(4)}}}},
 	{"x[1+2]", &expr.TableIndex{
