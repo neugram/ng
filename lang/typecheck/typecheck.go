@@ -644,6 +644,48 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		return p
 
+	case *expr.MapLiteral:
+		p.mode = modeVar
+		if t, resolved := c.resolve(e.Type); resolved {
+			e.Type = t
+			p.typ = t
+		} else {
+			p.mode = modeInvalid
+			return p
+		}
+		t, isMap := tipe.Underlying(e.Type).(*tipe.Map)
+		if !isMap {
+			c.errorf("cannot construct type %s with a map composite literal", e.Type)
+			p.mode = modeInvalid
+			return p
+		}
+		for _, k := range e.Keys {
+			kp := c.expr(k)
+			if kp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			c.assign(&kp, t.Key)
+			if kp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		for _, v := range e.Values {
+			vp := c.expr(v)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			c.assign(&vp, t.Value)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		p.expr = e
+		return p
+
 	case *expr.TableLiteral:
 		p.mode = modeVar
 

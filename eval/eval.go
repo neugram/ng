@@ -404,6 +404,8 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v.Value, nil
 	case *Struct:
 		return v, nil
+	case map[interface{}]interface{}:
+		return v, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
 	}
@@ -479,6 +481,21 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 			return []interface{}{s}, nil
 		}
+	case *expr.MapLiteral:
+		//t := e.Type.(*tipe.Map)
+		m := make(map[interface{}]interface{}, len(e.Keys))
+		for i, kexpr := range e.Keys {
+			k, err := p.evalExprAndReadVar(kexpr)
+			if err != nil {
+				return nil, err
+			}
+			v, err := p.evalExprAndReadVar(e.Values[i])
+			if err != nil {
+				return nil, err
+			}
+			m[k] = v
+		}
+		return []interface{}{m}, nil
 	case *expr.FuncLiteral:
 		if len(e.Type.FreeVars) == 0 {
 			return []interface{}{e}, nil
