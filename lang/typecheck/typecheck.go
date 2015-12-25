@@ -811,6 +811,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.mode = modeInvalid
 		c.errorf("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
+	case *expr.TableIndex:
+		panic(fmt.Sprintf("typecheck.expr TODO TableIndex: %+v", e))
 	case *expr.Shell:
 		p.mode = modeVoid
 		return p

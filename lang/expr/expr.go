@@ -86,6 +86,11 @@ type Range struct {
 	Exact Expr
 }
 
+type Index struct {
+	Expr  Expr
+	Index Expr
+}
+
 type TableIndex struct {
 	Expr     Expr
 	ColNames []string
@@ -125,6 +130,7 @@ func (e *MapLiteral) expr()   {}
 func (e *TableLiteral) expr() {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
+func (e *Index) expr()        {}
 func (e *TableIndex) expr()   {}
 func (e *Shell) expr()        {}
 
@@ -205,7 +211,9 @@ func (e *TableLiteral) Sexp() string {
 	}
 	return fmt.Sprintf("(table %s %s%s)", tipeSexp(e.Type), exprsStr(e.ColNames), rows)
 }
-
+func (e *Index) Sexp() string {
+	return fmt.Sprintf("(index %s %s", exprSexp(e.Expr), exprSexp(e.Index))
+}
 func (e *TableIndex) Sexp() string {
 	names := strings.Join(e.ColNames, `"|"`)
 	if names != "" {

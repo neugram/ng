@@ -236,9 +236,7 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 				panic("TODO expect selector type assertion")
 			}
 		case token.LeftBracket:
-			ind := p.parseTableIndex()
-			ind.Expr = x
-			x = ind
+			x = p.parseIndex(x)
 		case token.LeftParen:
 			args := p.parseArgs()
 			x = &expr.Call{Func: x, Args: args}
@@ -270,21 +268,43 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 	return x
 }
 
-func (p *Parser) parseTableIndex() *expr.TableIndex {
-	x := &expr.TableIndex{}
-
+func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
 	p.expect(token.LeftBracket)
 	p.next()
 
+	e := p.parseExpr()
+	if p.s.Token == token.RightBracket {
+		p.next()
+		return &expr.Index{
+			Expr:  lhs,
+			Index: e,
+		}
+	}
+
+	panic(fmt.Sprintf("parseIndex TODO, token=%s", p.s.Token))
+	//if lit, ok := expr.(*expr.BasicLiteral); ok && (p.s.Token == token.Pipe || p.s.Token == token.Comma) {
+	//return parseTableIndex(lhs, lit)
+	//}
+}
+
+/*
+func (p *Parser) parseTableIndex(lhs expr.Expr, first *expr.BasicLiteral) *expr.TableIndex {
+	x := &expr.TableIndex{
+		Expr: lhs,
+	}
+
 	// Cols
-	for p.s.Token == token.String {
+	if p.s.Token == token.Pipe {
+		x.ColNames = append(x.ColNames, first)
+	}
+	for p.s.Token == token.Pipe {
+		p.next()
 		// "Col1"|"Col2"
+		if p.s.Token != token.String {
+			return x
+		}
 		name, _ := strconv.Unquote(p.s.Literal.(string))
 		x.ColNames = append(x.ColNames, name)
-		p.next()
-		if p.s.Token != token.Pipe {
-			break
-		}
 		p.next()
 	}
 	if p.s.Token == token.RightBracket {
@@ -317,6 +337,7 @@ func (p *Parser) parseTableIndex() *expr.TableIndex {
 	p.next()
 	return x
 }
+*/
 
 func (p *Parser) parseRange() (r expr.Range) {
 	var x expr.Expr

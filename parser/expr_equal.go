@@ -173,6 +173,21 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return true
+	case *expr.Index:
+		y, ok := y.(*expr.Index)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !EqualExpr(x.Expr, y.Expr) {
+			return false
+		}
+		if !EqualExpr(x.Index, y.Index) {
+			return false
+		}
+		return true
 	case *expr.TableIndex:
 		y, ok := y.(*expr.TableIndex)
 		if !ok {

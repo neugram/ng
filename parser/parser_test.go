@@ -198,17 +198,15 @@ var parserTests = []parserTest{
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
 	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
 	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
-	{"x[4]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Exact: &expr.BasicLiteral{big.NewInt(4)}}}},
-	{"x[1+2]", &expr.TableIndex{
+	{"x[4]", &expr.Index{Expr: &expr.Ident{"x"}, Index: basic(4)}},
+	{"x[1+2]", &expr.Index{
 		Expr: &expr.Ident{"x"},
-		Cols: expr.Range{
-			Exact: &expr.Binary{Op: token.Add,
-				Left:  &expr.BasicLiteral{big.NewInt(1)},
-				Right: &expr.BasicLiteral{big.NewInt(2)},
-			},
+		Index: &expr.Binary{Op: token.Add,
+			Left:  basic(1),
+			Right: basic(2),
 		},
 	}},
-	{"x[1:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}}}},
+	/* {"x[1:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}}}},
 	{"x[1:]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}}}},
 	{"x[:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{End: &expr.BasicLiteral{big.NewInt(3)}}}},
 	{"x[:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
@@ -225,6 +223,7 @@ var parserTests = []parserTest{
 		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
 		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
 	}},
+	*/
 	{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{tipe.Num}}},
 	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
 		Type: &tipe.Table{tipe.Num},
