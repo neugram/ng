@@ -811,6 +811,25 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.mode = modeInvalid
 		c.errorf("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
+	case *expr.Index:
+		left := c.expr(e.Expr)
+		if left.mode == modeInvalid {
+			return left
+		}
+		ind := c.expr(e.Index)
+		if ind.mode == modeInvalid {
+			return ind
+		}
+		switch lt := tipe.Underlying(left.typ).(type) {
+		case *tipe.Map:
+			c.assign(&ind, lt.Key)
+
+			p.mode = modeVar // TODO not really? because not addressable
+			p.typ = lt.Value
+			return p
+		}
+
+		panic(fmt.Sprintf("typecheck.expr TODO Index: %+v", e))
 	case *expr.TableIndex:
 		panic(fmt.Sprintf("typecheck.expr TODO TableIndex: %+v", e))
 	case *expr.Shell:

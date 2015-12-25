@@ -39,6 +39,19 @@ type Variable struct {
 	Value interface{} // TODO introduce a Value type
 }
 
+func (v *Variable) Assign(val interface{}) { v.Value = val }
+
+type Assignable interface {
+	Assign(v interface{})
+}
+
+type mapKey struct {
+	m map[interface{}]interface{}
+	k interface{}
+}
+
+func (m mapKey) Assign(val interface{}) { m.m[m.k] = val }
+
 type Scope struct {
 	Parent *Scope
 	Var    map[string]*Variable // variable name -> variable
@@ -223,17 +236,18 @@ func (p *Program) popScope() {
 func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 	switch s := s.(type) {
 	case *stmt.Assign:
-		vars := make([]*Variable, len(s.Left))
+		vars := make([]Assignable, len(s.Left))
 		if s.Decl {
 			for i, lhs := range s.Left {
-				vars[i] = new(Variable)
-				p.Cur.Var[lhs.(*expr.Ident).Name] = vars[i]
+				v := new(Variable)
+				vars[i] = v
+				p.Cur.Var[lhs.(*expr.Ident).Name] = v
 			}
 		} else {
 			// TODO: order of evaluation, left-then-right,
 			// or right-then-left?
 			for i, lhs := range s.Left {
-				v, err := p.evalExprAsVar(lhs)
+				v, err := p.evalExprAsAssignable(lhs)
 				if err != nil {
 					return nil, err
 				}
@@ -249,7 +263,7 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			vals = append(vals, v...)
 		}
 		for i := range vars {
-			vars[i].Value = vals[i]
+			vars[i].Assign(vals[i])
 		}
 		return nil, nil
 	case *stmt.Simple:
@@ -348,18 +362,39 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
 }
 
-func (p *Program) evalExprAsVar(e expr.Expr) (*Variable, error) {
-	res, err := p.evalExpr(e)
-	if err != nil {
-		return nil, err
+func (p *Program) evalExprAsAssignable(e expr.Expr) (Assignable, error) {
+	switch e := e.(type) {
+	case *expr.Index:
+		container, err := p.evalExpr(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+		if _, isMap := p.Types.Types[e.Expr].(*tipe.Map); isMap {
+			kvar, err := p.evalExpr(e.Index)
+			if err != nil {
+				return nil, err
+			}
+			k, err := p.readVar(kvar[0])
+			if err != nil {
+				return nil, err
+			}
+			m := container[0].(*Variable).Value.(map[interface{}]interface{})
+			return mapKey{m: m, k: k}, nil
+		}
+		panic("evalExprAsAssignable Index TODO")
+	default:
+		res, err := p.evalExpr(e)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) > 1 {
+			return nil, fmt.Errorf("eval: too many results for assignable %v", res)
+		}
+		if v, ok := res[0].(*Variable); ok {
+			return v, nil
+		}
+		return nil, fmt.Errorf("eval: %s not assignable", e)
 	}
-	if len(res) > 1 {
-		return nil, fmt.Errorf("eval: too many results %v", res)
-	}
-	if v, ok := res[0].(*Variable); ok {
-		return v, nil
-	}
-	return &Variable{res[0]}, nil
 }
 
 func (p *Program) evalExprAndReadVars(e expr.Expr) ([]interface{}, error) {
@@ -655,6 +690,19 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 
 		return nil, fmt.Errorf("unexpected selector LHS: %s", e.Left.Sexp())
+	case *expr.Index:
+		container, err := p.evalExprAndReadVar(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+		if _, isMap := p.Types.Types[e.Expr].(*tipe.Map); isMap {
+			k, err := p.evalExprAndReadVar(e.Index)
+			if err != nil {
+				return nil, err
+			}
+			v := container.(map[interface{}]interface{})[k]
+			return []interface{}{v}, nil
+		}
 	}
 	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
 }

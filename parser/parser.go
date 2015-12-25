@@ -272,8 +272,15 @@ func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
 	p.expect(token.LeftBracket)
 	p.next()
 
+	if p.s.Token == token.Colon {
+		// [:
+		panic(fmt.Sprintf("parseIndex TODO initial colon"))
+		//return parseTableIndex(lhs, nil)
+	}
+
 	e := p.parseExpr()
 	if p.s.Token == token.RightBracket {
+		// [expr]
 		p.next()
 		return &expr.Index{
 			Expr:  lhs,
