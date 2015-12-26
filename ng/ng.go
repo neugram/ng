@@ -6,10 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"neugram.io/eval"
+	"neugram.io/job"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
 	"neugram.io/parser"
@@ -51,12 +54,23 @@ func mode() liner.ModeApplier {
 	return m
 }
 
+var (
+	bg     []*job.Job
+	jobsig = make(chan os.Signal, 1)
+)
+
 func main() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTSTP)
 	go func() {
-		<-ch
-		exitf("interrupted")
+		for {
+			switch <-ch {
+			case os.Interrupt:
+				exitf("interrupted")
+			case syscall.SIGTSTP:
+				jobsig <- syscall.SIGTSTP
+			}
+		}
 	}()
 
 	origMode = mode()
@@ -138,14 +152,78 @@ func loop() {
 		}
 		editMode := mode()
 		origMode.ApplyMode()
-		for _, cmd := range res.Cmds {
-			if err := prg.EvalCmd(cmd); err != nil {
-				fmt.Printf("cmmand error: %v\n", err)
-				continue
+		for _, argv := range res.Cmds {
+			switch argv[0] {
+			case "fg":
+				fg(argv)
+			case "bg":
+				fmt.Printf("bg TODO\n")
+			case "jobs":
+				for i, j := range bg {
+					fmt.Println(j.Stat(i))
+				}
+			default:
+				// TODO: drain jobsig before starting?
+				j, err := prg.EvalCmd(argv)
+				if err != nil {
+					fmt.Printf("%v\n", err)
+					continue
+				}
+				waitJob(j)
 			}
 		}
 		editMode.ApplyMode()
 		state = res.State
+	}
+}
+
+func fg(argv []string) {
+	fmt.Printf("fg TODO\n")
+	jobspec := 1
+	if len(bg) == 0 {
+		fmt.Fprintf(os.Stderr, "ng: fg: no jobs\n")
+		return
+	}
+	if len(argv) > 1 {
+		var err error
+		jobspec, err = strconv.Atoi(argv[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ng: fg: %v", err)
+			return
+		}
+	}
+	if jobspec > len(bg) {
+		fmt.Fprintf(os.Stderr, "ng: fg: %d: no such job\n", jobspec)
+		return
+	}
+	j := bg[jobspec-1]
+	bg = append(bg[:jobspec-1], bg[jobspec:]...)
+	fmt.Println(strings.Join(j.Argv, " "))
+	j.StartIO()
+	pid := j.Cmd.Process.Pid
+	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
+		fmt.Fprintf(os.Stderr, "ng: fg: cannot signal process %d to stop: %v", pid, err)
+		return
+	}
+	waitJob(j)
+}
+
+func waitJob(j *job.Job) { // TODO merge into job package Start/Stop?
+	select {
+	case <-j.Done:
+		// TODO: if err != nil, set exit code
+	case sig := <-jobsig:
+		switch sig {
+		case syscall.SIGTSTP:
+			pid := j.Cmd.Process.Pid
+			if err := syscall.Kill(pid, syscall.SIGTSTP); err != nil {
+				fmt.Fprintf(os.Stderr, "ng: cannot signal process %d to stop: %v", pid, err)
+				return
+			}
+			j.StopIO()
+			bg = append(bg, j)
+			fmt.Println(j.Stat(len(bg)))
+		}
 	}
 }
 

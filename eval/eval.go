@@ -9,10 +9,10 @@ import (
 	gotypes "go/types"
 	"math/big"
 	"os"
-	"os/exec"
 	"runtime/debug"
 
 	"neugram.io/eval/gowrap"
+	"neugram.io/job"
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
@@ -157,10 +157,7 @@ func (p *Program) importGo(path string) (*gotypes.Package, error) {
 	return pkg, err
 }
 
-func (p *Program) EvalCmd(argv []string) error {
-	stdin := os.Stdin // TODO stdio
-	stdout := os.Stdout
-	stderr := os.Stderr
+func (p *Program) EvalCmd(argv []string) (*job.Job, error) {
 	switch argv[0] {
 	case "cd":
 		dir := ""
@@ -170,24 +167,22 @@ func (p *Program) EvalCmd(argv []string) error {
 			dir = argv[1]
 		}
 		if err := os.Chdir(dir); err != nil {
-			return err
+			return nil, err
 		}
 		wd, err := os.Getwd()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		fmt.Fprintf(stdout, "%s\n", wd)
-		return nil
+		fmt.Fprintf(os.Stdout, "%s\n", wd)
+		return nil, nil
 	case "exit", "logout":
-		return fmt.Errorf("ng does not know %q, try $$", argv[0])
+		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
-		cmd := exec.Command(argv[0])
-		cmd.Stdin = stdin
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		cmd.Args = argv
-		cmd.Run()
-		return nil
+		j, err := job.New(argv)
+		if err != nil {
+			return nil, err
+		}
+		return j, nil
 	}
 }
 
@@ -652,7 +647,11 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
-			if err := p.EvalCmd(cmd); err != nil {
+			job, err := p.EvalCmd(cmd)
+			if err != nil {
+				return nil, err
+			}
+			if err := <-job.Done; err != nil {
 				return nil, err
 			}
 		}
