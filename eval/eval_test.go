@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"neugram.io/lang/stmt"
-	"neugram.io/lang/typecheck"
 	"neugram.io/parser"
 )
 
@@ -88,15 +87,7 @@ var exprTests = []struct {
 }
 
 func mkBasicProgram() (*Program, error) {
-	s := &Scope{
-		Var: map[string]*Variable{},
-	}
-	p := &Program{
-		Pkg: map[string]*Scope{
-			"main": s,
-		},
-		Types: typecheck.New(),
-	}
+	p := New()
 	if _, _, err := p.Eval(mustParse("x := 4")); err != nil {
 		return nil, err
 	}

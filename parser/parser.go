@@ -784,12 +784,14 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		name := ""
 		if p.s.Token == token.Ident {
 			name = p.s.Literal.(string)
+			name = name[1 : len(name)-1]
 			p.next()
 		}
 		p.expect(token.String)
+		path := p.s.Literal.(string)
 		s := &stmt.Import{
 			Name:   name,
-			Path:   p.s.Literal.(string),
+			Path:   path[1 : len(path)-1],
 			FromGo: true,
 		}
 		p.next()

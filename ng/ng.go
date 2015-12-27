@@ -55,33 +55,42 @@ func mode() liner.ModeApplier {
 }
 
 var (
-	bg     []*job.Job
+	bg     []*job.Job // TODO move into job package
 	jobsig = make(chan os.Signal, 1)
 )
 
 func main() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTSTP)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTSTP)
 	go func() {
 		for {
 			switch <-ch {
-			case os.Interrupt:
-				exitf("interrupted")
+			case syscall.SIGINT:
+				jobsig <- syscall.SIGINT
 			case syscall.SIGTSTP:
 				jobsig <- syscall.SIGTSTP
 			}
 		}
 	}()
 
+	job.Stdin = job.NewPollReader(os.Stdin)
+
 	origMode = mode()
-	lineNg = liner.NewLiner()
-	lineSh = liner.NewLiner()
+	lineNg = liner.NewLiner(job.Stdin)
+	lineSh = liner.NewLiner(job.Stdin)
 	loop()
 }
 
 func loop() {
-	prg := eval.New()
 	p := parser.New()
+	prg := eval.New()
+
+	// TODO this env setup could be done in neugram code
+	env := prg.Cur.Lookup("env").Value.(map[interface{}]interface{})
+	for _, s := range os.Environ() {
+		i := strings.Index(s, "=")
+		env[s[:i]] = s[i+1:]
+	}
 
 	lineNg.SetCompleter(completer)
 	if f, err := os.Open(historyNgFile); err == nil {
@@ -150,8 +159,8 @@ func loop() {
 		for _, err := range res.Errs {
 			fmt.Println(err.Error())
 		}
-		editMode := mode()
-		origMode.ApplyMode()
+		//editMode := mode()
+		//origMode.ApplyMode()
 		for _, argv := range res.Cmds {
 			switch argv[0] {
 			case "fg":
@@ -172,13 +181,12 @@ func loop() {
 				waitJob(j)
 			}
 		}
-		editMode.ApplyMode()
+		//editMode.ApplyMode()
 		state = res.State
 	}
 }
 
 func fg(argv []string) {
-	fmt.Printf("fg TODO\n")
 	jobspec := 1
 	if len(bg) == 0 {
 		fmt.Fprintf(os.Stderr, "ng: fg: no jobs\n")
@@ -199,30 +207,35 @@ func fg(argv []string) {
 	j := bg[jobspec-1]
 	bg = append(bg[:jobspec-1], bg[jobspec:]...)
 	fmt.Println(strings.Join(j.Argv, " "))
-	j.StartIO()
-	pid := j.Cmd.Process.Pid
-	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
-		fmt.Fprintf(os.Stderr, "ng: fg: cannot signal process %d to stop: %v", pid, err)
+	if err := j.Continue(); err != nil {
+		fmt.Fprintf(os.Stderr, "ng: fg: %v", err)
 		return
 	}
 	waitJob(j)
 }
 
-func waitJob(j *job.Job) { // TODO merge into job package Start/Stop?
-	select {
-	case <-j.Done:
-		// TODO: if err != nil, set exit code
-	case sig := <-jobsig:
-		switch sig {
-		case syscall.SIGTSTP:
-			pid := j.Cmd.Process.Pid
-			if err := syscall.Kill(pid, syscall.SIGTSTP); err != nil {
-				fmt.Fprintf(os.Stderr, "ng: cannot signal process %d to stop: %v", pid, err)
+func waitJob(j *job.Job) { // TODO merge into job package Stop/Continue?
+	for {
+		select {
+		case <-j.Done:
+			// TODO: if err != nil, set exit code
+			return
+		case sig := <-jobsig:
+			switch sig {
+			case syscall.SIGINT:
+				if err := j.Interrupt(); err != nil {
+					fmt.Fprintf(os.Stderr, "ng: %v", err)
+					return
+				}
+			case syscall.SIGTSTP:
+				if err := j.Stop(); err != nil {
+					fmt.Fprintf(os.Stderr, "ng: %v", err)
+					return
+				}
+				bg = append(bg, j)
+				fmt.Println(j.Stat(len(bg)))
 				return
 			}
-			j.StopIO()
-			bg = append(bg, j)
-			fmt.Println(j.Stat(len(bg)))
 		}
 	}
 }

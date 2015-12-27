@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"os"
 	"runtime/debug"
+	"sort"
 
 	"neugram.io/eval/gowrap"
 	"neugram.io/job"
@@ -57,12 +58,12 @@ type Scope struct {
 	Var    map[string]*Variable // variable name -> variable
 }
 
-func (s *Scope) lookup(name string) *Variable {
+func (s *Scope) Lookup(name string) *Variable {
 	if v := s.Var[name]; v != nil {
 		return v
 	}
 	if s.Parent != nil {
-		return s.Parent.lookup(name)
+		return s.Parent.Lookup(name)
 	}
 	return nil
 }
@@ -70,7 +71,21 @@ func (s *Scope) lookup(name string) *Variable {
 var universeScope = &Scope{Var: map[string]*Variable{
 	"true":  &Variable{Value: true},
 	"false": &Variable{Value: false},
+	"env":   &Variable{Value: make(map[interface{}]interface{})},
 }}
+
+func environ() []string {
+	// TODO come up with a way to cache this.
+	// If Scope used an interface for Variable, we could update
+	// a copy of the slice on each write to env.
+	env := universeScope.Lookup("env").Value.(map[interface{}]interface{})
+	var kv []string
+	for k, v := range env {
+		kv = append(kv, k.(string)+"="+v.(string))
+	}
+	sort.Strings(kv)
+	return kv
+}
 
 func zeroVariable(t tipe.Type) *Variable {
 	switch t := t.(type) {
@@ -134,6 +149,7 @@ func New() *Program {
 		},
 		Types: typecheck.New(),
 	}
+	p.Cur = p.Pkg["main"]
 	p.Types.ImportGo = p.importGo
 	return p
 }
@@ -178,7 +194,7 @@ func (p *Program) EvalCmd(argv []string) (*job.Job, error) {
 	case "exit", "logout":
 		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
-		j, err := job.New(argv)
+		j, err := job.Start(argv, environ())
 		if err != nil {
 			return nil, err
 		}
@@ -196,9 +212,6 @@ func (p *Program) Eval(s stmt.Stmt) (res []interface{}, resType tipe.Type, err e
 		}
 	}()
 
-	if p.Cur == nil {
-		p.Cur = p.Pkg["main"]
-	}
 	p.Types.Errs = p.Types.Errs[:0]
 	resType = p.Types.Add(s)
 	if len(p.Types.Errs) > 0 {
@@ -538,11 +551,11 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			},
 		}
 		for _, name := range e.Type.FreeVars {
-			c.Scope.Var[name] = p.Cur.lookup(name)
+			c.Scope.Var[name] = p.Cur.Lookup(name)
 		}
 		return []interface{}{c}, nil
 	case *expr.Ident:
-		if v := p.Cur.lookup(e.Name); v != nil {
+		if v := p.Cur.Lookup(e.Name); v != nil {
 			return []interface{}{v}, nil
 		}
 		return nil, fmt.Errorf("eval: undefined identifier: %q", e.Name)
@@ -647,12 +660,13 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
-			job, err := p.EvalCmd(cmd)
+			j, err := p.EvalCmd(cmd)
 			if err != nil {
 				return nil, err
 			}
-			if err := <-job.Done; err != nil {
-				return nil, err
+			<-j.Done
+			if j.Err != nil {
+				return nil, j.Err
 			}
 		}
 		return nil, nil

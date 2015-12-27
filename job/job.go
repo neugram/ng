@@ -7,105 +7,169 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
-	"sync"
+	"syscall"
+
+	"github.com/kr/pty"
 )
 
-func New(argv []string) (*Job, error) {
-	done := make(chan error, 1)
+type Job struct {
+	running   bool
+	path      string
+	stdinErr  chan error
+	stdinStop chan struct{}
+	stdinCont chan struct{}
+	process   *os.Process
 
+	tty *os.File
+	pty *os.File
+
+	Argv []string
+	Env  []string
+	Err  error
+	Done chan struct{}
+}
+
+var Stdin *PollReader
+
+func Start(argv, env []string) (*Job, error) {
 	j := &Job{
-		cond: sync.NewCond(new(sync.Mutex)),
-		in:   pausableReader{r: os.Stdin},
-		out:  pausableWriter{w: os.Stdout},
-		err:  pausableWriter{w: os.Stderr},
+		running:   true,
+		stdinErr:  make(chan error), // TODO use or lose
+		stdinStop: make(chan struct{}),
+		stdinCont: make(chan struct{}),
 
-		Cmd:  exec.Command(argv[0], argv[1:]...),
-		Done: done,
+		Done: make(chan struct{}),
 		Argv: argv,
+		Env:  env,
 	}
 
-	j.in.j = j
-	j.out.j = j
-	j.err.j = j
-
-	j.Cmd.Stdin = j.in
-	j.Cmd.Stdout = j.out
-	j.Cmd.Stderr = j.err
-
-	if err := j.Cmd.Start(); err != nil {
+	var err error
+	j.path, err = findExecInPath(argv[0], env)
+	if err != nil {
 		return nil, err
 	}
-	j.running = true
+
+	j.pty, j.tty, err = pty.Open()
+	if err != nil {
+		return nil, err
+	}
+
+	go j.stdinPump()
+	go j.stdoutPump()
+
+	j.process, err = os.StartProcess(j.path, j.Argv, &os.ProcAttr{
+		Env:   env,
+		Files: []*os.File{j.tty, j.tty, j.tty},
+		Sys: &syscall.SysProcAttr{
+			Ctty:    int(j.tty.Fd()),
+			Setctty: true,
+			Setsid:  true,
+		},
+	})
+
 	go func() {
-		done <- j.Cmd.Wait()
+		state, err := j.process.Wait()
+		j.tty.Close()
+		j.pty.Close() // TODO: what valid errors need to be handled here?
+		if err != nil {
+			j.Err = err
+		} else if !state.Success() {
+			code := exitCode(state)
+			j.Err = fmt.Errorf("failed on exit: %d", code)
+		}
+		close(j.Done)
 	}()
 	return j, nil
 }
 
-type Job struct {
-	cond    *sync.Cond
-	running bool // guarded by cond.L
-	in      pausableReader
-	out     pausableWriter
-	err     pausableWriter
-
-	Cmd  *exec.Cmd
-	Done <-chan error
-	Argv []string
+func (j *Job) stdinPump() {
+	buf := make([]byte, 4096)
+	var ready chan struct{}
+	if Stdin != nil {
+		ready = Stdin.Ready
+	} else {
+		ready = make(chan struct{}) // no stdin, never ready
+	}
+	stopped := false
+	for {
+		if stopped {
+			select {
+			case <-j.stdinCont:
+				stopped = false
+			case <-j.Done:
+				return
+			}
+		}
+		select {
+		case <-j.stdinStop:
+			stopped = true
+		case <-j.Done:
+			return
+		case <-ready:
+			n, err := Stdin.Read(buf)
+			_, err2 := j.pty.Write(buf[:n])
+			if err == nil {
+				err = err2
+			}
+			if pe, ok := err.(*os.PathError); ok {
+				if pe.Err == syscall.EBADF {
+					return
+				}
+			}
+			if err != nil {
+				//j.stdinErr <- err
+				fmt.Printf("stdin error: %v\n", err)
+				return
+			}
+		}
+	}
 }
 
-func (j *Job) StartIO() {
-	j.cond.L.Lock()
+func (j *Job) stdoutPump() {
+	// TODO: can we find a way to send SIGTTOU if !j.running?
+	_, err := io.Copy(os.Stdout, j.pty)
+	if err != nil {
+		fmt.Printf("stdout pipe error: %v\n", err)
+	}
+	//j.stdinErr <- err
+}
+
+func (j *Job) Continue() error {
+	pid := j.process.Pid
 	j.running = true
-	j.cond.Broadcast()
-	j.cond.L.Unlock()
+	j.stdinCont <- struct{}{}
+	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
+		if err == syscall.ESRCH {
+			return nil
+		}
+		return fmt.Errorf("cannot signal process %d to continue: %v", pid, err)
+	}
+	return nil
 }
 
-func (j *Job) StopIO() {
-	j.cond.L.Lock()
+func (j *Job) Stop() error {
+	pid := j.process.Pid
+	if err := syscall.Kill(pid, syscall.SIGTSTP); err != nil {
+		return fmt.Errorf("cannot signal process %d to stop: %v", pid, err)
+	}
 	j.running = false
-	j.cond.Broadcast()
-	j.cond.L.Unlock()
+	j.stdinStop <- struct{}{}
+	return nil
+}
+
+func (j *Job) Interrupt() error {
+	pid := j.process.Pid
+	if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
+		return fmt.Errorf("cannot signal process %d to interrupt: %v", pid, err)
+	}
+	return nil
 }
 
 func (j *Job) Stat(jobspec int) string {
 	run := "Stopped"
-	j.cond.L.Lock()
 	if j.running {
 		run = "Running"
 	}
-	j.cond.L.Unlock()
 	return fmt.Sprintf("[%d]+  %s  %s", jobspec, run, strings.Join(j.Argv, " "))
-}
-
-type pausableReader struct {
-	j *Job
-	r io.Reader
-}
-
-func (p pausableReader) Read(data []byte) (n int, err error) {
-	p.j.cond.L.Lock()
-	for !p.j.running {
-		p.j.cond.Wait()
-	}
-	p.j.cond.L.Unlock()
-
-	return p.r.Read(data)
-}
-
-type pausableWriter struct {
-	j *Job
-	w io.Writer
-}
-
-func (p pausableWriter) Write(data []byte) (n int, err error) {
-	p.j.cond.L.Lock()
-	for !p.j.running {
-		p.j.cond.Wait()
-	}
-	p.j.cond.L.Unlock()
-
-	return p.w.Write(data)
 }
