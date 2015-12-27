@@ -60,10 +60,13 @@ var (
 )
 
 func main() {
+	// TODO
+	// This is getting a bit absurd. It's time to write our own liner
+	// package, one that supports the two modes we need and meshes well
+	// with our own signal handling.
 	ch := make(chan os.Signal, 1)
 	winch1 := make(chan os.Signal, 1)
 	winch2 := make(chan os.Signal, 1)
-	//winch3 := job.Winch
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTSTP, syscall.SIGWINCH)
 	go func() {
 		for {
@@ -73,10 +76,21 @@ func main() {
 			case syscall.SIGTSTP:
 				jobsig <- syscall.SIGTSTP
 			case syscall.SIGWINCH:
-				fmt.Printf("got SIGWINCH\n")
-				winch1 <- syscall.SIGWINCH
-				winch2 <- syscall.SIGWINCH
-				//winch3 <- syscall.SIGWINCH
+				// TODO: don't drop this signal.
+				// Instead, rewrite liner and make sure we
+				// are always processing this.
+				select {
+				case winch1 <- syscall.SIGWINCH:
+				default:
+				}
+				select {
+				case winch2 <- syscall.SIGWINCH:
+				default:
+				}
+				select {
+				case jobsig <- syscall.SIGWINCH:
+				default:
+				}
 			}
 		}
 	}()
@@ -89,6 +103,19 @@ func main() {
 	loop()
 }
 
+func setWindowSize(env map[interface{}]interface{}) {
+	rows, cols, err := job.WindowSize(os.Stderr.Fd())
+	if err != nil {
+		fmt.Printf("ng: could not get window size: %v\n", err)
+	} else {
+		// TODO: these are meant to be shell variables, not
+		// environment variables. But then, how do programs
+		// like `ls` read them?
+		env["LINES"] = strconv.Itoa(rows)
+		env["COLUMNS"] = strconv.Itoa(cols)
+	}
+}
+
 func loop() {
 	p := parser.New()
 	prg := eval.New()
@@ -99,6 +126,7 @@ func loop() {
 		i := strings.Index(s, "=")
 		env[s[:i]] = s[i+1:]
 	}
+	setWindowSize(env)
 
 	lineNg.SetCompleter(completer)
 	if f, err := os.Open(historyNgFile); err == nil {
@@ -135,6 +163,7 @@ func loop() {
 		default:
 			exitf("unkown parser state: %v", state)
 		}
+		// TODO: drain jobsig while waiting at prompt
 		data, err := line.Prompt(prompt)
 		if err != nil {
 			if err == io.EOF {
@@ -150,6 +179,7 @@ func loop() {
 		res := p.ParseLine([]byte(data))
 
 		for _, s := range res.Stmts {
+			drainSig(env)
 			v, t, err := prg.Eval(s)
 			if err != nil {
 				fmt.Printf("eval error: %v\n", err)
@@ -170,6 +200,7 @@ func loop() {
 		//editMode := mode()
 		//origMode.ApplyMode()
 		for _, argv := range res.Cmds {
+			drainSig(env)
 			switch argv[0] {
 			case "fg":
 				fg(argv)
@@ -180,7 +211,6 @@ func loop() {
 					fmt.Println(j.Stat(i))
 				}
 			default:
-				// TODO: drain jobsig before starting?
 				j, err := prg.EvalCmd(argv)
 				if err != nil {
 					fmt.Printf("%v\n", err)
@@ -243,7 +273,24 @@ func waitJob(j *job.Job) { // TODO merge into job package Stop/Continue?
 				bg = append(bg, j)
 				fmt.Println(j.Stat(len(bg)))
 				return
+			case syscall.SIGWINCH:
+				j.Resize()
 			}
+		}
+	}
+}
+
+func drainSig(env map[interface{}]interface{}) {
+	for {
+		select {
+		case sig := <-jobsig:
+			switch sig {
+			case syscall.SIGWINCH:
+				setWindowSize(env)
+			default:
+			}
+		default:
+			return
 		}
 	}
 }

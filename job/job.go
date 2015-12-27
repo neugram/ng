@@ -100,6 +100,7 @@ func (j *Job) stdinPump() {
 			select {
 			case <-j.stdinCont:
 				stopped = false
+				j.pty.Write([]byte("\r\n"))
 			case <-j.Done:
 				return
 			}
@@ -141,15 +142,15 @@ func (j *Job) stdoutPump() {
 func (j *Job) Continue() error {
 	pid := j.process.Pid
 	j.running = true
-	j.stdinCont <- struct{}{}
 	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
 		if err == syscall.ESRCH {
 			return nil
 		}
 		return fmt.Errorf("cannot signal process %d to continue: %v", pid, err)
 	}
+	j.stdinCont <- struct{}{}
 	tcsetattr(os.Stdin.Fd(), &j.termios)
-	tcsetwinsize(os.Stdin.Fd())
+	//rows, cols := winsize(os.Stdin.Fd())
 	return nil
 }
 
@@ -170,6 +171,11 @@ func (j *Job) Interrupt() error {
 		return fmt.Errorf("cannot signal process %d to interrupt: %v", pid, err)
 	}
 	return nil
+}
+
+func (j *Job) Resize() {
+	pid := j.process.Pid
+	syscall.Kill(pid, syscall.SIGWINCH)
 }
 
 func (j *Job) Stat(jobspec int) string {

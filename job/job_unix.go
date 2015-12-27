@@ -79,22 +79,14 @@ func tcgetattr(fd uintptr, termios *syscall.Termios) error {
 	return nil
 }
 
-func tcsetwinsize(fd uintptr) error {
-	// TODO: this is for darwin, check linux
+// TODO: set $LINES and $COLUMNS
+func WindowSize(fd uintptr) (rows, cols int, err error) {
 	var sz struct {
-		rows uint16
-		cols uint16
-		hpx  uint16
-		vpx  uint16
+		rows, cols, _, _ uint16
 	}
-	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&sz)), 0, 0, 0)
-	if err != 0 {
-		fmt.Printf("tcsetwinsize: get %v\n", err)
-		return err
+	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, fd, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&sz)), 0, 0, 0)
+	if errno != 0 {
+		return 0, 0, fmt.Errorf("winsize: %v", err)
 	}
-	fmt.Printf("sz: %#+v\n", sz)
-	if sz.rows > 0 && sz.cols > 0 {
-		// TODO: set $LINES and $COLUMNS
-	}
-	return nil
+	return int(sz.rows), int(sz.cols), nil
 }
