@@ -61,7 +61,10 @@ var (
 
 func main() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTSTP)
+	winch1 := make(chan os.Signal, 1)
+	winch2 := make(chan os.Signal, 1)
+	//winch3 := job.Winch
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTSTP, syscall.SIGWINCH)
 	go func() {
 		for {
 			switch <-ch {
@@ -69,6 +72,11 @@ func main() {
 				jobsig <- syscall.SIGINT
 			case syscall.SIGTSTP:
 				jobsig <- syscall.SIGTSTP
+			case syscall.SIGWINCH:
+				fmt.Printf("got SIGWINCH\n")
+				winch1 <- syscall.SIGWINCH
+				winch2 <- syscall.SIGWINCH
+				//winch3 <- syscall.SIGWINCH
 			}
 		}
 	}()
@@ -76,8 +84,8 @@ func main() {
 	job.Stdin = job.NewPollReader(os.Stdin)
 
 	origMode = mode()
-	lineNg = liner.NewLiner(job.Stdin)
-	lineSh = liner.NewLiner(job.Stdin)
+	lineNg = liner.NewLiner(job.Stdin, winch1)
+	lineSh = liner.NewLiner(job.Stdin, winch2)
 	loop()
 }
 
@@ -206,7 +214,7 @@ func fg(argv []string) {
 	}
 	j := bg[jobspec-1]
 	bg = append(bg[:jobspec-1], bg[jobspec:]...)
-	fmt.Println(strings.Join(j.Argv, " "))
+	fmt.Println(strings.Join(j.Argv, " ")) // TODO depends on termios state?
 	if err := j.Continue(); err != nil {
 		fmt.Fprintf(os.Stderr, "ng: fg: %v", err)
 		return

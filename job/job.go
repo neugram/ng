@@ -21,8 +21,9 @@ type Job struct {
 	stdinCont chan struct{}
 	process   *os.Process
 
-	tty *os.File
-	pty *os.File
+	tty     *os.File
+	pty     *os.File
+	termios syscall.Termios
 
 	Argv []string
 	Env  []string
@@ -50,6 +51,9 @@ func Start(argv, env []string) (*Job, error) {
 		return nil, err
 	}
 
+	// TODO this is overkill, and is probably what's causing us so much trouble
+	// refreshing vim coming back from the background. All we should need is
+	// one PTY and to let the kernel make them foreground or background.
 	j.pty, j.tty, err = pty.Open()
 	if err != nil {
 		return nil, err
@@ -62,7 +66,6 @@ func Start(argv, env []string) (*Job, error) {
 		Env:   env,
 		Files: []*os.File{j.tty, j.tty, j.tty},
 		Sys: &syscall.SysProcAttr{
-			Ctty:    int(j.tty.Fd()),
 			Setctty: true,
 			Setsid:  true,
 		},
@@ -145,11 +148,14 @@ func (j *Job) Continue() error {
 		}
 		return fmt.Errorf("cannot signal process %d to continue: %v", pid, err)
 	}
+	tcsetattr(os.Stdin.Fd(), &j.termios)
+	tcsetwinsize(os.Stdin.Fd())
 	return nil
 }
 
 func (j *Job) Stop() error {
 	pid := j.process.Pid
+	tcgetattr(os.Stdin.Fd(), &j.termios)
 	if err := syscall.Kill(pid, syscall.SIGTSTP); err != nil {
 		return fmt.Errorf("cannot signal process %d to stop: %v", pid, err)
 	}

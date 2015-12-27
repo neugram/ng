@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unsafe"
 )
 
 func findExec(name string) error {
@@ -58,4 +59,42 @@ func findExecInPath(name string, env []string) (string, error) {
 
 func exitCode(state *os.ProcessState) int {
 	return state.Sys().(syscall.WaitStatus).ExitStatus()
+}
+
+func tcsetattr(fd uintptr, termios *syscall.Termios) error {
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, termiosSet, uintptr(unsafe.Pointer(termios)), 0, 0, 0)
+	if err != 0 {
+		fmt.Printf("tcsetattr: %v\n", err)
+		return err
+	}
+	return nil
+}
+
+func tcgetattr(fd uintptr, termios *syscall.Termios) error {
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, termiosGet, uintptr(unsafe.Pointer(termios)), 0, 0, 0)
+	if err != 0 {
+		fmt.Printf("tcgetattr: %v\n", err)
+		return err
+	}
+	return nil
+}
+
+func tcsetwinsize(fd uintptr) error {
+	// TODO: this is for darwin, check linux
+	var sz struct {
+		rows uint16
+		cols uint16
+		hpx  uint16
+		vpx  uint16
+	}
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&sz)), 0, 0, 0)
+	if err != 0 {
+		fmt.Printf("tcsetwinsize: get %v\n", err)
+		return err
+	}
+	fmt.Printf("sz: %#+v\n", sz)
+	if sz.rows > 0 && sz.cols > 0 {
+		// TODO: set $LINES and $COLUMNS
+	}
+	return nil
 }
