@@ -664,9 +664,14 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			<-j.Done
-			if j.Err != nil {
-				return nil, j.Err
+		Loop:
+			for {
+				if <-j.State == job.Exited {
+					if j.Err != nil {
+						return nil, j.Err
+					}
+					break Loop
+				}
 			}
 		}
 		return nil, nil

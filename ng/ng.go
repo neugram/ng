@@ -67,14 +67,14 @@ func main() {
 	ch := make(chan os.Signal, 1)
 	winch1 := make(chan os.Signal, 1)
 	winch2 := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTSTP, syscall.SIGWINCH)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGWINCH, syscall.SIGCHLD)
 	go func() {
 		for {
-			switch <-ch {
+			sig := <-ch
+			fmt.Printf("got signal: %s\n", sig)
+			switch sig {
 			case syscall.SIGINT:
 				jobsig <- syscall.SIGINT
-			case syscall.SIGTSTP:
-				jobsig <- syscall.SIGTSTP
 			case syscall.SIGWINCH:
 				// TODO: don't drop this signal.
 				// Instead, rewrite liner and make sure we
@@ -95,11 +95,9 @@ func main() {
 		}
 	}()
 
-	job.Stdin = job.NewPollReader(os.Stdin)
-
 	origMode = mode()
-	lineNg = liner.NewLiner(job.Stdin, winch1)
-	lineSh = liner.NewLiner(job.Stdin, winch2)
+	lineNg = liner.NewLiner(os.Stdin, winch1)
+	lineSh = liner.NewLiner(os.Stdin, winch2)
 	loop()
 }
 
@@ -208,7 +206,7 @@ func loop() {
 				fmt.Printf("bg TODO\n")
 			case "jobs":
 				for i, j := range bg {
-					fmt.Println(j.Stat(i))
+					fmt.Println(j.Stat(i + 1))
 				}
 			default:
 				j, err := prg.EvalCmd(argv)
@@ -255,26 +253,23 @@ func fg(argv []string) {
 func waitJob(j *job.Job) { // TODO merge into job package Stop/Continue?
 	for {
 		select {
-		case <-j.Done:
-			// TODO: if err != nil, set exit code
-			return
-		case sig := <-jobsig:
-			switch sig {
-			case syscall.SIGINT:
-				if err := j.Interrupt(); err != nil {
-					fmt.Fprintf(os.Stderr, "ng: %v", err)
-					return
-				}
-			case syscall.SIGTSTP:
-				if err := j.Stop(); err != nil {
-					fmt.Fprintf(os.Stderr, "ng: %v", err)
-					return
-				}
+		case state := <-j.State:
+			fmt.Printf("job state change: %s\n", state)
+			switch state {
+			case job.Stopped:
 				bg = append(bg, j)
 				fmt.Println(j.Stat(len(bg)))
 				return
+			case job.Exited:
+				// TODO: if j.Err != nil, set exit code
+				return
+			}
+		case sig := <-jobsig:
+			switch sig {
 			case syscall.SIGWINCH:
 				j.Resize()
+			default:
+				fmt.Printf("unhandled sig: %s\n", sig)
 			}
 		}
 	}
