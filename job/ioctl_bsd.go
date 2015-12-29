@@ -8,6 +8,6 @@ package job
 import "syscall"
 
 const (
-	termiosGet = syscall.TIOCGETA
-	termiosSet = syscall.TIOCSETA
+	_TIOCGETS = ioctlRequest(syscall.TIOCGETA)
+	_TIOCSETS = ioctlRequest(syscall.TIOCSETA)
 )

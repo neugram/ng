@@ -54,10 +54,7 @@ func mode() liner.ModeApplier {
 	return m
 }
 
-var (
-	bg     []*job.Job // TODO move into job package
-	jobsig = make(chan os.Signal, 1)
-)
+var bg []*job.Job // TODO move into job package
 
 func main() {
 	// TODO
@@ -67,14 +64,15 @@ func main() {
 	ch := make(chan os.Signal, 1)
 	winch1 := make(chan os.Signal, 1)
 	winch2 := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGWINCH, syscall.SIGCHLD)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGWINCH)
+	signal.Ignore(syscall.SIGTTOU, syscall.SIGTTIN)
 	go func() {
 		for {
 			sig := <-ch
 			fmt.Printf("got signal: %s\n", sig)
 			switch sig {
 			case syscall.SIGINT:
-				jobsig <- syscall.SIGINT
+				// TODO
 			case syscall.SIGWINCH:
 				// TODO: don't drop this signal.
 				// Instead, rewrite liner and make sure we
@@ -85,10 +83,6 @@ func main() {
 				}
 				select {
 				case winch2 <- syscall.SIGWINCH:
-				default:
-				}
-				select {
-				case jobsig <- syscall.SIGWINCH:
 				default:
 				}
 			}
@@ -161,7 +155,6 @@ func loop() {
 		default:
 			exitf("unkown parser state: %v", state)
 		}
-		// TODO: drain jobsig while waiting at prompt
 		data, err := line.Prompt(prompt)
 		if err != nil {
 			if err == io.EOF {
@@ -177,7 +170,6 @@ func loop() {
 		res := p.ParseLine([]byte(data))
 
 		for _, s := range res.Stmts {
-			drainSig(env)
 			v, t, err := prg.Eval(s)
 			if err != nil {
 				fmt.Printf("eval error: %v\n", err)
@@ -198,7 +190,6 @@ func loop() {
 		//editMode := mode()
 		//origMode.ApplyMode()
 		for _, argv := range res.Cmds {
-			drainSig(env)
 			switch argv[0] {
 			case "fg":
 				fg(argv)
@@ -214,7 +205,9 @@ func loop() {
 					fmt.Printf("%v\n", err)
 					continue
 				}
-				waitJob(j)
+				if j != nil {
+					waitJob(j)
+				}
 			}
 		}
 		//editMode.ApplyMode()
@@ -252,39 +245,18 @@ func fg(argv []string) {
 
 func waitJob(j *job.Job) { // TODO merge into job package Stop/Continue?
 	for {
-		select {
-		case state := <-j.State:
-			fmt.Printf("job state change: %s\n", state)
-			switch state {
-			case job.Stopped:
-				bg = append(bg, j)
-				fmt.Println(j.Stat(len(bg)))
-				return
-			case job.Exited:
-				// TODO: if j.Err != nil, set exit code
-				return
+		state := <-j.State
+		switch state {
+		case job.Stopped:
+			bg = append(bg, j)
+			fmt.Println(j.Stat(len(bg)))
+			return
+		case job.Exited:
+			if j.Err != nil {
+				// TODO distinguish error code, don't print,
+				// instead set $?.
+				fmt.Printf("process exited with %v\n", j.Err)
 			}
-		case sig := <-jobsig:
-			switch sig {
-			case syscall.SIGWINCH:
-				j.Resize()
-			default:
-				fmt.Printf("unhandled sig: %s\n", sig)
-			}
-		}
-	}
-}
-
-func drainSig(env map[interface{}]interface{}) {
-	for {
-		select {
-		case sig := <-jobsig:
-			switch sig {
-			case syscall.SIGWINCH:
-				setWindowSize(env)
-			default:
-			}
-		default:
 			return
 		}
 	}

@@ -36,20 +36,22 @@ type Job struct {
 }
 
 func init() {
-	err := tcgetattr(os.Stdin.Fd(), &initialState)
+	var err error
+	basicState, err = tcgetattr(os.Stdin.Fd())
 	if err != nil {
-		login = false
+		// not a login shell, do something very different.
+		fmt.Printf("note, could not tcgetattr: %v", err)
 	}
-	pgid, err = syscall.Getpgid(0)
+	shellPgid, err = syscall.Getpgid(0)
 	if err != nil {
 		panic(err)
 	}
 }
 
 var (
-	login        = true
-	initialState syscall.Termios
-	pgid         int
+	basicState syscall.Termios
+	shellState syscall.Termios
+	shellPgid  int
 )
 
 func Start(argv, env []string) (*Job, error) {
@@ -70,7 +72,13 @@ func Start(argv, env []string) (*Job, error) {
 		return nil, err
 	}
 
-	tcsetattr(os.Stdin.Fd(), &initialState) // TODO: save current shell state
+	shellState, err = tcgetattr(os.Stdin.Fd())
+	if err != nil {
+		return nil, err
+	}
+	if err := tcsetattr(os.Stdin.Fd(), &basicState); err != nil {
+		return nil, err
+	}
 	j.process, err = os.StartProcess(j.path, j.Argv, &os.ProcAttr{
 		Env:   env,
 		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
@@ -85,46 +93,71 @@ func Start(argv, env []string) (*Job, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot get pgid of new job: %v", err)
 	}
-	tcsetpgrp(os.Stdin.Fd(), j.pgid)
+	if err := tcsetpgrp(os.Stdin.Fd(), j.pgid); err != nil {
+		return nil, err
+	}
 
 	go func() {
 		pid := j.process.Pid
 		// TODO: is it safe to do this before receiving SIGCHLD?
 		wstatus := new(syscall.WaitStatus)
 		for {
-			fmt.Printf("calling wait4\n")
 			_, err := syscall.Wait4(pid, wstatus, syscall.WUNTRACED, nil)
 			if err != nil {
-				j.Err = os.NewSyscallError("wait4", err)
+				j.Err = os.NewSyscallError("wait4 WUNTRACED", err)
 			}
-			fmt.Printf("wait4: %+v\n", wstatus)
 			switch {
 			case wstatus.Stopped():
 				// move the shell process to the foreground
-				tcgetattr(os.Stdin.Fd(), &j.termios)
-				tcsetpgrp(os.Stdin.Fd(), pgid)
+				if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
+					fmt.Fprintf(os.Stderr, "on stop: %v", err)
+				}
+				j.termios, err = tcgetattr(os.Stdin.Fd())
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "on stop: %v", err)
+				}
+				if err := tcsetattr(os.Stdin.Fd(), &shellState); err != nil {
+					fmt.Fprintf(os.Stderr, "on stop: %v", err)
+				}
 				j.state = Stopped
 				j.State <- Stopped
 			case wstatus.Continued():
 				j.state = Running
 				j.State <- Running
 			case wstatus.Exited():
-				tcsetpgrp(os.Stdin.Fd(), pgid)
-				if exit := wstatus.ExitStatus(); j.Err == nil && exit != 0 {
-					j.Err = fmt.Errorf("failed on exit: %d", exit)
+				if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
+					j.Err = err
+				}
+				if err := tcsetattr(os.Stdin.Fd(), &shellState); j.Err == nil && err != nil {
+					j.Err = err
+				}
+				if c := wstatus.ExitStatus(); j.Err == nil && c != 0 {
+					j.Err = fmt.Errorf("failed on exit: %d", c)
 				}
 				j.state = Exited
 				j.State <- Exited
 				return
+			case wstatus.Signaled():
+				// ignore
+			default:
+				panic(fmt.Sprintf("unexpected wstatus: %#+v", wstatus))
 			}
 		}
 	}()
 	return j, nil
 }
 
-func (j *Job) Continue() error {
-	tcsetattr(os.Stdin.Fd(), &j.termios)
-	tcsetpgrp(os.Stdin.Fd(), j.pgid)
+func (j *Job) Continue() (err error) {
+	shellState, err = tcgetattr(os.Stdin.Fd())
+	if err != nil {
+		return err
+	}
+	if err := tcsetpgrp(os.Stdin.Fd(), j.pgid); err != nil {
+		return err
+	}
+	if err := tcsetattr(os.Stdin.Fd(), &j.termios); err != nil {
+		return err
+	}
 	pid := j.process.Pid
 	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
 		if err == syscall.ESRCH {
