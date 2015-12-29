@@ -22,11 +22,9 @@ type Job struct {
 	state State
 	State chan State
 
-	path      string
-	stdinStop chan struct{}
-	stdinCont chan struct{}
-	process   *os.Process
-	pgid      int
+	path    string
+	process *os.Process
+	pgid    int
 
 	termios syscall.Termios
 
@@ -58,9 +56,6 @@ func Start(argv, env []string) (*Job, error) {
 	j := &Job{
 		state: Running, // TODO mutex? TODO remove?
 		State: make(chan State),
-
-		stdinStop: make(chan struct{}),
-		stdinCont: make(chan struct{}),
 
 		Argv: argv,
 		Env:  env,
@@ -99,7 +94,6 @@ func Start(argv, env []string) (*Job, error) {
 
 	go func() {
 		pid := j.process.Pid
-		// TODO: is it safe to do this before receiving SIGCHLD?
 		wstatus := new(syscall.WaitStatus)
 		for {
 			_, err := syscall.Wait4(pid, wstatus, syscall.WUNTRACED, nil)
