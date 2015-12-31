@@ -98,9 +98,37 @@ type TableIndex struct {
 	Rows     Range
 }
 
+type ShellSeg int
+
+const (
+	SegmentSemi ShellSeg = iota // ;
+	SegmentPipe                 // |
+	SegmentAnd                  // &&
+	SegmentOut                  // >
+	SegmentIn                   // <
+	// TODO SegmentOr for ||?
+	// TODO must we support the awful monster 2>&1, or leave outside $$?
+	// TODO what about the less painful &>?
+)
+
+// x ; y; z   -- sequential execution
+// x && z     -- sequential execution conditional on success
+// x | y | z  -- pipeline
+// x < f      -- f (denoted by Redirect) isstdin to x
+// x > f      -- run x, stdout to Redirect
+type ShellList struct {
+	Segment  ShellSeg
+	Redirect string
+	List     []Expr // ShellList or ShellCmd
+}
+
+type ShellCmd struct {
+	Argv []string
+}
+
 type Shell struct {
-	Cmds [][]string
-	// TODO: stdin, stdout, stderr as args
+	Cmds []*ShellList
+	// TODO: Shell object for err := $$(stdin, stdout, stderr) cmd $$
 }
 
 var (
@@ -116,6 +144,8 @@ var (
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
 	_ = Expr((*TableIndex)(nil))
+	_ = Expr((*ShellList)(nil))
+	_ = Expr((*ShellCmd)(nil))
 	_ = Expr((*Shell)(nil))
 )
 
@@ -132,6 +162,8 @@ func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
 func (e *Index) expr()        {}
 func (e *TableIndex) expr()   {}
+func (e *ShellList) expr()    {}
+func (e *ShellCmd) expr()     {}
 func (e *Shell) expr()        {}
 
 func (e *Binary) Sexp() string {
@@ -242,12 +274,40 @@ func (e *TableIndex) Sexp() string {
 	return fmt.Sprintf("(tableindex %s%s %s %s", exprSexp(e.Expr), names, rangeSexp(e.Cols), rangeSexp(e.Rows))
 }
 
-func (e *Shell) Sexp() string {
-	var cmds []string
-	for _, cmd := range e.Cmds {
-		cmds = append(cmds, "("+strings.Join(cmd, " ")+")")
+func (e *ShellList) Sexp() string {
+	if e == nil {
+		return "(nilshelllist)"
 	}
-	return fmt.Sprintf("(shell %s)", strings.Join(cmds, " "))
+	seg := "unknownsegment"
+	switch e.Segment {
+	case SegmentPipe:
+		seg = "|"
+	case SegmentAnd:
+		seg = "&&"
+	case SegmentSemi:
+		seg = ";"
+	case SegmentOut:
+		seg = ">"
+	case SegmentIn:
+		seg = "<"
+	}
+	r := ""
+	if e.Redirect != "" {
+		r = "(redirect " + e.Redirect + ")"
+	}
+	return fmt.Sprintf("(shelllist %q %s%s)", seg, exprsStr(e.List), r)
+}
+
+func (e *ShellCmd) Sexp() string {
+	return fmt.Sprintf("(shellcmd %s)", strings.Join(e.Argv, " "))
+}
+
+func (e *Shell) Sexp() string {
+	cmds := ""
+	for _, cmd := range e.Cmds {
+		cmds += " " + exprSexp(cmd)
+	}
+	return fmt.Sprintf("(shell%s)", cmds)
 }
 
 func tipeSexp(t tipe.Type) string {

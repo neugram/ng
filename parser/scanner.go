@@ -104,10 +104,14 @@ func (s *Scanner) scanIdentifier() string {
 
 func (s *Scanner) scanShellWord() string {
 	off := s.Offset
-	for s.r != ' ' && s.r != '\t' && s.r != '\n' && s.r != '\r' {
-		s.next()
+	for {
+		switch s.r {
+		case ' ', '\t', '\n', '\r', '|', '&', ';', '<', '>', '(', ')':
+			return string(s.src[off:s.Offset])
+		default:
+			s.next()
+		}
 	}
-	return string(s.src[off:s.Offset])
 }
 
 func (s *Scanner) scanMantissa() {
@@ -237,6 +241,62 @@ func (s *Scanner) scanComment() string {
 	return string(lit)
 }
 
+func (s *Scanner) nextInShell(r rune) {
+	switch r {
+	case '$':
+		// TODO: there's a significant grammatical issue here. the input:
+		//	$$ ls$$
+		// will parse as Shell ("$$"), ShellWord ("ls$$").
+		// To avoid this, scanShellWord needs to track what follows the $,
+		// and do the inShell = false dance.
+		s.next()
+		if s.r == '$' {
+			s.next()
+			s.Token = token.Shell
+			s.inShell = false
+			s.semi = true
+		} else {
+			s.semi = true
+			s.Literal = "$" + s.scanShellWord()
+			s.Token = token.ShellWord
+		}
+	case '"':
+		s.semi = true
+		s.Literal = s.scanString()
+		s.Token = token.ShellWord
+	case '\n':
+		s.Token = token.Semicolon
+	case '|':
+		s.next()
+		s.Token = token.ShellPipe
+	case '&':
+		s.next()
+		switch s.r {
+		case '&':
+			s.next()
+			s.Token = token.LogicalAnd
+		default:
+			s.Token = token.Ref
+		}
+	case '<':
+		s.next()
+		s.Token = token.Less
+	case '>':
+		s.next()
+		s.Token = token.Greater
+	case '(':
+		s.next()
+		s.Token = token.LeftParen
+	case ')':
+		s.next()
+		s.Token = token.RightParen
+	default:
+		s.semi = true
+		s.Literal = s.scanShellWord()
+		s.Token = token.ShellWord
+	}
+}
+
 func (s *Scanner) Next() {
 	/*defer func() {
 		fmt.Printf("Scanner.Next s.Token=%s, s.inShell=%v", s.Token, s.inShell)
@@ -255,30 +315,7 @@ func (s *Scanner) Next() {
 	switch {
 	case s.inShell:
 		//fmt.Printf("inShell, r=%q\n", string(r))
-		switch r {
-		case '$':
-			s.next()
-			if s.r == '$' {
-				s.next()
-				s.Token = token.Shell
-				s.inShell = false
-				s.semi = true
-			} else {
-				s.semi = true
-				s.Literal = "$" + s.scanShellWord()
-				s.Token = token.ShellWord
-			}
-		case '"':
-			s.semi = true
-			s.Literal = s.scanString()
-			s.Token = token.ShellWord
-		case '\n':
-			s.Token = token.Semicolon
-		default:
-			s.semi = true
-			s.Literal = s.scanShellWord()
-			s.Token = token.ShellWord
-		}
+		s.nextInShell(r)
 		return
 	case unicode.IsLetter(r):
 		lit := s.scanIdentifier()

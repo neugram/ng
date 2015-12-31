@@ -6,9 +6,37 @@ package job
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 )
+
+var BG []*Job
+
+func FG(spec string) error {
+	jobspec := 1
+	if len(BG) == 0 {
+		return fmt.Errorf("fg: no jobs\n")
+	}
+	var err error
+	if spec != "" {
+		jobspec, err = strconv.Atoi(spec)
+	}
+	if err != nil {
+		return fmt.Errorf("fg: %v", err)
+	}
+	if jobspec > len(BG) {
+		return fmt.Errorf("fg: %d: no such job\n", jobspec)
+	}
+	j := BG[jobspec-1]
+	BG = append(BG[:jobspec-1], BG[jobspec:]...)
+	fmt.Println(strings.Join(j.Argv, " ")) // TODO depends on termios state?
+	if err := j.Continue(); err != nil {
+		return fmt.Errorf("fg: %v", err)
+	}
+	j.Wait()
+	return nil
+}
 
 type State int
 
@@ -165,6 +193,24 @@ func (j *Job) Continue() (err error) {
 func (j *Job) Resize() {
 	pid := j.process.Pid
 	syscall.Kill(pid, syscall.SIGWINCH)
+}
+
+func (j *Job) Wait() {
+	for {
+		switch <-j.State {
+		case Stopped:
+			BG = append(BG, j)
+			fmt.Println(j.Stat(len(BG)))
+			return
+		case Exited:
+			if j.Err != nil {
+				// TODO distinguish error code, don't print,
+				// instead set $?.
+				fmt.Printf("process exited with %v\n", j.Err)
+			}
+			return
+		}
+	}
 }
 
 func (j *Job) Stat(jobspec int) string {

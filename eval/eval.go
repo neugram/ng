@@ -173,7 +173,36 @@ func (p *Program) importGo(path string) (*gotypes.Package, error) {
 	return pkg, err
 }
 
-func (p *Program) EvalCmd(argv []string) (*job.Job, error) {
+func (p *Program) evalShell(cmd interface{}, evalCmdFn func(argv []string) error) error {
+	switch cmd := cmd.(type) {
+	case *expr.ShellList:
+		switch cmd.Segment {
+		case expr.SegmentSemi:
+			for _, s := range cmd.List {
+				if err := p.evalShell(s, evalCmdFn); err != nil {
+					return err
+				}
+			}
+			return nil
+		default:
+			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
+		}
+		// TODO SegmentPipe
+		// TODO SegmentAnd
+		// TODO SegmentOut
+		// TODO SegmentIn
+	case *expr.ShellCmd:
+		return evalCmdFn(cmd.Argv)
+	default:
+		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
+	}
+}
+
+func (p *Program) EvalShellList(s *expr.ShellList, evalCmdFn func(argv []string) error) error {
+	return p.evalShell(s, evalCmdFn)
+}
+
+func (p *Program) EvalCmd(argv []string) error {
 	switch argv[0] {
 	case "cd":
 		dir := ""
@@ -183,22 +212,23 @@ func (p *Program) EvalCmd(argv []string) (*job.Job, error) {
 			dir = argv[1]
 		}
 		if err := os.Chdir(dir); err != nil {
-			return nil, err
+			return err
 		}
 		wd, err := os.Getwd()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
-		return nil, nil
+		return nil
 	case "exit", "logout":
-		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
+		return fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
 		j, err := job.Start(argv, environ())
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return j, nil
+		j.Wait() // TODO error prop?
+		return nil
 	}
 }
 
@@ -660,18 +690,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
-			j, err := p.EvalCmd(cmd)
-			if err != nil {
+			if err := p.EvalShellList(cmd, p.EvalCmd); err != nil {
 				return nil, err
-			}
-		Loop:
-			for {
-				if <-j.State == job.Exited {
-					if j.Err != nil {
-						return nil, j.Err
-					}
-					break Loop
-				}
 			}
 		}
 		return nil, nil

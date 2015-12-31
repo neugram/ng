@@ -56,7 +56,7 @@ type Parser struct {
 type Result struct {
 	State ParserState
 	Stmts []stmt.Stmt
-	Cmds  [][]string
+	Cmds  []*expr.ShellList
 	Errs  []Error
 }
 
@@ -95,10 +95,8 @@ func (p *Parser) work() {
 		if p.res.State != StateCmd && p.s.Token == token.Shell {
 			p.res.State = StateCmd
 		} else if p.res.State == StateCmd {
-			cmd := p.parseCmd()
-			if len(cmd) > 0 {
-				p.res.Cmds = append(p.res.Cmds, cmd)
-			}
+			cmd := p.parseShellList(true)
+			p.res.Cmds = append(p.res.Cmds, cmd)
 			// TODO StateCmdPartial, lines ending with '\'
 			if p.s.Token == token.Shell {
 				p.next()
@@ -136,12 +134,82 @@ func (p *Parser) next() {
 	}
 }
 
-func (p *Parser) parseCmd() (cmd []string) {
+func (p *Parser) parseShellCmd() *expr.ShellCmd {
+	res := &expr.ShellCmd{}
 	for p.s.Token == token.ShellWord {
-		cmd = append(cmd, p.s.Literal.(string))
+		res.Argv = append(res.Argv, p.s.Literal.(string))
 		p.next()
 	}
-	return cmd
+	return res
+}
+
+func (p *Parser) parseShellList(interactive bool) *expr.ShellList {
+	sl := new(expr.ShellList)
+
+	switch p.s.Token {
+	case token.LeftParen:
+		p.next()
+		sl.List = []expr.Expr{p.parseShellList(false)}
+		p.expect(token.RightParen)
+		p.next()
+	case token.ShellWord:
+		sl.List = []expr.Expr{p.parseShellCmd()}
+	}
+
+	// TODO: do shells have a useful notion of operator precedence?
+	if p.s.Token == token.Shell {
+		return sl
+	}
+	if interactive && p.s.Token == token.Semicolon {
+		return sl
+	}
+	sl.Segment = segOp(p.s.Token)
+	p.next()
+
+	switch sl.Segment {
+	case expr.SegmentOut, expr.SegmentIn:
+		if p.expect(token.ShellWord) {
+			sl.Redirect = p.s.Literal.(string)
+		}
+		p.next()
+		sl = &expr.ShellList{List: []expr.Expr{sl}}
+	}
+
+	if p.s.Token == token.Shell {
+		return sl
+	}
+	y := p.parseShellList(interactive)
+
+	if y == nil {
+		//
+	} else if y.Segment == sl.Segment {
+		sl.List = append(sl.List, y.List...)
+	} else if len(y.List) == 1 && y.Segment == expr.SegmentSemi {
+		sl.List = append(sl.List, y.List...)
+	} else {
+		sl.List = append(sl.List, y)
+	}
+
+	return sl
+}
+
+func segOp(t token.Token) expr.ShellSeg {
+	switch t {
+	case token.Semicolon:
+		return expr.SegmentSemi
+	case token.ShellPipe:
+		return expr.SegmentPipe
+	case token.LogicalAnd:
+		return expr.SegmentAnd
+	case token.Ref:
+		panic("TODO bg task")
+	case token.Greater:
+		return expr.SegmentOut
+	case token.Less:
+		return expr.SegmentIn
+	default:
+		panic(fmt.Sprintf("unknown segment op: %v", t))
+	}
 }
 
 func (p *Parser) parseExpr() expr.Expr {
@@ -993,10 +1061,12 @@ func (p *Parser) parseOperand() expr.Expr {
 		p.next()
 		x := &expr.Shell{}
 		for p.s.Token > 0 && p.s.Token != token.Shell {
-			x.Cmds = append(x.Cmds, p.parseCmd())
+			cmd := p.parseShellList(false)
+			x.Cmds = append(x.Cmds, cmd)
 		}
 		p.expect(token.Shell)
 		p.next()
+		fmt.Printf("returning Shell: %s\n", x.Sexp())
 		return x
 	}
 

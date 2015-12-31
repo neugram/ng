@@ -212,6 +212,50 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return true
+	case *expr.ShellList:
+		y, ok := y.(*expr.ShellList)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if x.Segment != y.Segment {
+			return false
+		}
+		if !equalExprs(x.List, y.List) {
+			return false
+		}
+		return true
+	case *expr.ShellCmd:
+		y, ok := y.(*expr.ShellCmd)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !reflect.DeepEqual(x.Argv, y.Argv) {
+			return false
+		}
+		return true
+	case *expr.Shell:
+		y, ok := y.(*expr.Shell)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if len(x.Cmds) != len(y.Cmds) {
+			return false
+		}
+		for i, xc := range x.Cmds {
+			if !EqualExpr(xc, y.Cmds[i]) {
+				return false
+			}
+		}
+		return true
 	default:
 		panic(fmt.Sprintf("unknown expr type %T: %#+v", x, x))
 	}

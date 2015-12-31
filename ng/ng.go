@@ -189,25 +189,25 @@ func loop() {
 		}
 		//editMode := mode()
 		//origMode.ApplyMode()
-		for _, argv := range res.Cmds {
-			switch argv[0] {
-			case "fg":
-				fg(argv)
-			case "bg":
-				fmt.Printf("bg TODO\n")
-			case "jobs":
-				for i, j := range bg {
-					fmt.Println(j.Stat(i + 1))
+		for _, cmd := range res.Cmds {
+			err := prg.EvalShellList(cmd, func(argv []string) error {
+				switch argv[0] {
+				case "fg":
+					fg(argv)
+				case "bg":
+					fmt.Printf("bg TODO\n")
+				case "jobs":
+					for i, j := range bg {
+						fmt.Println(j.Stat(i + 1))
+					}
+				default:
+					return prg.EvalCmd(argv)
 				}
-			default:
-				j, err := prg.EvalCmd(argv)
-				if err != nil {
-					fmt.Printf("%v\n", err)
-					continue
-				}
-				if j != nil {
-					waitJob(j)
-				}
+				return nil
+			})
+			if err != nil {
+				fmt.Printf("%v\n", err)
+				continue
 			}
 		}
 		//editMode.ApplyMode()
@@ -216,49 +216,8 @@ func loop() {
 }
 
 func fg(argv []string) {
-	jobspec := 1
-	if len(bg) == 0 {
-		fmt.Fprintf(os.Stderr, "ng: fg: no jobs\n")
-		return
-	}
-	if len(argv) > 1 {
-		var err error
-		jobspec, err = strconv.Atoi(argv[1])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ng: fg: %v", err)
-			return
-		}
-	}
-	if jobspec > len(bg) {
-		fmt.Fprintf(os.Stderr, "ng: fg: %d: no such job\n", jobspec)
-		return
-	}
-	j := bg[jobspec-1]
-	bg = append(bg[:jobspec-1], bg[jobspec:]...)
-	fmt.Println(strings.Join(j.Argv, " ")) // TODO depends on termios state?
-	if err := j.Continue(); err != nil {
-		fmt.Fprintf(os.Stderr, "ng: fg: %v", err)
-		return
-	}
-	waitJob(j)
-}
-
-func waitJob(j *job.Job) { // TODO merge into job package Stop/Continue?
-	for {
-		state := <-j.State
-		switch state {
-		case job.Stopped:
-			bg = append(bg, j)
-			fmt.Println(j.Stat(len(bg)))
-			return
-		case job.Exited:
-			if j.Err != nil {
-				// TODO distinguish error code, don't print,
-				// instead set $?.
-				fmt.Printf("process exited with %v\n", j.Err)
-			}
-			return
-		}
+	if err := job.FG(strings.Join(argv, " ")); err != nil {
+		fmt.Fprintf(os.Stderr, "ng: %v", err)
 	}
 }
 
