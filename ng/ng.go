@@ -54,8 +54,6 @@ func mode() liner.ModeApplier {
 	return m
 }
 
-var bg []*job.Job // TODO move into job package
-
 func main() {
 	// TODO
 	// This is getting a bit absurd. It's time to write our own liner
@@ -134,6 +132,27 @@ func loop() {
 	}
 	go historyWriter(historyShFile, historySh)
 
+	cmdState := eval.CmdState{
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		RunCmd: func(argv []string, state eval.CmdState) error {
+			switch argv[0] {
+			case "fg":
+				fg(argv)
+			case "bg":
+				fmt.Printf("bg TODO\n")
+			case "jobs":
+				for i, j := range job.BG {
+					fmt.Println(j.Stat(i + 1))
+				}
+			default:
+				return prg.EvalCmd(argv, state)
+			}
+			return nil
+		},
+	}
+
 	state := parser.StateStmt
 	for {
 		var (
@@ -190,22 +209,7 @@ func loop() {
 		//editMode := mode()
 		//origMode.ApplyMode()
 		for _, cmd := range res.Cmds {
-			err := prg.EvalShellList(cmd, func(argv []string) error {
-				switch argv[0] {
-				case "fg":
-					fg(argv)
-				case "bg":
-					fmt.Printf("bg TODO\n")
-				case "jobs":
-					for i, j := range bg {
-						fmt.Println(j.Stat(i + 1))
-					}
-				default:
-					return prg.EvalCmd(argv)
-				}
-				return nil
-			})
-			if err != nil {
+			if err := prg.EvalShellList(cmd, cmdState); err != nil {
 				fmt.Printf("%v\n", err)
 				continue
 			}
@@ -216,7 +220,7 @@ func loop() {
 }
 
 func fg(argv []string) {
-	if err := job.FG(strings.Join(argv, " ")); err != nil {
+	if err := job.FG(strings.Join(argv[1:], " ")); err != nil {
 		fmt.Fprintf(os.Stderr, "ng: %v", err)
 	}
 }

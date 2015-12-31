@@ -173,36 +173,53 @@ func (p *Program) importGo(path string) (*gotypes.Package, error) {
 	return pkg, err
 }
 
-func (p *Program) evalShell(cmd interface{}, evalCmdFn func(argv []string) error) error {
+type CmdState struct {
+	Stdin  *os.File
+	Stdout *os.File
+	Stderr *os.File
+	RunCmd func(argv []string, state CmdState) error
+}
+
+func (p *Program) evalShell(cmd interface{}, state CmdState) error {
 	switch cmd := cmd.(type) {
 	case *expr.ShellList:
 		switch cmd.Segment {
 		case expr.SegmentSemi:
+			var err error
 			for _, s := range cmd.List {
-				if err := p.evalShell(s, evalCmdFn); err != nil {
+				err = p.evalShell(s, state)
+			}
+			return err
+		case expr.SegmentAnd:
+			for _, s := range cmd.List {
+				if err := p.evalShell(s, state); err != nil {
 					return err
 				}
 			}
 			return nil
+		//case expr.SegmentPipe:
 		default:
 			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
 		}
 		// TODO SegmentPipe
-		// TODO SegmentAnd
 		// TODO SegmentOut
 		// TODO SegmentIn
 	case *expr.ShellCmd:
-		return evalCmdFn(cmd.Argv)
+		return state.RunCmd(cmd.Argv, state)
 	default:
 		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
 	}
 }
 
-func (p *Program) EvalShellList(s *expr.ShellList, evalCmdFn func(argv []string) error) error {
-	return p.evalShell(s, evalCmdFn)
+func (p *Program) EvalShellList(s *expr.ShellList, state CmdState) error {
+	return p.evalShell(s, state)
 }
 
-func (p *Program) EvalCmd(argv []string) error {
+func (p *Program) evalPipeline(argv []string) error {
+	return nil
+}
+
+func (p *Program) EvalCmd(argv []string, state CmdState) error {
 	switch argv[0] {
 	case "cd":
 		dir := ""
@@ -223,8 +240,14 @@ func (p *Program) EvalCmd(argv []string) error {
 	case "exit", "logout":
 		return fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
-		j, err := job.Start(argv, environ())
-		if err != nil {
+		j := &job.Job{
+			Argv:   argv,
+			Env:    environ(),
+			Stdin:  state.Stdin,
+			Stdout: state.Stdout,
+			Stderr: state.Stderr,
+		}
+		if err := j.Start(); err != nil {
 			return err
 		}
 		j.Wait() // TODO error prop?
@@ -690,7 +713,13 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
-			if err := p.EvalShellList(cmd, p.EvalCmd); err != nil {
+			state := CmdState{
+				RunCmd: p.EvalCmd,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+			if err := p.EvalShellList(cmd, state); err != nil {
 				return nil, err
 			}
 		}
