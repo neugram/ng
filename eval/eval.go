@@ -177,49 +177,87 @@ type CmdState struct {
 	Stdin  *os.File
 	Stdout *os.File
 	Stderr *os.File
-	RunCmd func(argv []string, state CmdState) error
+	Done   chan error
+	RunCmd func(argv []string, state CmdState)
 }
 
-func (p *Program) evalShell(cmd interface{}, state CmdState) error {
+func (p *Program) evalShell(cmd interface{}, state CmdState) {
 	switch cmd := cmd.(type) {
 	case *expr.ShellList:
 		switch cmd.Segment {
 		case expr.SegmentSemi:
+			done := state.Done
+			state.Done = make(chan error, 1)
 			var err error
 			for _, s := range cmd.List {
-				err = p.evalShell(s, state)
+				p.evalShell(s, state)
+				err = <-state.Done
 			}
-			return err
+			done <- err
+			return
 		case expr.SegmentAnd:
+			done := state.Done
+			state.Done = make(chan error, 1)
 			for _, s := range cmd.List {
-				if err := p.evalShell(s, state); err != nil {
-					return err
+				p.evalShell(s, state)
+				if err := <-state.Done; err != nil {
+					done <- err
+					return
 				}
 			}
-			return nil
-		//case expr.SegmentPipe:
+			done <- nil
+			return
+		case expr.SegmentPipe:
+			p.evalPipeline(cmd, state)
+			return
 		default:
 			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
 		}
-		// TODO SegmentPipe
 		// TODO SegmentOut
 		// TODO SegmentIn
 	case *expr.ShellCmd:
-		return state.RunCmd(cmd.Argv, state)
+		state.RunCmd(cmd.Argv, state)
+		return
 	default:
 		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
 	}
 }
 
-func (p *Program) EvalShellList(s *expr.ShellList, state CmdState) error {
-	return p.evalShell(s, state)
+func (p *Program) EvalShellList(s *expr.ShellList, state CmdState) {
+	p.evalShell(s, state)
 }
 
-func (p *Program) evalPipeline(argv []string) error {
-	return nil
+func (p *Program) evalPipeline(cmd *expr.ShellList, state CmdState) {
+	origState := state
+	state.Done = make(chan error, len(cmd.List))
+
+	for i := 0; i < len(cmd.List)-1; i++ {
+		r1, w1, err := os.Pipe()
+		if err != nil {
+			state.Done <- err
+			continue
+		}
+		state.Stdout = w1
+		p.evalShell(cmd.List[i], state)
+		state.Stdin = r1
+		w1.Close()
+	}
+	state.Stdout = origState.Stdout
+	p.evalShell(cmd.List[len(cmd.List)-1], state)
+	if state.Stdin != origState.Stdin {
+		state.Stdin.Close()
+	}
+
+	var err error
+	for i := 0; i < len(cmd.List); i++ {
+		if err1 := <-state.Done; err1 != nil {
+			err = err1
+		}
+	}
+	origState.Done <- err
 }
 
-func (p *Program) EvalCmd(argv []string, state CmdState) error {
+func (p *Program) EvalCmd(argv []string, state CmdState) {
 	switch argv[0] {
 	case "cd":
 		dir := ""
@@ -229,16 +267,20 @@ func (p *Program) EvalCmd(argv []string, state CmdState) error {
 			dir = argv[1]
 		}
 		if err := os.Chdir(dir); err != nil {
-			return err
+			state.Done <- err
+			return
 		}
 		wd, err := os.Getwd()
 		if err != nil {
-			return err
+			state.Done <- err
+			return
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
-		return nil
+		state.Done <- nil
+		return
 	case "exit", "logout":
-		return fmt.Errorf("ng does not know %q, try $$", argv[0])
+		state.Done <- fmt.Errorf("ng does not know %q, try $$", argv[0])
+		return
 	default:
 		j := &job.Job{
 			Argv:   argv,
@@ -248,10 +290,12 @@ func (p *Program) EvalCmd(argv []string, state CmdState) error {
 			Stderr: state.Stderr,
 		}
 		if err := j.Start(); err != nil {
-			return err
+			state.Done <- err
+			return
 		}
 		j.Wait() // TODO error prop?
-		return nil
+		state.Done <- nil
+		return
 	}
 }
 
@@ -715,11 +759,13 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		for _, cmd := range e.Cmds {
 			state := CmdState{
 				RunCmd: p.EvalCmd,
+				Done:   make(chan error),
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,
 			}
-			if err := p.EvalShellList(cmd, state); err != nil {
+			p.EvalShellList(cmd, state)
+			if err := <-state.Done; err != nil {
 				return nil, err
 			}
 		}

@@ -136,20 +136,23 @@ func loop() {
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-		RunCmd: func(argv []string, state eval.CmdState) error {
+		Done:   make(chan error, 1),
+		RunCmd: func(argv []string, state eval.CmdState) {
 			switch argv[0] {
 			case "fg":
 				fg(argv)
+				state.Done <- nil
 			case "bg":
 				fmt.Printf("bg TODO\n")
+				state.Done <- nil
 			case "jobs":
 				for i, j := range job.BG {
 					fmt.Println(j.Stat(i + 1))
 				}
+				state.Done <- nil
 			default:
-				return prg.EvalCmd(argv, state)
+				prg.EvalCmd(argv, state)
 			}
-			return nil
 		},
 	}
 
@@ -209,7 +212,8 @@ func loop() {
 		//editMode := mode()
 		//origMode.ApplyMode()
 		for _, cmd := range res.Cmds {
-			if err := prg.EvalShellList(cmd, cmdState); err != nil {
+			prg.EvalShellList(cmd, cmdState)
+			if err := <-cmdState.Done; err != nil {
 				fmt.Printf("%v\n", err)
 				continue
 			}
