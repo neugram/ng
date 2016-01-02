@@ -310,6 +310,24 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		return c.fromGoType(t.Underlying())
 	case *gotypes.Slice:
 		return &tipe.Table{Type: c.fromGoType(t.Elem())}
+	case *gotypes.Struct:
+		res := new(tipe.Struct)
+		for i := 0; i < t.NumFields(); i++ {
+			f := t.Field(i)
+			ft := c.fromGoType(f.Type())
+			if ft == nil {
+				continue
+			}
+			res.FieldNames = append(res.FieldNames, f.Name())
+			res.Fields = append(res.Fields, ft)
+		}
+		return res
+	case *gotypes.Pointer:
+		elem := c.fromGoType(t.Elem())
+		if elem == nil {
+			return nil
+		}
+		return &tipe.Pointer{Elem: elem}
 	case *gotypes.Interface:
 		res := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
 		for i := 0; i < t.NumMethods(); i++ {
