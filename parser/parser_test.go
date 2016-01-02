@@ -20,7 +20,7 @@ type parserTest struct {
 }
 
 var parserTests = []parserTest{
-	/*{"foo", &expr.Ident{"foo"}},
+	{"foo", &expr.Ident{"foo"}},
 	{"x + y", &expr.Binary{token.Add, &expr.Ident{"x"}, &expr.Ident{"y"}}},
 	{
 		"x + y + 9",
@@ -193,22 +193,19 @@ var parserTests = []parserTest{
 		},
 	},
 	{"x.y.z", &expr.Selector{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}, &expr.Ident{"z"}}},
-	*/
 	//{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	/*
-		{`"hello"`, &expr.BasicLiteral{"hello"}},
-		{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
-		//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
-		{"x[4]", &expr.Index{Expr: &expr.Ident{"x"}, Index: basic(4)}},
-		{"x[1+2]", &expr.Index{
-			Expr: &expr.Ident{"x"},
-			Index: &expr.Binary{Op: token.Add,
-				Left:  basic(1),
-				Right: basic(2),
-			},
-		}},
-	*/
+	{`"hello"`, &expr.BasicLiteral{"hello"}},
+	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
+	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
+	{"x[4]", &expr.Index{Expr: &expr.Ident{"x"}, Index: basic(4)}},
+	{"x[1+2]", &expr.Index{
+		Expr: &expr.Ident{"x"},
+		Index: &expr.Binary{Op: token.Add,
+			Left:  basic(1),
+			Right: basic(2),
+		},
+	}},
 	/* {"x[1:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}}}},
 	{"x[1:]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}}}},
 	{"x[:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{End: &expr.BasicLiteral{big.NewInt(3)}}}},
@@ -226,7 +223,6 @@ var parserTests = []parserTest{
 		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
 		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
 	}},
-	*/
 
 	/*{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{tipe.Num}}},
 	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
@@ -240,7 +236,7 @@ var parserTests = []parserTest{
 	}},
 	*/
 
-	/*{`($$ ls -l $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
+	{`($$ ls -l $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
 		Cmds: []*expr.ShellList{{
 			Segment: expr.SegmentSemi,
 			List:    []expr.Expr{&expr.ShellCmd{Argv: []string{"ls", "-l"}}},
@@ -257,11 +253,13 @@ var parserTests = []parserTest{
 	}}},
 	{`($$ ls > flist $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
 		Cmds: []*expr.ShellList{{
-			Segment:  expr.SegmentOut,
-			Redirect: "flist",
-			List:     []expr.Expr{&expr.ShellCmd{Argv: []string{"ls"}}},
+			List: []expr.Expr{&expr.ShellList{
+				Segment:  expr.SegmentOut,
+				Redirect: "flist",
+				List:     []expr.Expr{&expr.ShellCmd{Argv: []string{"ls"}}},
+			}},
 		}},
-	}}},*/
+	}}},
 	// TODO: (echo one; echo two > f)
 	// TODO echo hi | cat && true
 	// TODO true && echo hi | cat
@@ -272,8 +270,6 @@ var parserTests = []parserTest{
 	echo -n 4
 	echo 5 | wc
 	$$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		/*
-		 */
 		Cmds: []*expr.ShellList{{
 			Segment: expr.SegmentSemi,
 			List: []expr.Expr{
@@ -473,15 +469,9 @@ var stmtTests = []stmtTest{
 		Values: []expr.Expr{basic("bar")},
 	}}},
 	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
-	/*{
-		`
-		$$
-		ls -a -l
-		echo "hello world"
-		$$
-		`,
-		nil,
-	},*/
+	{"sync.Mutex{}", &stmt.Simple{&expr.CompLiteral{
+		Type: &tipe.Unresolved{Package: "sync", Name: "Mutex"},
+	}}},
 }
 
 func TestParseStmt(t *testing.T) {

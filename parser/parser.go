@@ -323,8 +323,14 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			// are the final braces part of a composite literal, or
 			// the body of the loop? Resolve this by requiring
 			// parens around CompLiteral in loop definition.
-			if xpr, isIdent := x.(*expr.Ident); isIdent && !p.inForLoop {
+			if p.inForLoop {
+				return x
+			}
+
+			if xpr, isIdent := x.(*expr.Ident); isIdent {
 				x = &expr.CompLiteral{Type: &tipe.Unresolved{Name: xpr.Name}}
+			} else if t := maybePackageType(x); t != nil {
+				x = &expr.CompLiteral{Type: t}
 			} else {
 				return x // end of statement
 			}
@@ -334,6 +340,21 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 	}
 
 	return x
+}
+
+func maybePackageType(x expr.Expr) *tipe.Unresolved {
+	sel, isSel := x.(*expr.Selector)
+	if !isSel {
+		return nil
+	}
+	ident, isIdent := sel.Left.(*expr.Ident)
+	if !isIdent {
+		return nil
+	}
+	return &tipe.Unresolved{
+		Package: ident.Name,
+		Name:    sel.Right.Name,
+	}
 }
 
 func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
