@@ -116,6 +116,7 @@ var tokens = map[string]Token{
 	"/":            Div,
 	"%":            Rem,
 	"^":            Pow,
+	"&":            Ref,
 	"&&":           LogicalAnd,
 	"||":           LogicalOr,
 	"==":           Equal,

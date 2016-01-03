@@ -240,7 +240,7 @@ func (p *Parser) parseBinaryExpr(minPrec int) expr.Expr {
 
 func (p *Parser) parseUnaryExpr() expr.Expr {
 	switch p.s.Token {
-	case token.Add, token.Sub, token.Not:
+	case token.Add, token.Sub, token.Not, token.Ref:
 		op := p.s.Token
 		p.next()
 		if p.s.err != nil {

@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"neugram.io/eval/gowrap"
+	"neugram.io/lang/expr"
 	"neugram.io/lang/tipe"
 )
 
@@ -19,7 +20,7 @@ type GoPkg struct {
 
 type GoValue struct {
 	Type  tipe.Type
-	Value interface{}
+	Value interface{} // TODO: Value should be a reflect.Value?
 }
 
 type GoFunc struct {
@@ -52,10 +53,34 @@ func (f GoFunc) call(args []interface{}) (res []interface{}, err error) {
 
 	res = make([]interface{}, len(vres))
 	for i, v := range vres {
-		res[i] = &GoValue{
-			Type:  f.Type.Results.Elems[i],
-			Value: v.Interface(),
+		switch v.Kind() {
+		case reflect.Bool, reflect.Int, reflect.Int8, reflect.Float32, reflect.Float64:
+			res[i] = v.Interface()
+		// TODO Int16 Int32 Int64 Uint Uint8 Uint16 Uint32 Uint64 Uintptr
+		// TODO Complex64 Complex128
+		default:
+			res[i] = &GoValue{
+				Type:  f.Type.Results.Elems[i],
+				Value: v.Interface(),
+			}
 		}
 	}
 	return res, nil
+}
+
+func makeGoStruct(e *expr.CompLiteral, t tipe.Type, goT *gotypes.TypeName) *GoValue {
+	pkg := goT.Pkg()
+	reflectT := reflect.TypeOf(
+		gowrap.Pkgs[pkg.Path()].Exports[goT.Name()],
+	)
+
+	v := reflect.New(reflectT)
+	if len(e.Elements) > 0 {
+		panic("TODO CompLiteral with values for GoValue\n")
+	}
+	res := &GoValue{
+		Type:  t,
+		Value: v.Elem().Interface(),
+	}
+	return res
 }

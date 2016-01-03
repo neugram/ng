@@ -9,6 +9,7 @@ import (
 	gotypes "go/types"
 	"math/big"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"sort"
 
@@ -529,7 +530,7 @@ func (p *Program) evalExprAndReadVar(e expr.Expr) (interface{}, error) {
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
 	switch v := e.(type) {
-	case *expr.FuncLiteral, *GoFunc, *Closure:
+	case *expr.FuncLiteral, *GoFunc, *GoValue, *Closure:
 		// lack of symmetry with BasicLiteral is unfortunate
 		return v, nil
 	case *expr.BasicLiteral:
@@ -540,8 +541,6 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v, nil
 	case int, string: // TODO: are these all GoValues now?
 		return v, nil
-	case *GoValue:
-		return v.Value, nil
 	case *Struct:
 		return v, nil
 	case map[interface{}]interface{}:
@@ -588,8 +587,12 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 	case *expr.BasicLiteral:
 		return []interface{}{e}, nil
 	case *expr.CompLiteral:
-		switch t := e.Type.(type) {
+		switch t := tipe.Underlying(e.Type).(type) {
 		case *tipe.Struct:
+			if goType := p.Types.GoEquiv[e.Type]; goType != nil {
+				typeName := goType.(*gotypes.Named).Obj()
+				return []interface{}{makeGoStruct(e, e.Type, typeName)}, nil
+			}
 			s := &Struct{
 				Fields: make([]*Variable, len(t.Fields)),
 			}
@@ -660,6 +663,29 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		switch e.Op {
 		case token.LeftParen:
 			return p.evalExpr(e.Expr)
+		case token.Ref:
+			rhs, err := p.evalExpr(e.Expr)
+			if err != nil {
+				return nil, err
+			}
+			if len(rhs) != 1 {
+				return nil, fmt.Errorf("eval: multi-value result in single-value context")
+			}
+			v := rhs[0]
+			t := p.Types.Types[e]
+			switch v := v.(type) {
+			// TODO *GoFunc?
+			case *GoValue:
+				rv := reflect.New(reflect.TypeOf(v.Value))
+				rv.Elem().Set(reflect.ValueOf(v.Value))
+				res := &GoValue{
+					Type: t,
+					//Value: reflect.ValueOf(v.Value).Addr().Interface(),
+					Value: rv.Interface(),
+				}
+				return []interface{}{res}, nil
+			}
+			panic("TODO Ref of a non-Go value")
 		case token.Not:
 			v, err := p.evalExprAndReadVar(e.Expr)
 			if err != nil {
@@ -771,13 +797,21 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 		return nil, nil
 	case *expr.Selector:
-		lhs, err := p.evalExprAndReadVar(e.Left)
+		lhsRes, err := p.evalExpr(e.Left)
 		if err != nil {
 			return nil, err
 		}
+		if len(lhsRes) != 1 {
+			panic("multiple-return in single value context")
+		}
+		lhs := lhsRes[0]
+		if v, ok := lhs.(*Variable); ok {
+			lhs = v.Value
+		}
+		t := p.Types.Types[e.Left]
 		switch lhs := lhs.(type) {
 		case *Struct:
-			t := p.Types.Types[e.Left].(*tipe.Struct)
+			t := tipe.Underlying(t).(*tipe.Struct)
 			name := e.Right.Name
 			for i, n := range t.FieldNames {
 				if n == name {
@@ -785,6 +819,17 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 				}
 			}
 			return nil, fmt.Errorf("unknown field %s in %s", name, t)
+		case *GoValue:
+			//p.Types.GoEquiv[lhs.Type]
+			v := reflect.ValueOf(lhs.Value)
+			if m := v.MethodByName(e.Right.Name); (m != reflect.Value{}) {
+				res := &GoFunc{
+					Type: p.Types.Types[e].(*tipe.Func),
+					Func: m.Interface(),
+				}
+				return []interface{}{res}, nil
+			}
+			panic("field selector on a GoValue")
 		case *GoPkg:
 			v := lhs.Type.Exports[e.Right.Name]
 			if v == nil {
@@ -802,7 +847,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			return nil, fmt.Errorf("TODO GoPkg: %#+v\n", lhs)
 		}
 
-		return nil, fmt.Errorf("unexpected selector LHS: %s", e.Left.Sexp())
+		fmt.Printf("lhs: %#+v\n", lhs)
+		return nil, fmt.Errorf("unexpected selector LHS: %s, %T", e.Left.Sexp(), lhs)
 	case *expr.Index:
 		container, err := p.evalExprAndReadVar(e.Expr)
 		if err != nil {

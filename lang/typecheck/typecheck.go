@@ -28,6 +28,8 @@ type Checker struct {
 	Values  map[expr.Expr]constant.Value
 	GoPkgs  map[*tipe.Package]*gotypes.Package
 	GoTypes map[gotypes.Type]tipe.Type
+	// TODO: GoEquiv is tricky and deserving of docs. Particular type instance is associated with a Go type. That means EqualType(t1, t2)==true but t1 could have GoEquiv and t2 not.
+	GoEquiv map[tipe.Type]gotypes.Type
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 	Errs    []error
 
@@ -44,6 +46,7 @@ func New() *Checker {
 		Values:   make(map[expr.Expr]constant.Value),
 		GoPkgs:   make(map[*tipe.Package]*gotypes.Package),
 		GoTypes:  make(map[gotypes.Type]tipe.Type),
+		GoEquiv:  make(map[tipe.Type]gotypes.Type),
 		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
@@ -281,6 +284,9 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			fmt.Printf("typecheck: unknown go type: %v\n", t)
 		} else {
 			c.GoTypes[t] = res
+			if _, isBasic := t.(*gotypes.Basic); !isBasic {
+				c.GoEquiv[res] = t
+			}
 		}
 	}()
 	switch t := t.(type) {
@@ -307,7 +313,19 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		if t.Obj().Id() == goErrorID {
 			return Universe.Objs["error"].Type
 		}
-		return c.fromGoType(t.Underlying())
+		base := c.fromGoType(t.Underlying())
+		if t.NumMethods() == 0 {
+			return base
+		}
+		mdik := &tipe.Methodik{
+			Type: base,
+		}
+		for i := 0; i < t.NumMethods(); i++ {
+			m := t.Method(i)
+			mdik.MethodNames = append(mdik.MethodNames, m.Name())
+			mdik.Methods = append(mdik.Methods, c.fromGoType(m.Type()).(*tipe.Func))
+		}
+		return mdik
 	case *gotypes.Slice:
 		return &tipe.Table{Type: c.fromGoType(t.Elem())}
 	case *gotypes.Struct:
@@ -414,8 +432,23 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		return t, resolved
 	case *tipe.Unresolved:
 		if t.Package != "" {
-			// TODO look up package in scope, extract type from it.
-			panic("TODO type in package")
+			name := t.Package + "." + t.Name
+			obj := c.cur.LookupRec(t.Package)
+			if obj == nil {
+				c.errorf("undefined %s in %s", t.Package, name)
+				return t, false
+			}
+			if obj.Kind != ObjPkg {
+				c.errorf("%s is not a packacge", t.Package)
+				return t, false
+			}
+			pkg := obj.Type.(*tipe.Package)
+			res := pkg.Exports[t.Name]
+			if res == nil {
+				c.errorf("%s not in package %s", name, t.Package)
+				return t, false
+			}
+			return res, true
 		}
 		obj := c.cur.LookupRec(t.Name)
 		if obj == nil {
@@ -621,6 +654,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			}
 		}
 		if len(e.Keys) == 0 {
+			if len(e.Elements) == 0 {
+				return p
+			}
 			if len(e.Elements) != len(t.Fields) {
 				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
 				p.mode = modeInvalid
@@ -763,6 +799,19 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		switch e.Op {
 		case token.LeftParen, token.Not, token.Sub:
 			return c.expr(e.Expr)
+		case token.Ref:
+			sub := c.expr(e.Expr)
+			if sub.mode == modeInvalid {
+				return p
+			}
+			p.mode = modeVar
+			p.typ = &tipe.Pointer{Elem: sub.typ}
+			if goElem := c.GoEquiv[sub.typ]; goElem != nil {
+				goType := gotypes.NewPointer(goElem)
+				c.GoEquiv[p.typ] = goType
+				c.GoTypes[goType] = p.typ
+			}
+			return p
 		}
 	case *expr.Binary:
 		left := c.expr(e.Left)
