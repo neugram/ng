@@ -4,8 +4,13 @@
 package eval
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"neugram.io/lang/stmt"
@@ -127,35 +132,97 @@ func TestExprs(t *testing.T) {
 	}
 }
 
-/*
-func TestTrivialEval(t *testing.T) {
-	p := &Program{
-		Pkg: map[string]*Scope{
-			"main": &Scope{Var: map[string]*Variable{
-				"x": &Variable{big.NewInt(4)},
-				"y": &Variable{big.NewInt(5)},
-			}},
-		},
-	}
-	s := mustParse("2+3*(x+y-2)")
-	res, err := p.Eval(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, ok := res.(*big.Int)
-	if !ok {
-		t.Fatalf("Eval(%s) want *big.Int, got: %s (%T)", expr, got, got)
-	}
-	if want := big.NewInt(23); want.Cmp(got) != 0 {
-		t.Errorf("Eval(%s)=%s, want %s", expr, got, want)
-	}
-}
-*/
-
 func mustParse(src string) stmt.Stmt {
 	expr, err := parser.ParseStmt([]byte(src))
 	if err != nil {
 		panic(fmt.Sprintf("mustParse(%q): %v", src, err))
 	}
 	return expr
+}
+
+// TODO: this should probably be part of package eval.
+func runProgram(b []byte) error {
+	p := parser.New()
+	prg := New()
+
+	lines := bytes.Split(b, []byte{'\n'})
+
+	cmdState := CmdState{
+		RunCmd: prg.EvalCmd,
+		Done:   make(chan error, 1),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	// TODO: position information in the parser will replace i.
+	for i, line := range lines {
+		res := p.ParseLine(line)
+		if len(res.Errs) > 0 {
+			return fmt.Errorf("%d: %v", i+1, res.Errs[0])
+		}
+		for _, s := range res.Stmts {
+			if _, _, err := prg.Eval(s); err != nil {
+				return fmt.Errorf("%d: %v", i+1, err)
+			}
+		}
+		for _, c := range res.Cmds {
+			prg.EvalShellList(c, cmdState)
+			if err := <-cmdState.Done; err != nil {
+				return fmt.Errorf("%d: %v", i+1, err)
+			}
+		}
+	}
+	return nil
+}
+
+func TestPrograms(t *testing.T) {
+	files, err := filepath.Glob("testdata/*.ng")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ioutil.TempFile("", "neugram.stdout.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout := os.Stdout
+	defer func() {
+		out.Close()
+		os.Stdout = stdout
+	}()
+	os.Stdout = out
+
+	for _, file := range files {
+		t.Logf("Testing program %q", file)
+		contents, err := ioutil.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := out.Seek(0, 0); err != nil {
+			t.Fatal(err)
+		}
+		if err := out.Truncate(0); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := runProgram(contents); err != nil {
+			t.Errorf("%s:%v", file, err)
+			continue
+		}
+
+		if _, err := out.Seek(0, 0); err != nil {
+			t.Fatal(err)
+		}
+		b, err := ioutil.ReadAll(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output := string(b)
+		t.Logf("output: %s", output)
+		if !strings.HasSuffix(output, "OK\n") {
+			t.Errorf("%s missing OK", file)
+		}
+	}
 }
