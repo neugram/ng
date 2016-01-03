@@ -202,47 +202,74 @@ type CmdState struct {
 	Stdin  *os.File
 	Stdout *os.File
 	Stderr *os.File
+	Pgid   int
 	Done   chan error
-	RunCmd func(argv []string, state CmdState)
+
+	// RunCmd evaluates argv, returning a *JobState if a job is running.
+	// The work begun by RunCmd is complete when <-state.Done.
+	RunCmd func(argv []string, state CmdState) *JobState
 }
 
-func (p *Program) evalShell(cmd interface{}, state CmdState) {
+type JobState struct {
+	Pgid int
+}
+
+func (p *Program) evalShell(cmd interface{}, state CmdState) *JobState {
 	switch cmd := cmd.(type) {
 	case *expr.ShellList:
 		switch cmd.Segment {
 		case expr.SegmentSemi:
+			firstJs := make(chan *JobState)
 			done := state.Done
-			state.Done = make(chan error, 1)
-			var err error
-			for _, s := range cmd.List {
-				p.evalShell(s, state)
-				err = <-state.Done
-			}
-			done <- err
-			return
-		case expr.SegmentAnd:
-			done := state.Done
-			state.Done = make(chan error, 1)
-			for _, s := range cmd.List {
-				p.evalShell(s, state)
-				if err := <-state.Done; err != nil {
-					done <- err
-					return
+			go func() {
+				state.Done = make(chan error, 1)
+				var err error
+				for _, s := range cmd.List {
+					js := p.evalShell(s, state)
+					if js != nil {
+						select {
+						case firstJs <- js:
+						default:
+						}
+					}
+					err = <-state.Done
 				}
-			}
-			done <- nil
-			return
+				close(firstJs)
+				done <- err
+			}()
+			return <-firstJs
+		case expr.SegmentAnd:
+			firstJs := make(chan *JobState)
+			done := state.Done
+			go func() {
+				state.Done = make(chan error, 1)
+				for _, s := range cmd.List {
+					js := p.evalShell(s, state)
+					if js != nil {
+						select {
+						case firstJs <- js:
+						default:
+						}
+					}
+					if err := <-state.Done; err != nil {
+						close(firstJs)
+						done <- err
+						return
+					}
+				}
+				close(firstJs)
+				done <- nil
+			}()
+			return <-firstJs
 		case expr.SegmentPipe:
-			p.evalPipeline(cmd, state)
-			return
+			return p.evalPipeline(cmd, state)
 		default:
 			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
 		}
 		// TODO SegmentOut
 		// TODO SegmentIn
 	case *expr.ShellCmd:
-		state.RunCmd(cmd.Argv, state)
-		return
+		return state.RunCmd(cmd.Argv, state)
 	default:
 		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
 	}
@@ -252,20 +279,29 @@ func (p *Program) EvalShellList(s *expr.ShellList, state CmdState) {
 	p.evalShell(s, state)
 }
 
-func (p *Program) evalPipeline(cmd *expr.ShellList, state CmdState) {
+func (p *Program) evalPipeline(cmd *expr.ShellList, state CmdState) *JobState {
 	origState := state
 	state.Done = make(chan error, len(cmd.List))
 
+	var firstJs *JobState
 	for i := 0; i < len(cmd.List)-1; i++ {
 		r1, w1, err := os.Pipe()
 		if err != nil {
 			state.Done <- err
 			continue
 		}
+		if firstJs != nil {
+			state.Pgid = firstJs.Pgid
+		}
 		state.Stdout = w1
-		p.evalShell(cmd.List[i], state)
-		state.Stdin = r1
+		if js := p.evalShell(cmd.List[i], state); firstJs == nil {
+			firstJs = js
+		}
 		w1.Close()
+		if i > 0 {
+			state.Stdin.Close()
+		}
+		state.Stdin = r1
 	}
 	state.Stdout = origState.Stdout
 	p.evalShell(cmd.List[len(cmd.List)-1], state)
@@ -273,16 +309,22 @@ func (p *Program) evalPipeline(cmd *expr.ShellList, state CmdState) {
 		state.Stdin.Close()
 	}
 
-	var err error
-	for i := 0; i < len(cmd.List); i++ {
-		if err1 := <-state.Done; err1 != nil {
-			err = err1
+	go func() {
+		var err error
+		for i := 0; i < len(cmd.List); i++ {
+			if err1 := <-state.Done; err1 != nil {
+				err = err1
+			}
 		}
-	}
-	origState.Done <- err
+		origState.Done <- err
+	}()
+
+	return firstJs
 }
 
-func (p *Program) EvalCmd(argv []string, state CmdState) {
+// EvalCmd evaluates argv, returning a *JobState if a job is running.
+// The work begun by EvalCmd is complete when <-state.Done.
+func (p *Program) EvalCmd(argv []string, state CmdState) *JobState {
 	switch argv[0] {
 	case "cd":
 		dir := ""
@@ -293,19 +335,19 @@ func (p *Program) EvalCmd(argv []string, state CmdState) {
 		}
 		if err := os.Chdir(dir); err != nil {
 			state.Done <- err
-			return
+			return nil
 		}
 		wd, err := os.Getwd()
 		if err != nil {
 			state.Done <- err
-			return
+			return nil
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
 		state.Done <- nil
-		return
+		return nil
 	case "exit", "logout":
 		state.Done <- fmt.Errorf("ng does not know %q, try $$", argv[0])
-		return
+		return nil
 	default:
 		j := &job.Job{
 			Argv:   argv,
@@ -313,14 +355,17 @@ func (p *Program) EvalCmd(argv []string, state CmdState) {
 			Stdin:  state.Stdin,
 			Stdout: state.Stdout,
 			Stderr: state.Stderr,
+			Pgid:   state.Pgid,
 		}
 		if err := j.Start(); err != nil {
 			state.Done <- err
-			return
+			return nil
 		}
-		j.Wait() // TODO error prop?
-		state.Done <- nil
-		return
+		go func() {
+			j.Wait() // TODO error prop?
+			state.Done <- nil
+		}()
+		return &JobState{Pgid: j.Pgid}
 	}
 }
 

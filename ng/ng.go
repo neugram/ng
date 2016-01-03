@@ -137,22 +137,21 @@ func loop() {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Done:   make(chan error, 1),
-		RunCmd: func(argv []string, state eval.CmdState) {
+		RunCmd: func(argv []string, state eval.CmdState) *eval.JobState {
 			switch argv[0] {
 			case "fg":
 				fg(argv)
-				state.Done <- nil
 			case "bg":
 				fmt.Printf("bg TODO\n")
-				state.Done <- nil
 			case "jobs":
 				for i, j := range job.BG {
 					fmt.Println(j.Stat(i + 1))
 				}
-				state.Done <- nil
 			default:
-				prg.EvalCmd(argv, state)
+				return prg.EvalCmd(argv, state)
 			}
+			state.Done <- nil
+			return nil
 		},
 	}
 
