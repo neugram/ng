@@ -3,6 +3,7 @@
 
 //go:generate go run genwrap.go fmt
 //go:generate go run genwrap.go os
+//go:generate go run genwrap.go sync
 
 package gowrap // import "neugram.io/eval/gowrap"
 
