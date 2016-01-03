@@ -840,7 +840,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		for _, cmd := range e.Cmds {
 			state := CmdState{
 				RunCmd: p.EvalCmd,
-				Done:   make(chan error),
+				Done:   make(chan error, 1),
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,

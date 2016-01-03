@@ -1,6 +1,7 @@
 // Copyright 2015 The Neugram Authors. All rights reserved.
 // See the LICENSE file for rights to use this source code.
 
+// TODO: rename this package to eval/shell
 package job
 
 import (
@@ -51,9 +52,10 @@ const (
 func init() {
 	var err error
 	basicState, err = tcgetattr(os.Stdin.Fd())
-	if err != nil {
-		// not a login shell, do something very different.
-		fmt.Printf("note, could not tcgetattr: %v", err)
+	if err == nil {
+		loginShell = true
+	} else {
+		loginShell = false
 	}
 	shellPgid, err = syscall.Getpgid(0)
 	if err != nil {
@@ -62,6 +64,7 @@ func init() {
 }
 
 var (
+	loginShell bool
 	basicState syscall.Termios
 	shellState syscall.Termios
 	shellPgid  int
@@ -93,12 +96,14 @@ func (j *Job) Start() error {
 		return err
 	}
 
-	shellState, err = tcgetattr(os.Stdin.Fd())
-	if err != nil {
-		return err
-	}
-	if err := tcsetattr(os.Stdin.Fd(), &basicState); err != nil {
-		return err
+	if loginShell {
+		shellState, err = tcgetattr(os.Stdin.Fd())
+		if err != nil {
+			return err
+		}
+		if err := tcsetattr(os.Stdin.Fd(), &basicState); err != nil {
+			return err
+		}
 	}
 	j.process, err = os.StartProcess(j.path, j.Argv, &os.ProcAttr{
 		Env:   j.Env,
@@ -117,19 +122,24 @@ func (j *Job) Start() error {
 			return fmt.Errorf("cannot get pgid of new job: %v", err)
 		}
 	}
-	return tcsetpgrp(os.Stdin.Fd(), j.Pgid)
+	if loginShell {
+		return tcsetpgrp(os.Stdin.Fd(), j.Pgid)
+	}
+	return nil
 }
 
 func (j *Job) Continue() (err error) {
-	shellState, err = tcgetattr(os.Stdin.Fd())
-	if err != nil {
-		return err
-	}
-	if err := tcsetpgrp(os.Stdin.Fd(), j.Pgid); err != nil {
-		return err
-	}
-	if err := tcsetattr(os.Stdin.Fd(), &j.termios); err != nil {
-		return err
+	if loginShell {
+		shellState, err = tcgetattr(os.Stdin.Fd())
+		if err != nil {
+			return err
+		}
+		if err := tcsetpgrp(os.Stdin.Fd(), j.Pgid); err != nil {
+			return err
+		}
+		if err := tcsetattr(os.Stdin.Fd(), &j.termios); err != nil {
+			return err
+		}
 	}
 	pid := j.process.Pid
 	if err := syscall.Kill(pid, syscall.SIGCONT); err != nil {
@@ -157,16 +167,18 @@ func (j *Job) Wait() {
 		}
 		switch {
 		case wstatus.Stopped():
-			// move the shell process to the foreground
-			if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
-				fmt.Fprintf(j.Stderr, "on stop: %v", err)
-			}
-			j.termios, err = tcgetattr(os.Stdin.Fd())
-			if err != nil {
-				fmt.Fprintf(j.Stderr, "on stop: %v", err)
-			}
-			if err := tcsetattr(os.Stdin.Fd(), &shellState); err != nil {
-				fmt.Fprintf(j.Stderr, "on stop: %v", err)
+			if loginShell {
+				// move the shell process to the foreground
+				if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
+					fmt.Fprintf(j.Stderr, "on stop: %v", err)
+				}
+				j.termios, err = tcgetattr(os.Stdin.Fd())
+				if err != nil {
+					fmt.Fprintf(j.Stderr, "on stop: %v", err)
+				}
+				if err := tcsetattr(os.Stdin.Fd(), &shellState); err != nil {
+					fmt.Fprintf(j.Stderr, "on stop: %v", err)
+				}
 			}
 			j.state = Stopped
 			BG = append(BG, j)
@@ -175,11 +187,13 @@ func (j *Job) Wait() {
 		case wstatus.Continued():
 			j.state = Running
 		case wstatus.Exited():
-			if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
-				j.Err = err
-			}
-			if err := tcsetattr(os.Stdin.Fd(), &shellState); j.Err == nil && err != nil {
-				j.Err = err
+			if loginShell {
+				if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
+					j.Err = err
+				}
+				if err := tcsetattr(os.Stdin.Fd(), &shellState); j.Err == nil && err != nil {
+					j.Err = err
+				}
 			}
 			if c := wstatus.ExitStatus(); j.Err == nil && c != 0 {
 				j.Err = fmt.Errorf("failed on exit: %d", c)
