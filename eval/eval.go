@@ -82,10 +82,21 @@ func (s *Scope) Lookup(name string) *Variable {
 	return nil
 }
 
+func builtinPrint(v ...interface{})                 { fmt.Println(v...) }
+func builtinPrintf(format string, v ...interface{}) { fmt.Printf(format, v...) }
+
 var universeScope = &Scope{Var: map[string]*Variable{
 	"true":  &Variable{Value: true},
 	"false": &Variable{Value: false},
 	"env":   &Variable{Value: make(map[interface{}]interface{})},
+	"print": &Variable{Value: &GoFunc{
+		Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
+		Func: builtinPrint,
+	}},
+	"printf": &Variable{Value: &GoFunc{
+		Type: typecheck.Universe.Objs["printf"].Type.(*tipe.Func),
+		Func: builtinPrintf,
+	}},
 }}
 
 func environ() []string {

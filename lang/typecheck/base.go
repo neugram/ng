@@ -23,6 +23,25 @@ var universeObjs = map[string]*Obj{
 			},
 		},
 	},
+	"print": &Obj{
+		Kind: ObjVar,
+		Type: &tipe.Func{
+			Params: &tipe.Tuple{Elems: []tipe.Type{
+				&tipe.Table{Type: &tipe.Interface{}},
+			}},
+			Variadic: true,
+		},
+	},
+	"printf": &Obj{
+		Kind: ObjVar,
+		Type: &tipe.Func{
+			Params: &tipe.Tuple{Elems: []tipe.Type{
+				tipe.String,
+				&tipe.Table{Type: &tipe.Interface{}},
+			}},
+			Variadic: true,
+		},
+	},
 }
 
 func init() {
