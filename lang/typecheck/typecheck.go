@@ -812,6 +812,19 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 				c.GoTypes[goType] = p.typ
 			}
 			return p
+		case token.Mul:
+			sub := c.expr(e.Expr)
+			if sub.mode == modeInvalid {
+				return p
+			}
+			if t, ok := sub.typ.(*tipe.Pointer); ok {
+				p.mode = modeVar
+				p.typ = t.Elem
+				return p
+			}
+			c.errorf("invalid dereference of %s", e.Expr)
+			p.mode = modeInvalid
+			return p
 		}
 	case *expr.Binary:
 		left := c.expr(e.Left)

@@ -4,6 +4,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	goimporter "go/importer"
 	gotypes "go/types"
@@ -32,6 +33,8 @@ type Variable struct {
 	//	*big.Int
 	//	*big.Float
 	//
+	//	*Ptr
+	//
 	//	*expr.FuncLiteral
 	//	*Closure
 	//
@@ -43,6 +46,10 @@ type Variable struct {
 
 func (v *Variable) Assign(val interface{}) { v.Value = val }
 
+type Ptr struct {
+	Elem *Variable
+}
+
 type Assignable interface {
 	Assign(v interface{})
 }
@@ -53,6 +60,12 @@ type mapKey struct {
 }
 
 func (m mapKey) Assign(val interface{}) { m.m[m.k] = val }
+
+type goPtr struct {
+	v reflect.Value
+}
+
+func (p goPtr) Assign(val interface{}) { p.v.Elem().Set(reflect.ValueOf(val)) }
 
 type Scope struct {
 	Parent *Scope
@@ -488,15 +501,28 @@ func (p *Program) evalExprAsAssignable(e expr.Expr) (Assignable, error) {
 			return mapKey{m: m, k: k}, nil
 		}
 		panic("evalExprAsAssignable Index TODO")
-	default:
-		res, err := p.evalExpr(e)
+	case *expr.Unary: // dereference
+		if e.Op != token.Mul {
+			panic(fmt.Sprintf("evalExprAsAssignable Unary unknown op: %s", e.Op))
+		}
+		v, err := p.evalExprAsVar(e.Expr)
 		if err != nil {
 			return nil, err
 		}
-		if len(res) > 1 {
-			return nil, fmt.Errorf("eval: too many results for assignable %v", res)
+		switch v := v.(type) {
+		case *Variable:
+			return v.Value.(*Ptr).Elem, nil
+		case *GoValue:
+			return goPtr{v: reflect.ValueOf(v.Value)}, nil
+		default:
+			panic(fmt.Sprintf("TODO deref of unexpected type: %T", v))
 		}
-		if v, ok := res[0].(*Variable); ok {
+	default:
+		res, err := p.evalExprAsVar(e)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := res.(*Variable); ok {
 			return v, nil
 		}
 		return nil, fmt.Errorf("eval: %s not assignable", e)
@@ -518,19 +544,28 @@ func (p *Program) evalExprAndReadVars(e expr.Expr) ([]interface{}, error) {
 }
 
 func (p *Program) evalExprAndReadVar(e expr.Expr) (interface{}, error) {
+	res, err := p.evalExprAsVar(e)
+	if err != nil {
+		return nil, err
+	}
+	return p.readVar(res)
+}
+
+func (p *Program) evalExprAsVar(e expr.Expr) (interface{}, error) {
 	res, err := p.evalExpr(e)
 	if err != nil {
 		return nil, err
 	}
-	if len(res) != 1 { // TODO these kinds of invariants are the job of the type checker
-		return nil, fmt.Errorf("multi-valued (%d) expression in single-value context", len(res))
+	if len(res) != 1 {
+		// backup error message, caught by typechecker
+		return nil, errors.New("multi-valued expression in single-value context")
 	}
-	return p.readVar(res[0])
+	return res[0], nil
 }
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
 	switch v := e.(type) {
-	case *expr.FuncLiteral, *GoFunc, *GoValue, *Closure:
+	case *expr.FuncLiteral, *GoFunc, *GoValue, *Closure, *Ptr:
 		// lack of symmetry with BasicLiteral is unfortunate
 		return v, nil
 	case *expr.BasicLiteral:
@@ -664,28 +699,37 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		case token.LeftParen:
 			return p.evalExpr(e.Expr)
 		case token.Ref:
-			rhs, err := p.evalExpr(e.Expr)
+			v, err := p.evalExprAsVar(e.Expr)
 			if err != nil {
 				return nil, err
 			}
-			if len(rhs) != 1 {
-				return nil, fmt.Errorf("eval: multi-value result in single-value context")
-			}
-			v := rhs[0]
 			t := p.Types.Types[e]
 			switch v := v.(type) {
+			case *Variable:
+				return []interface{}{&Ptr{Elem: v}}, nil
 			// TODO *GoFunc?
 			case *GoValue:
 				rv := reflect.New(reflect.TypeOf(v.Value))
 				rv.Elem().Set(reflect.ValueOf(v.Value))
 				res := &GoValue{
-					Type: t,
-					//Value: reflect.ValueOf(v.Value).Addr().Interface(),
+					Type:  t,
 					Value: rv.Interface(),
 				}
 				return []interface{}{res}, nil
+			default:
+				panic(fmt.Sprintf("TODO Ref of unexpected type: %T", v))
 			}
-			panic("TODO Ref of a non-Go value")
+		case token.Mul: // deref
+			v, err := p.evalExprAsVar(e.Expr)
+			if err != nil {
+				return nil, err
+			}
+			switch v := v.(type) {
+			case *Variable:
+				return []interface{}{v.Value.(*Ptr).Elem}, nil
+			default:
+				panic(fmt.Sprintf("TODO deref of unexpected type: %T", v))
+			}
 		case token.Not:
 			v, err := p.evalExprAndReadVar(e.Expr)
 			if err != nil {
@@ -797,14 +841,10 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 		return nil, nil
 	case *expr.Selector:
-		lhsRes, err := p.evalExpr(e.Left)
+		lhs, err := p.evalExprAsVar(e.Left)
 		if err != nil {
 			return nil, err
 		}
-		if len(lhsRes) != 1 {
-			panic("multiple-return in single value context")
-		}
-		lhs := lhsRes[0]
 		if v, ok := lhs.(*Variable); ok {
 			lhs = v.Value
 		}
@@ -820,7 +860,6 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			}
 			return nil, fmt.Errorf("unknown field %s in %s", name, t)
 		case *GoValue:
-			//p.Types.GoEquiv[lhs.Type]
 			v := reflect.ValueOf(lhs.Value)
 			if m := v.MethodByName(e.Right.Name); (m != reflect.Value{}) {
 				res := &GoFunc{
@@ -840,7 +879,6 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 				res := &GoFunc{
 					Type: v,
 					Func: gowrap.Pkgs[lhs.Type.Path].Exports[e.Right.Name],
-					// TODO
 				}
 				return []interface{}{res}, nil
 			}
