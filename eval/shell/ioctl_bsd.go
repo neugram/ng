@@ -3,7 +3,7 @@
 
 // +build darwin
 
-package job
+package shell
 
 import "syscall"
 

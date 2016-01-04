@@ -6,13 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"neugram.io/eval"
-	"neugram.io/job"
+	"neugram.io/eval/shell"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
 	"neugram.io/parser"
@@ -94,16 +93,22 @@ func main() {
 }
 
 func setWindowSize(env map[interface{}]interface{}) {
-	rows, cols, err := job.WindowSize(os.Stderr.Fd())
-	if err != nil {
-		fmt.Printf("ng: could not get window size: %v\n", err)
-	} else {
-		// TODO: these are meant to be shell variables, not
-		// environment variables. But then, how do programs
-		// like `ls` read them?
-		env["LINES"] = strconv.Itoa(rows)
-		env["COLUMNS"] = strconv.Itoa(cols)
-	}
+	// TODO windowsize
+	// TODO
+	// TODO
+	// TODO
+	/*
+		rows, cols, err := job.WindowSize(os.Stderr.Fd())
+		if err != nil {
+			fmt.Printf("ng: could not get window size: %v\n", err)
+		} else {
+			// TODO: these are meant to be shell variables, not
+			// environment variables. But then, how do programs
+			// like `ls` read them?
+			env["LINES"] = strconv.Itoa(rows)
+			env["COLUMNS"] = strconv.Itoa(cols)
+		}
+	*/
 }
 
 func loop() {
@@ -131,29 +136,6 @@ func loop() {
 		f.Close()
 	}
 	go historyWriter(historyShFile, historySh)
-
-	cmdState := eval.CmdState{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Done:   make(chan error, 1),
-		RunCmd: func(argv []string, state eval.CmdState) *eval.JobState {
-			switch argv[0] {
-			case "fg":
-				fg(argv)
-			case "bg":
-				fmt.Printf("bg TODO\n")
-			case "jobs":
-				for i, j := range job.BG {
-					fmt.Println(j.Stat(i + 1))
-				}
-			default:
-				return prg.EvalCmd(argv, state)
-			}
-			state.Done <- nil
-			return nil
-		},
-	}
 
 	state := parser.StateStmt
 	for {
@@ -210,21 +192,31 @@ func loop() {
 		}
 		//editMode := mode()
 		//origMode.ApplyMode()
+		if len(res.Cmds) > 0 {
+			shell.Env = eval.Environ()
+		}
 		for _, cmd := range res.Cmds {
-			prg.EvalShellList(cmd, cmdState)
-			if err := <-cmdState.Done; err != nil {
-				fmt.Printf("%v\n", err)
+			j := &shell.Job{
+				Cmd:    cmd,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+			if err := j.Start(); err != nil {
+				fmt.Println(err)
 				continue
+			}
+			done, err := j.Wait()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			if !done {
+				break // TODO not right, instead we should just have one cmd, not Cmds here.
 			}
 		}
 		//editMode.ApplyMode()
 		state = res.State
-	}
-}
-
-func fg(argv []string) {
-	if err := job.FG(strings.Join(argv[1:], " ")); err != nil {
-		fmt.Fprintf(os.Stderr, "ng: %v", err)
 	}
 }
 

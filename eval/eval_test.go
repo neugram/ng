@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"neugram.io/eval/shell"
 	"neugram.io/lang/stmt"
 	"neugram.io/parser"
 )
@@ -147,14 +148,6 @@ func runProgram(b []byte) error {
 
 	lines := bytes.Split(b, []byte{'\n'})
 
-	cmdState := CmdState{
-		RunCmd: prg.EvalCmd,
-		Done:   make(chan error, 1),
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
-
 	// TODO: position information in the parser will replace i.
 	for i, line := range lines {
 		res := p.ParseLine(line)
@@ -166,10 +159,22 @@ func runProgram(b []byte) error {
 				return fmt.Errorf("%d: %v", i+1, err)
 			}
 		}
-		for _, c := range res.Cmds {
-			prg.EvalShellList(c, cmdState)
-			if err := <-cmdState.Done; err != nil {
-				return fmt.Errorf("%d: %v", i+1, err)
+		for _, cmd := range res.Cmds {
+			j := &shell.Job{
+				Cmd:    cmd,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+			if err := j.Start(); err != nil {
+				return err
+			}
+			done, err := j.Wait()
+			if err != nil {
+				return err
+			}
+			if !done {
+				break // TODO not right, instead we should just have one cmd, not Cmds here.
 			}
 		}
 	}

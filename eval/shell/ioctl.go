@@ -3,7 +3,7 @@
 
 // +build !windows
 
-package job
+package shell
 
 import (
 	"fmt"

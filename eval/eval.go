@@ -15,7 +15,7 @@ import (
 	"sort"
 
 	"neugram.io/eval/gowrap"
-	"neugram.io/job"
+	"neugram.io/eval/shell"
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
@@ -67,6 +67,8 @@ type goPtr struct {
 
 func (p goPtr) Assign(val interface{}) { p.v.Elem().Set(reflect.ValueOf(val)) }
 
+// TODO The Var map needs a lock. Right now two goroutines running neugram code
+// with no shared memory will conflict over Var map writes.
 type Scope struct {
 	Parent *Scope
 	Var    map[string]*Variable // variable name -> variable
@@ -99,7 +101,9 @@ var universeScope = &Scope{Var: map[string]*Variable{
 	}},
 }}
 
-func environ() []string {
+// TODO gross
+// TODO needs a lock
+func Environ() []string {
 	// TODO come up with a way to cache this.
 	// If Scope used an interface for Variable, we could update
 	// a copy of the slice on each write to env.
@@ -196,177 +200,6 @@ func (p *Program) importGo(path string) (*gotypes.Package, error) {
 		return nil, err
 	}
 	return pkg, err
-}
-
-type CmdState struct {
-	Stdin  *os.File
-	Stdout *os.File
-	Stderr *os.File
-	Pgid   int
-	Done   chan error
-
-	// RunCmd evaluates argv, returning a *JobState if a job is running.
-	// The work begun by RunCmd is complete when <-state.Done.
-	RunCmd func(argv []string, state CmdState) *JobState
-}
-
-type JobState struct {
-	Pgid int
-}
-
-func (p *Program) evalShell(cmd interface{}, state CmdState) *JobState {
-	switch cmd := cmd.(type) {
-	case *expr.ShellList:
-		switch cmd.Segment {
-		case expr.SegmentSemi:
-			firstJs := make(chan *JobState)
-			done := state.Done
-			go func() {
-				state.Done = make(chan error, 1)
-				var err error
-				for _, s := range cmd.List {
-					js := p.evalShell(s, state)
-					if js != nil {
-						select {
-						case firstJs <- js:
-						default:
-						}
-					}
-					err = <-state.Done
-				}
-				close(firstJs)
-				done <- err
-			}()
-			return <-firstJs
-		case expr.SegmentAnd:
-			firstJs := make(chan *JobState)
-			done := state.Done
-			go func() {
-				state.Done = make(chan error, 1)
-				for _, s := range cmd.List {
-					js := p.evalShell(s, state)
-					if js != nil {
-						select {
-						case firstJs <- js:
-						default:
-						}
-					}
-					if err := <-state.Done; err != nil {
-						close(firstJs)
-						done <- err
-						return
-					}
-				}
-				close(firstJs)
-				done <- nil
-			}()
-			return <-firstJs
-		case expr.SegmentPipe:
-			return p.evalPipeline(cmd, state)
-		default:
-			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
-		}
-		// TODO SegmentOut
-		// TODO SegmentIn
-	case *expr.ShellCmd:
-		return state.RunCmd(cmd.Argv, state)
-	default:
-		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
-	}
-}
-
-func (p *Program) EvalShellList(s *expr.ShellList, state CmdState) {
-	p.evalShell(s, state)
-}
-
-func (p *Program) evalPipeline(cmd *expr.ShellList, state CmdState) *JobState {
-	origState := state
-	state.Done = make(chan error, len(cmd.List))
-
-	var firstJs *JobState
-	for i := 0; i < len(cmd.List)-1; i++ {
-		r1, w1, err := os.Pipe()
-		if err != nil {
-			state.Done <- err
-			continue
-		}
-		if firstJs != nil {
-			state.Pgid = firstJs.Pgid
-		}
-		state.Stdout = w1
-		if js := p.evalShell(cmd.List[i], state); firstJs == nil {
-			firstJs = js
-		}
-		w1.Close()
-		if i > 0 {
-			state.Stdin.Close()
-		}
-		state.Stdin = r1
-	}
-	state.Stdout = origState.Stdout
-	p.evalShell(cmd.List[len(cmd.List)-1], state)
-	if state.Stdin != origState.Stdin {
-		state.Stdin.Close()
-	}
-
-	go func() {
-		var err error
-		for i := 0; i < len(cmd.List); i++ {
-			if err1 := <-state.Done; err1 != nil {
-				err = err1
-			}
-		}
-		origState.Done <- err
-	}()
-
-	return firstJs
-}
-
-// EvalCmd evaluates argv, returning a *JobState if a job is running.
-// The work begun by EvalCmd is complete when <-state.Done.
-func (p *Program) EvalCmd(argv []string, state CmdState) *JobState {
-	switch argv[0] {
-	case "cd":
-		dir := ""
-		if len(argv) == 1 {
-			dir = os.Getenv("HOME")
-		} else {
-			dir = argv[1]
-		}
-		if err := os.Chdir(dir); err != nil {
-			state.Done <- err
-			return nil
-		}
-		wd, err := os.Getwd()
-		if err != nil {
-			state.Done <- err
-			return nil
-		}
-		fmt.Fprintf(os.Stdout, "%s\n", wd)
-		state.Done <- nil
-		return nil
-	case "exit", "logout":
-		state.Done <- fmt.Errorf("ng does not know %q, try $$", argv[0])
-		return nil
-	default:
-		j := &job.Job{
-			Argv:   argv,
-			Env:    environ(),
-			Stdin:  state.Stdin,
-			Stdout: state.Stdout,
-			Stderr: state.Stderr,
-			Pgid:   state.Pgid,
-		}
-		if err := j.Start(); err != nil {
-			state.Done <- err
-			return nil
-		}
-		go func() {
-			j.Wait() // TODO error prop?
-			state.Done <- nil
-		}()
-		return &JobState{Pgid: j.Pgid}
-	}
 }
 
 func (p *Program) Eval(s stmt.Stmt) (res []interface{}, resType tipe.Type, err error) {
@@ -883,16 +716,21 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
-			state := CmdState{
-				RunCmd: p.EvalCmd,
-				Done:   make(chan error, 1),
+			j := &shell.Job{
+				Cmd:    cmd,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,
 			}
-			p.EvalShellList(cmd, state)
-			if err := <-state.Done; err != nil {
+			if err := j.Start(); err != nil {
 				return nil, err
+			}
+			done, err := j.Wait()
+			if err != nil {
+				return nil, err
+			}
+			if !done {
+				break // TODO not right, instead we should just have one cmd, not Cmds here.
 			}
 		}
 		return nil, nil
