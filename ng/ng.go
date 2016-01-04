@@ -61,15 +61,13 @@ func main() {
 	ch := make(chan os.Signal, 1)
 	winch1 := make(chan os.Signal, 1)
 	winch2 := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGWINCH)
-	signal.Ignore(syscall.SIGTTOU, syscall.SIGTTIN)
+	signal.Notify(ch, syscall.SIGWINCH)
+	shell.Init()
 	go func() {
 		for {
 			sig := <-ch
 			fmt.Printf("got signal: %s\n", sig)
 			switch sig {
-			case syscall.SIGINT:
-				// TODO
 			case syscall.SIGWINCH:
 				// TODO: don't drop this signal.
 				// Instead, rewrite liner and make sure we

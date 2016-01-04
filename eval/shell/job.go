@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,7 +35,7 @@ type Job struct {
 }
 
 func (j *Job) Start() (err error) {
-	if loginShell {
+	if interactive {
 		shellState, err = tcgetattr(os.Stdin.Fd())
 		if err != nil {
 			return err
@@ -69,7 +70,7 @@ func (j *Job) Continue() error {
 		return nil
 	}
 
-	if loginShell {
+	if interactive {
 		if err := tcsetpgrp(os.Stdin.Fd(), j.pgid); err != nil {
 			j.mu.Unlock()
 			return err
@@ -81,12 +82,11 @@ func (j *Job) Continue() error {
 	}
 
 	j.running = true
-	syscall.Kill(j.pgid, syscall.SIGCONT)
+	syscall.Kill(-j.pgid, syscall.SIGCONT)
 
 	j.mu.Unlock()
 
 	_, err := j.Wait()
-	fmt.Printf("tag 3\n")
 	return err
 }
 
@@ -126,7 +126,7 @@ func (j *Job) Wait() (done bool, err error) {
 	}
 	if !j.done {
 		// Stopped, add Job to bg and save terminal.
-		if loginShell {
+		if interactive {
 			j.termios, err = tcgetattr(os.Stdin.Fd())
 			if err != nil {
 				fmt.Fprintf(j.Stderr, "on stop: %v", err)
@@ -135,7 +135,7 @@ func (j *Job) Wait() (done bool, err error) {
 		bgAdd(j)
 	}
 
-	if loginShell {
+	if interactive {
 		// move the shell process to the foreground
 		if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
 			fmt.Fprintf(j.Stderr, "on stop: %v", err)
@@ -246,7 +246,7 @@ func (j *Job) execPipeline(cmd *expr.ShellList, sio stdio) error {
 	errs := make(chan error, len(cmd.List))
 
 	for i := 0; i < len(cmd.List)-1; i++ {
-		r1, w1, err := os.Pipe()
+		r1, w1, err := os.Pipe() // closing is handled in proc.start()
 		if err != nil {
 			// TODO kill already running procs in pipeline job
 			return err
@@ -254,18 +254,11 @@ func (j *Job) execPipeline(cmd *expr.ShellList, sio stdio) error {
 		sio.out = w1
 		go func(i int, sio stdio) {
 			errs <- j.execShellList(cmd.List[i], sio)
-			w1.Close() // TODO move close into execCmd
-			if i > 0 {
-				sio.in.Close()
-			}
 		}(i, sio)
 		sio.in = r1
 	}
 	sio.out = origSio.out
 	errs <- j.execShellList(cmd.List[len(cmd.List)-1], sio)
-	if sio.in != origSio.in {
-		sio.in.Close()
-	}
 
 	var err error
 	for i := 0; i < len(cmd.List); i++ {
@@ -295,14 +288,23 @@ func (p *proc) start() error {
 		return err
 	}
 
+	signal.Reset(jobSignals...)
 	p.process, err = os.StartProcess(p.path, p.argv, &os.ProcAttr{
 		Env:   Env,
 		Files: []*os.File{p.sio.in, p.sio.out, p.sio.err},
 		Sys: &syscall.SysProcAttr{
-			Setpgid: true, // job gets new pgid
-			Pgid:    p.job.pgid,
+			Setpgid:    true, // job gets new pgid
+			Foreground: interactive,
+			Pgid:       p.job.pgid,
 		},
 	})
+	signal.Ignore(jobSignals...)
+	if p.sio.in != p.job.Stdin {
+		p.sio.in.Close()
+	}
+	if p.sio.out != p.job.Stdout {
+		p.sio.out.Close()
+	}
 	if err != nil {
 		return err
 	}
@@ -314,7 +316,7 @@ func (p *proc) start() error {
 		if err != nil {
 			return fmt.Errorf("cannot get pgid of new process: %v", err)
 		}
-		if loginShell {
+		if interactive {
 			return tcsetpgrp(os.Stdin.Fd(), p.job.pgid)
 		}
 	}
@@ -327,33 +329,22 @@ func (p *proc) waitUntilDone() error {
 	pid := p.process.Pid
 	for {
 		wstatus := new(syscall.WaitStatus)
-		fmt.Printf("waitUntilDone tag 1\n")
 		_, err := syscall.Wait4(pid, wstatus, syscall.WUNTRACED|syscall.WCONTINUED, nil)
-		if err != nil {
-			return fmt.Errorf("wait failed: %v\n", err)
-		}
 		switch {
-		case wstatus.Stopped():
-			fmt.Printf("waitUntilDone tag 2\n")
-			p.job.cond.L.Lock()
-			p.job.running = false
-			p.job.cond.Broadcast()
-			p.job.cond.L.Unlock()
-		case wstatus.Continued():
-			fmt.Printf("waitUntilDone tag 3\n")
-			p.job.cond.L.Lock()
-			p.job.running = true
-			p.job.cond.Broadcast()
-			p.job.cond.L.Unlock()
-		case wstatus.Exited():
-			fmt.Printf("waitUntilDone tag 4\n")
+		case err != nil || wstatus.Exited():
 			//fmt.Fprintf(p.Stderr, "process exited with %v\n", p.Err)
 			if c := wstatus.ExitStatus(); c != 0 {
 				return fmt.Errorf("failed on exit: %d", c)
 			}
 			return nil
+		case wstatus.Stopped():
+			p.job.cond.L.Lock()
+			p.job.running = false
+			p.job.cond.Broadcast()
+			p.job.cond.L.Unlock()
+		case wstatus.Continued():
+			// BUG: on darwin at least, this isn't firing.
 		case wstatus.Signaled():
-			fmt.Printf("waitUntilDone tag 5\n")
 			// ignore
 		default:
 			panic(fmt.Sprintf("unexpected wstatus: %#+v", wstatus))
@@ -362,23 +353,38 @@ func (p *proc) waitUntilDone() error {
 }
 
 var (
-	loginShell bool
-	basicState syscall.Termios
-	shellState syscall.Termios
-	shellPgid  int
+	interactive bool
+	basicState  syscall.Termios
+	shellState  syscall.Termios
+	shellPgid   int
 )
 
-func init() {
+var jobSignals = []os.Signal{
+	syscall.SIGINT,
+	syscall.SIGQUIT,
+	syscall.SIGTSTP,
+	syscall.SIGTTOU,
+	syscall.SIGTTIN,
+	syscall.SIGCHLD,
+}
+
+func Init() {
 	var err error
 	basicState, err = tcgetattr(os.Stdin.Fd())
 	if err == nil {
-		loginShell = true
-	} else {
-		loginShell = false
+		interactive = true
 	}
-	shellPgid, err = syscall.Getpgid(0)
-	if err != nil {
-		panic(err)
+
+	if interactive {
+		signal.Ignore(jobSignals...)
+
+		shellPgid = os.Getpid()
+		if err := syscall.Setpgid(shellPgid, shellPgid); err != nil {
+			panic(err)
+		}
+		if err := tcsetpgrp(os.Stdin.Fd(), shellPgid); err != nil {
+			panic(err)
+		}
 	}
 }
 
