@@ -54,6 +54,8 @@ func mode() liner.ModeApplier {
 }
 
 func main() {
+	shell.Init()
+
 	// TODO
 	// This is getting a bit absurd. It's time to write our own liner
 	// package, one that supports the two modes we need and meshes well
@@ -62,7 +64,6 @@ func main() {
 	winch1 := make(chan os.Signal, 1)
 	winch2 := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGWINCH)
-	shell.Init()
 	go func() {
 		for {
 			sig := <-ch
