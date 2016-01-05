@@ -227,19 +227,17 @@ func (j *Job) execShellList(cmd interface{}, sio stdio) (procs []*proc, err erro
 }
 
 func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
-	// TODO: this is the place to do expansion.
-	// It appears the approximate order of expansion is:
-	//	brace expansion (for example: "c{d,e}" becomes "cd ce")
-	//	tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
-	//	param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
-	//	paths expansion (*, ?, [)
-	switch cmd.Argv[0] {
+	argv, err := expansion(cmd.Argv, j.Params)
+	if err != nil {
+		return nil, err
+	}
+	switch argv[0] {
 	case "cd":
 		dir := ""
-		if len(cmd.Argv) == 1 {
+		if len(argv) == 1 {
 			dir = os.Getenv("HOME")
 		} else {
-			dir = cmd.Argv[1]
+			dir = argv[1]
 		}
 		if err := os.Chdir(dir); err != nil {
 			return nil, err
@@ -251,16 +249,16 @@ func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
 		return nil, nil
 	case "fg":
-		return nil, bgFg(strings.Join(cmd.Argv[1:], " "))
+		return nil, bgFg(strings.Join(argv[1:], " "))
 	case "jobs":
 		bgList(j.Stderr)
 		return nil, nil
 	case "exit", "logout":
-		return nil, fmt.Errorf("ng does not know %q, try $$", cmd.Argv[0])
+		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	default:
 		p := &proc{
 			job:  j,
-			argv: cmd.Argv,
+			argv: argv,
 			sio:  sio,
 		}
 		if err := p.start(); err != nil {
