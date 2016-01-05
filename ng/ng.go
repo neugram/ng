@@ -197,6 +197,7 @@ func loop() {
 		for _, cmd := range res.Cmds {
 			j := &shell.Job{
 				Cmd:    cmd,
+				Params: prg.Cur,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,

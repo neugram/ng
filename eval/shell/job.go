@@ -18,11 +18,17 @@ import (
 
 var Env []string
 
+type Params interface {
+	Get(name string) string
+	Set(name, value string)
+}
+
 type Job struct {
 	Cmd    *expr.ShellList
 	Stdin  *os.File
 	Stdout *os.File
 	Stderr *os.File
+	Params Params
 
 	mu      sync.Mutex
 	err     error
@@ -221,6 +227,12 @@ func (j *Job) execShellList(cmd interface{}, sio stdio) (procs []*proc, err erro
 }
 
 func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
+	// TODO: this is the place to do expansion.
+	// It appears the approximate order of expansion is:
+	//	brace expansion (for example: "c{d,e}" becomes "cd ce")
+	//	tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
+	//	param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
+	//	paths expansion (*, ?, [)
 	switch cmd.Argv[0] {
 	case "cd":
 		dir := ""

@@ -84,6 +84,43 @@ func (s *Scope) Lookup(name string) *Variable {
 	return nil
 }
 
+// Get is part of the implementation of shell.Params.
+func (s *Scope) Get(name string) string {
+	v := s.Lookup(name)
+	if v == nil {
+		return ""
+	}
+	// TODO this is handy. Could we reasonably define a string(val)
+	// constructor in the language that follows this same logic?
+	val := v.Value
+	if gv, ok := val.(*GoValue); ok {
+		val = gv.Value
+	}
+	switch val := val.(type) {
+	case nil:
+		return ""
+	case string:
+		return val
+	case int64:
+		return fmt.Sprintf("%d", val)
+	case float32:
+		return fmt.Sprintf("%f", val)
+	case float64:
+		return fmt.Sprintf("%f", val)
+	case *big.Int:
+		return val.String()
+	case *big.Float:
+		return val.String()
+	default:
+		return ""
+	}
+}
+
+// Set is part of the implementation of shell.Params.
+func (s *Scope) Set(name, value string) {
+	panic("TODO Scope.Set")
+}
+
 func builtinPrint(v ...interface{})                 { fmt.Println(v...) }
 func builtinPrintf(format string, v ...interface{}) { fmt.Printf(format, v...) }
 
@@ -718,6 +755,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		for _, cmd := range e.Cmds {
 			j := &shell.Job{
 				Cmd:    cmd,
+				Params: p.Cur,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,
