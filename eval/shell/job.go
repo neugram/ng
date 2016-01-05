@@ -25,7 +25,6 @@ type Job struct {
 	Stderr *os.File
 
 	mu      sync.Mutex
-	procs   []*proc
 	err     error
 	pgid    int
 	termios syscall.Termios
@@ -212,7 +211,10 @@ func (j *Job) execShellList(cmd interface{}, sio stdio) (procs []*proc, err erro
 		if err != nil {
 			return nil, err
 		}
-		return []*proc{p}, nil
+		if p != nil {
+			return []*proc{p}, nil
+		}
+		return nil, nil
 	default:
 		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
 	}
@@ -390,8 +392,6 @@ func (p *proc) start() error {
 	if err != nil {
 		return err
 	}
-
-	p.job.procs = append(p.job.procs, p)
 
 	if p.job.pgid == 0 {
 		p.job.pgid, err = syscall.Getpgid(p.process.Pid)
