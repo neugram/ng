@@ -3,6 +3,13 @@
 
 package shell
 
+import (
+	"fmt"
+	"os/user"
+	"strings"
+	"unicode"
+)
+
 func expansion(argv1 []string, params Params) ([]string, error) {
 	var err error
 	var argv2 []string
@@ -55,8 +62,30 @@ func braceExpand(src []string, arg string, _ Params) (res []string, err error) {
 
 // tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
 func tildeExpand(src []string, arg string, params Params) (res []string, err error) {
-	// TODO
-	return append(src, arg), nil
+	res = src
+	if !strings.HasPrefix(arg, "~") {
+		return append(res, arg), nil
+	}
+	name := arg[1:]
+	for i, r := range name {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			name = name[:i]
+			break
+		}
+	}
+	var u *user.User
+	if len(name) == 0 {
+		u, err = user.Current()
+	} else {
+		u, err = user.Lookup(name)
+	}
+	if err != nil {
+		if _, ok := err.(user.UnknownUserError); ok {
+			return append(res, arg), nil
+		}
+		return nil, fmt.Errorf("expanding %s: %v", arg, err)
+	}
+	return append(src, u.HomeDir+arg[1+len(name):]), nil
 }
 
 // param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
