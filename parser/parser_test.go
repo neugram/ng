@@ -291,6 +291,18 @@ var parserTests = []parserTest{
 			},
 		}},
 	}}},
+	{`($$ echo "a b \"" 'c \' \d "e f'g" $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
+		Cmds: []*expr.ShellList{{
+			Segment: expr.SegmentSemi,
+			List: []expr.Expr{&expr.ShellCmd{Argv: []string{
+				`echo`,
+				`"a b \""`,
+				`'c \'`,
+				`\d`,
+				`"e f'g"`,
+			}}},
+		}},
+	}}},
 }
 
 func TestParseExpr(t *testing.T) {

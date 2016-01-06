@@ -181,13 +181,31 @@ exponent:
 	return tok, value
 }
 
-func (s *Scanner) scanString() string {
+func (s *Scanner) scanSingleQuotedShellWord() string {
 	off := s.Offset
 	s.next()
 
 	for {
 		r := s.r
-		if r <= 0 || r == '\n' {
+		if r <= 0 {
+			s.errorf("single-quoted string missing terminating `'`")
+			break
+		}
+		s.next()
+		if r == '\'' {
+			break
+		}
+	}
+	return `'` + string(s.src[off:s.Offset])
+}
+
+func (s *Scanner) scanString(spanNewlines bool) string {
+	off := s.Offset
+	s.next()
+
+	for {
+		r := s.r
+		if r <= 0 || (!spanNewlines && r == '\n') {
 			s.errorf("string literal missing terminating '\"'")
 			break
 		}
@@ -261,8 +279,14 @@ func (s *Scanner) nextInShell(r rune) {
 			s.Token = token.ShellWord
 		}
 	case '"':
+		s.next()
 		s.semi = true
-		s.Literal = s.scanString()
+		s.Literal = s.scanString(true)
+		s.Token = token.ShellWord
+	case '\'':
+		s.next()
+		s.semi = true
+		s.Literal = s.scanSingleQuotedShellWord()
 		s.Token = token.ShellWord
 	case '\n':
 		s.Token = token.Semicolon
@@ -373,7 +397,7 @@ func (s *Scanner) Next() {
 	case '"':
 		s.semi = true
 		s.Token = token.String
-		s.Literal = s.scanString()
+		s.Literal = s.scanString(false)
 	case '.':
 		s.Token = token.Period
 	case ':':
