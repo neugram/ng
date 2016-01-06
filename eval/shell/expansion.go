@@ -90,9 +90,31 @@ func tildeExpand(src []string, arg string, params Params) (res []string, err err
 }
 
 // param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
+// TODO also expand env
 func paramExpand(src []string, arg string, params Params) (res []string, err error) {
-	// TODO
-	return append(src, arg), nil
+	res = src
+	for {
+		i1 := indexParam(arg)
+		if i1 == -1 {
+			break
+		}
+		var r rune
+		i2 := -1
+		for i2, r = range arg[i1+1:] {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+				i2--
+				break
+			}
+		}
+		if i2 == -1 {
+			return nil, fmt.Errorf("invalid $ parameter: %q", arg)
+		}
+		end := i1 + 1 + i2 + 1
+		name := arg[i1+1 : end]
+		val := params.Get(name)
+		arg = arg[:i1] + val + arg[end:]
+	}
+	return append(res, arg), nil
 }
 
 // paths expansion (*, ?, [)
@@ -129,6 +151,33 @@ func indexUnquoted(s string, r rune) int {
 				return i
 			case '\'', '"':
 				inBlock = v
+			}
+		}
+
+		prevSlash = v == '\\'
+	}
+
+	return -1
+}
+
+// indexParam returns the index of the first $ not quoted with '' or \, or -1.
+func indexParam(s string) int {
+	prevSlash := false
+	inQuote := false
+	for i, v := range s {
+		if inQuote {
+			if v == '\'' {
+				inQuote = false
+			}
+			continue
+		}
+
+		if !prevSlash {
+			switch v {
+			case '$':
+				return i
+			case '\'':
+				inQuote = true
 			}
 		}
 
