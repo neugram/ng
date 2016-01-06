@@ -6,6 +6,7 @@ package shell
 import (
 	"fmt"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -96,8 +97,16 @@ func paramExpand(src []string, arg string, params Params) (res []string, err err
 
 // paths expansion (*, ?, [)
 func pathsExpand(src []string, arg string, params Params) (res []string, err error) {
-	// TODO
-	return append(src, arg), nil
+	res = src
+	if !strings.ContainsAny(arg, "*?[") {
+		return append(res, arg), nil
+	}
+	// TODO to support interior quoting (like ab"*".c) this will need a rewrite.
+	matches, err := filepath.Glob(arg)
+	if err != nil {
+		return nil, err
+	}
+	return append(res, matches...), nil
 }
 
 // indexUnquoted returns the index of the first unquoted Unicode code
