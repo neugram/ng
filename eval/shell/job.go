@@ -390,9 +390,7 @@ func (p *proc) start() error {
 		}
 	}
 
-	signal.Reset(jobSignals...)
 	p.process, err = os.StartProcess(p.path, p.argv, attr)
-	signal.Ignore(jobSignals...)
 	if p.sio.in != p.job.Stdin {
 		p.sio.in.Close()
 	}
@@ -424,7 +422,7 @@ func (p *proc) waitUntilDone() error {
 		_, err := syscall.Wait4(pid, wstatus, syscall.WUNTRACED|syscall.WCONTINUED, nil)
 		switch {
 		case err != nil || wstatus.Exited():
-			//fmt.Fprintf(p.Stderr, "process exited with %v\n", p.Err)
+			//fmt.Fprintf(os.Stderr, "process exited with %v\n", err)
 			if c := wstatus.ExitStatus(); c != 0 {
 				return fmt.Errorf("failed on exit: %d", c)
 			}
@@ -452,17 +450,13 @@ var (
 )
 
 var jobSignals = []os.Signal{
-	syscall.SIGINT,
 	syscall.SIGQUIT,
-	syscall.SIGTSTP,
 	syscall.SIGTTOU,
 	syscall.SIGTTIN,
-	syscall.SIGCHLD,
 }
 
 func Init() {
 	if len(os.Args) == 2 && os.Args[1] == "-pgidleader" {
-		// TODO? signal.Ignore(jobSignals...) // don't close down with a pipeline
 		select {}
 	}
 
@@ -473,6 +467,32 @@ func Init() {
 	}
 
 	if interactive {
+		// Become foreground process group.
+		for {
+			shellPgid, err = syscall.Getpgid(syscall.Getpid())
+			if err != nil {
+				panic(err)
+			}
+			foreground, err := tcgetpgrp(os.Stdin.Fd())
+			if err != nil {
+				panic(err)
+			}
+			if foreground == shellPgid {
+				break
+			}
+			syscall.Kill(-shellPgid, syscall.SIGTTIN)
+		}
+
+		// We ignore SIGTSTP and SIGINT with signal.Notify to avoid setting
+		// the signal to SIG_IGN, a state that exec(3) will pass on to
+		// child processes, making it impossible to Ctrl+Z any process that
+		// does not install its own SIGTSTP handler.
+		ignoreCh := make(chan os.Signal, 1)
+		go func() {
+			for range ignoreCh {
+			}
+		}()
+		signal.Notify(ignoreCh, syscall.SIGTSTP, syscall.SIGINT)
 		signal.Ignore(jobSignals...)
 
 		shellPgid = os.Getpid()

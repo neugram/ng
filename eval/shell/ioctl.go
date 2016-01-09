@@ -53,8 +53,14 @@ func tcsetattr(fd uintptr, termios *syscall.Termios) error {
 }
 
 func tcsetpgrp(fd uintptr, pgrp int) error {
-	pgid := int32(pgrp)
+	pgid := int32(pgrp) // TODO: uintptr?
 	return ioctl(fd, _TIOCSPGRP, unsafe.Pointer(&pgid))
+}
+
+func tcgetpgrp(fd uintptr) (int, error) {
+	var pgid int64
+	err := ioctl(fd, _TIOCGPGRP, unsafe.Pointer(&pgid))
+	return int(pgid), err
 }
 
 func WindowSize(fd uintptr) (rows, cols int, err error) {
