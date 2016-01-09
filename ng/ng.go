@@ -192,12 +192,12 @@ func loop() {
 		//editMode := mode()
 		//origMode.ApplyMode()
 		if len(res.Cmds) > 0 {
-			shell.Env = eval.Environ()
+			shell.Env = prg.Environ()
 		}
 		for _, cmd := range res.Cmds {
 			j := &shell.Job{
 				Cmd:    cmd,
-				Params: prg.Cur,
+				Params: prg,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,

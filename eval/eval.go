@@ -84,74 +84,8 @@ func (s *Scope) Lookup(name string) *Variable {
 	return nil
 }
 
-// Get is part of the implementation of shell.Params.
-func (s *Scope) Get(name string) string {
-	v := s.Lookup(name)
-	if v == nil {
-		return ""
-	}
-	// TODO this is handy. Could we reasonably define a string(val)
-	// constructor in the language that follows this same logic?
-	val := v.Value
-	if gv, ok := val.(*GoValue); ok {
-		val = gv.Value
-	}
-	switch val := val.(type) {
-	case nil:
-		return ""
-	case string:
-		return val
-	case int64:
-		return fmt.Sprintf("%d", val)
-	case float32:
-		return fmt.Sprintf("%f", val)
-	case float64:
-		return fmt.Sprintf("%f", val)
-	case *big.Int:
-		return val.String()
-	case *big.Float:
-		return val.String()
-	default:
-		return ""
-	}
-}
-
-// Set is part of the implementation of shell.Params.
-func (s *Scope) Set(name, value string) {
-	panic("TODO Scope.Set")
-}
-
 func builtinPrint(v ...interface{})                 { fmt.Println(v...) }
 func builtinPrintf(format string, v ...interface{}) { fmt.Printf(format, v...) }
-
-var universeScope = &Scope{Var: map[string]*Variable{
-	"true":  &Variable{Value: true},
-	"false": &Variable{Value: false},
-	"env":   &Variable{Value: make(map[interface{}]interface{})},
-	"print": &Variable{Value: &GoFunc{
-		Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
-		Func: builtinPrint,
-	}},
-	"printf": &Variable{Value: &GoFunc{
-		Type: typecheck.Universe.Objs["printf"].Type.(*tipe.Func),
-		Func: builtinPrintf,
-	}},
-}}
-
-// TODO gross
-// TODO needs a lock
-func Environ() []string {
-	// TODO come up with a way to cache this.
-	// If Scope used an interface for Variable, we could update
-	// a copy of the slice on each write to env.
-	env := universeScope.Lookup("env").Value.(map[interface{}]interface{})
-	var kv []string
-	for k, v := range env {
-		kv = append(kv, k.(string)+"="+v.(string))
-	}
-	sort.Strings(kv)
-	return kv
-}
 
 func zeroVariable(t tipe.Type) *Variable {
 	switch t := t.(type) {
@@ -206,14 +140,29 @@ type Closure struct {
 }
 
 func New() *Program {
+	universe := &Scope{Var: map[string]*Variable{
+		"true":  &Variable{Value: true},
+		"false": &Variable{Value: false},
+		"env":   &Variable{Value: make(map[interface{}]interface{})},
+		"print": &Variable{Value: &GoFunc{
+			Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
+			Func: builtinPrint,
+		}},
+		"printf": &Variable{Value: &GoFunc{
+			Type: typecheck.Universe.Objs["printf"].Type.(*tipe.Func),
+			Func: builtinPrintf,
+		}},
+	}}
+
 	p := &Program{
+		Universe: universe,
+		Types:    typecheck.New(),
 		Pkg: map[string]*Scope{
 			"main": &Scope{
-				Parent: universeScope,
+				Parent: universe,
 				Var:    map[string]*Variable{},
 			},
 		},
-		Types: typecheck.New(),
 	}
 	p.Cur = p.Pkg["main"]
 	p.Types.ImportGo = p.importGo
@@ -222,10 +171,66 @@ func New() *Program {
 
 type Program struct {
 	Pkg       map[string]*Scope // package -> scope
+	Universe  *Scope
 	Cur       *Scope
 	Types     *typecheck.Checker
 	Returning bool
 	Breaking  bool
+}
+
+// TODO needs a lock
+func (p *Program) Environ() []string {
+	// TODO come up with a way to cache this.
+	// If Scope used an interface for Variable, we could update
+	// a copy of the slice on each write to env.
+	env := p.Universe.Lookup("env").Value.(map[interface{}]interface{})
+	var kv []string
+	for k, v := range env {
+		kv = append(kv, k.(string)+"="+v.(string))
+	}
+	sort.Strings(kv)
+	return kv
+}
+
+// Get is part of the implementation of shell.Params.
+func (p *Program) Get(name string) string {
+	v := p.Cur.Lookup(name)
+	if v == nil {
+		env := p.Universe.Lookup("env").Value.(map[interface{}]interface{})
+		if v := env[name]; v != nil {
+			return env[name].(string)
+		}
+		return ""
+	}
+	// TODO this is handy. Could we reasonably define a string(val)
+	// constructor in the language that follows this same logic?
+	val := v.Value
+	if gv, ok := val.(*GoValue); ok {
+		val = gv.Value
+	}
+	switch val := val.(type) {
+	case nil:
+		return ""
+	case string:
+		return val
+	case int64:
+		return fmt.Sprintf("%d", val)
+	case float32:
+		return fmt.Sprintf("%f", val)
+	case float64:
+		return fmt.Sprintf("%f", val)
+	case *big.Int:
+		return val.String()
+	case *big.Float:
+		return val.String()
+	default:
+		return ""
+	}
+}
+
+// Set is part of the implementation of shell.Params.
+func (p *Program) Set(name, value string) {
+	panic("TODO Scope.Set")
 }
 
 func (p *Program) importGo(path string) (*gotypes.Package, error) {
@@ -755,7 +760,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		for _, cmd := range e.Cmds {
 			j := &shell.Job{
 				Cmd:    cmd,
-				Params: p.Cur,
+				Params: p,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,
