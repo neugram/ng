@@ -1,6 +1,6 @@
-# Neugram is a data processing package.
+# Neugram is data processing system (including a scripting language).
 
-Neugram is a numerical processing library written in Go. Because in
+Neugram is a numerical processing library and language. Because in
 practice numerical processing is all about finding an moving data
 around, and often doing parts of the processing elsewhere (for example,
 inside an SQL query's WHERE clause), the library includes a small
@@ -35,33 +35,112 @@ We borrow GOPATH.
 # Types
 
 - Allow the definition of unused Go types, but no arithmetic on unsigned ints.
-- Provide an abstract type like interface{}, called val.
 
-### Concrete types:
+## Concrete types:
 
 ```
-	string        (is val)
-	integer       (is val)
-	int64         (is val)
-	float         (is val)
-	float64       (is val)
-	float32       (is val)
-	complex128    (is val)
-	[|]val        (is val)
-	[|]integer    (is val, [|]val)
-	[|]int64      (is val, [|]val)
-	[|]float      (is val, [|]val)
-	[|]float64    (is val, [|]val)
-	[|]float32    (is val, [|]val)
-	[|]complex128 (is val, [|]val)
+	string
+	integer       (like a *big.Int)
+	int64
+	float         (like a *big.Float)
+	float64
+	float32
+	complex128
+	struct
 ```
 
-In a [|]val, each column has an associated scalar type, which means
-it's possible to extract a column from a [|]val and successfully cast
-it dynamically to some numeric type that the entire table wouldn't
-have casted to.
+## Abstract types
 
-### A little generic: num
+Neugram has an abstract type interface{} that behaves just like Go's
+interface{}. It can have methods and hold any concrete type.
+
+In addition, Neugram has a family of type aliases for certain interface
+types that provide additional syntax.
+
+### Maps
+
+The abstract type alias ```map[interface{}]interface{}``` is equivalent to:
+
+```
+	interface {
+		Get(key interface{}) (interface{}, error)
+		Set(key, value interface{})
+		Delete(key interface{})
+		Range() interface { Next() (interface{}, interface{}, error) }
+		ZeroKeyValue() (interface{}, interface{})
+	}
+```
+
+Get returns NotFound if the key is not in the map.
+
+A map may optionally implement any of:
+
+```
+	interface { Set(key, value interface{}) }
+	interface { Delete(key interface{}) }
+	interface { Range() interface { Next() (k, v interface{}, err error) } }
+```
+
+When the end of a range is reached, Next returns EndOfRange.
+
+The key and value of a map can be specialized to any comparable T and U.
+If a map has a specialized key T or value U, a zero value of that type
+is returned by ZeroKeyValue.
+
+Thus a map[T]U can be converted to map[interface{}]U, map[T]interface{},
+map[interface{}]interface{}.
+
+When Go maps are passed to Neugram they are represented as a
+Neugram map. A Neugram map can only be used as a Go map if it
+is dynamically determined to be stored by an underlying Go map.
+(TODO: provide a common library function to convert maps if
+necessary.)
+
+A Neugram implementation may also use the Go type map[T]U as an
+implementation of the Neugram map[T]U.
+
+Maps in Neugram use the same syntax as Go maps.
+
+Constructing a map with a composite literal uses a growable im-memory
+hash map as the implementation.
+
+### Tables
+
+A table is a multi-dimensional list with a specified value type.
+
+A table ```[]interface{}``` is equivalent to:
+
+```
+	interface {
+		Get(index ...int) interface{}
+		Dim() int
+		Len(dim int) int
+		ZeroValue() interface{}
+	}
+```
+
+A table may optionally implement any of:
+
+```
+	interface { Set(value interface{}, index ...int) }
+	interface { Slice(index ...int) []interface{} }
+	interface { Col() []string }               // requires Dim()==2
+	interface { SliceCol(name ...string) []interface{} }
+```
+
+A table can be specialized to ```[]T``` if a zero value of the type T
+is returned by ZeroValue. Any []T can be cast to []interface{}.
+
+Constructing a table with a composite literal uses an in-memory
+contiguous array as the implementation.
+
+TODO: append, multi-dimensional semantics are complex.
+
+### Table syntax
+
+TODO, this stuff is hard.
+
+## A little generic: num
 
 Functions and types can be parameterized over a single type parameter.
 The type parameter can only resolve to numeric scalar types and must
@@ -95,90 +174,44 @@ the variable adopts the type of num.
 If in a scope where num is not assigned a type, the default numeric
 type is float64.
 
-The type [|]num can be used to represent a matrix whose type matches
+The type []num can be used to represent a matrix whose type matches
 the type parameter.
 
 ```
-	func fill(mat [|]num, val num) {
+	func fill(mat []num, v num) {
 		w, h := len(mat)
 		for x := 0; x < w; x++ {
 			for y := 0; y < h; y++ {
-				mat[y|x] = val
+				mat[y|x] = v
 			}
 		}
 	}
 ```
 
-### Tables
-
-- Dynamically, a table keeps a type on each column, so:
-	func conv(f [|]num) [|]float64 { return f.([|]float64) }
-  is possible, but may fail dynamically.
-
-- A concrete [|]float64 and the parameterized [|]num are matrixes.
-  These admit arithmetic operators.
-
-- No dimensions in the table type parameters, that way lies too many types.
-
-- No implicit conversions in arithmetic, even the safe ones (int64->integer) as
-  they have surprising performance implications and while they may be
-  possible with type parametrs, they are painful to reason about.
-
-### Methods
+## Methods
 
 Methods are tricky in a forward only statement-based language like this.
-Some ideas:
+Current thought is a second keyword like type that ties a set of methods
+to a type name.
 
 ```
-type T struct {
-	Field1 int64
-	Field2 integer
+methodik AnInt integer {
+	func (a) f() integer { return a }
+}
 
-	Add (t *T) func(t2 T) {
-		t.Field1 += t2.Field1
-		t.Field2 += t2.Field2
-	}
-
-	Mul (t1 T) func(t2 T) (t3 T) {
-		t3.Field1 = t1.Field1 * t2.Field1
-		t3.Field2 = t1.Field2 * t2.Field2
+methodik T *struct{
+	x integer
+	y []int64
+} {
+	func (a) f(x integer) integer {
+		return a.x
 	}
 }
 ```
 
-This way all methods of a type must be defined together. Limiting, but
-clear in meaning. Worth it?
+Down side is this is a second way to make a type name.
 
-Note that this strategy departs from Go in a subtle way: T is accessible
-from inside the statement declaring it. Usually in Go this is invalid:
-
-```
-f := func(x int) {
-	if x > 3 {
-		f(x-1) // f is undefined
-	}
-}
-```
-
-But in Neugram it silently becomes:
-
-```
-var f func(x int)
-f = func(x int) { ... }
-```
-
-## Background
-
-Start with Go's types.
-- remove channels
-- remove embedding
-- remove ability to define interface types (TODO: revisit)
-- remove slice operations (keep them as opaque types)
-- add tables
-- integer (*big.Int), float (*big.Float) TODO: what precision is float?
-- remove unsigned types (and arithmetic)
-- keep byte, mostly a placeholder for passing to Go code
-- later: introduce imaginary numbers
+TODO: embedding?
 
 # importgo
 
@@ -234,18 +267,11 @@ to create Go types and call Go functions and methods.
 
 Almost entirely derived from Go.
 
-New keywords: val, num (reserved). These don't have to be keywords,
+New keywords: num (reserved). Doesn't have to be keywords,
 but I'm sick of the gotchas that arise from letting people write
 ```type int int16```.
 
 TODO: literal syntax for tables is giving me a headache. For now, using the composite literal syntax for the fake struct record:
-
-```
-type table struct {
-	Names []string
-	Rows [][]interface{}
-}
-```
 
 Must do better, but I really hate syntax.
 
@@ -263,16 +289,17 @@ Given x:
 1 1.0  1.1  1.2
 2 2.0  2.1  2.2
 ```
-or
-```
 
-ident3x3 := [|]float64{
+or
+
+```
+ident3x3 := []float64{
 	{1, 0, 0},
 	{0, 1, 0},
 	{0, 0, 1},
 }
 
-presidents := [|]val{
+presidents := []val{
 	{|"ID", "Name", "Term1", "Term2"|},
 	{1, "George Washington", 1789, 1792},
 	{2, "John Adams", 1797, 0},
@@ -288,26 +315,26 @@ presidents["Name"] == presidents[1] == []val{
 	{"James Madison"},
 }
 
-x = [|]num{
+x = []num{
 	{|"Col0", "Col1", "Col2"|},
 	{0.0, 0.1, 0.2},
 	{1.0, 1.1, 1.2},
 	{2.0, 2.1  2.2},
 }
 
-x[1] == x["Col1"] == [|]num{
+x[1] == x["Col1"] == []num{
 	{|"Col1"|},
 	{0.1},
 	{1.1},
 	{2.1},
 }
 
-x[,2] == [|]num{
+x[,2] == []num{
 	{|"Col0", "Col1", "Col2"|},
 	{2.0, 2.1  2.2},
 }
 
-x[0|2] == x["Col0"|"Col2"] == [|]num{
+x[0|2] == x["Col0"|"Col2"] == []num{
 	{|"Col0", "Col2"|},
 	{0.0, 0.2},
 	{1.0, 1.2},
@@ -316,7 +343,7 @@ x[0|2] == x["Col0"|"Col2"] == [|]num{
 
 x[0:1] == x[0|1] == x["Col0"|"Col1"]
 
-x[1,0:1] == [|]num{
+x[1,0:1] == []num{
 	{|"Col1"|},
 	{0.1},
 	{1.1},
