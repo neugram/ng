@@ -140,6 +140,29 @@ TODO: append, multi-dimensional semantics are complex.
 
 TODO, this stuff is hard.
 
+Things we know we want:
+
+```
+	// match Go slice syntax when its meaning is relevant
+
+	// t is a 1-dimensional table of length 4
+	t[0] = "zero"
+	t[1] = "one"
+	t[2] = "two"
+	t[3] = "three"
+	s := t[0] // s == "zero"
+	u := t[1:3]
+	// len(u) == 2
+	// u[0] == "one"
+	// u[1] == "two"
+```
+
+Things we might want:
+
+```
+TODO
+```
+
 ## A little generic: num
 
 Functions and types can be parameterized over a single type parameter.
@@ -212,6 +235,31 @@ methodik T *struct{
 Down side is this is a second way to make a type name.
 
 TODO: embedding?
+
+# Error handling
+
+Unhandled non-nil errors turn into panics. Starting with
+
+```
+func f() error
+func g() (int, error)
+```
+
+then
+
+```
+// nil error is ignored, non-nil error panics
+f()
+x := g()
+
+// returned error is always ignored
+_ = f()
+x, _ := g()
+
+// returned error value is left to the programmer
+err := f()
+x, err := g()
+```
 
 # importgo
 
