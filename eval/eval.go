@@ -624,20 +624,26 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 		return []interface{}{m}, nil
 	case *expr.FuncLiteral:
-		if len(e.Type.FreeVars) == 0 {
-			return []interface{}{e}, nil
+		var res interface{}
+		if len(e.Type.FreeVars) > 0 {
+			c := &Closure{
+				Func: e,
+				Scope: &Scope{
+					Parent: p.Cur,
+					Var:    make(map[string]*Variable),
+				},
+			}
+			for _, name := range e.Type.FreeVars {
+				c.Scope.Var[name] = p.Cur.Lookup(name)
+			}
+			res = c
+		} else {
+			res = e
 		}
-		c := &Closure{
-			Func: e,
-			Scope: &Scope{
-				Parent: p.Cur,
-				Var:    make(map[string]*Variable),
-			},
+		if e.Name != "" {
+			p.Cur.Var[e.Name] = &Variable{Value: res}
 		}
-		for _, name := range e.Type.FreeVars {
-			c.Scope.Var[name] = p.Cur.Lookup(name)
-		}
-		return []interface{}{c}, nil
+		return []interface{}{res}, nil
 	case *expr.Ident:
 		if v := p.Cur.Lookup(e.Name); v != nil {
 			return []interface{}{v}, nil
