@@ -8,8 +8,9 @@ import "neugram.io/lang/tipe"
 var Universe = &Scope{Objs: universeObjs}
 
 var universeObjs = map[string]*Obj{
-	"true":  &Obj{Kind: ObjVar, Type: tipe.Bool},
+	"true":  &Obj{Kind: ObjVar, Type: tipe.Bool}, // TODO UntypedBool?
 	"false": &Obj{Kind: ObjVar, Type: tipe.Bool},
+	"nil":   &Obj{Kind: ObjVar, Type: tipe.UntypedNil},
 	"env":   &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
 	"error": &Obj{
 		Kind: ObjType,

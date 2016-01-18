@@ -973,6 +973,9 @@ func convertible(dst, src tipe.Type) bool {
 		if len(idst.Methods) == 0 {
 			return true
 		}
+		if src == tipe.UntypedNil {
+			return true
+		}
 		// TODO matching method sets
 	}
 
@@ -1225,7 +1228,8 @@ func isTyped(t tipe.Type) bool {
 
 func isUntyped(t tipe.Type) bool {
 	switch t {
-	case tipe.UntypedBool, tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
+	case tipe.UntypedNil, tipe.UntypedBool,
+		tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
 		return true
 	}
 	return false

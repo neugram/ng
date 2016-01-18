@@ -118,7 +118,8 @@ const (
 
 	GoInt Basic = "goint"
 
-	UntypedBool    Basic = "untyped bool" // TODO remove if we are not going to have named types
+	UntypedNil     Basic = "untyped nil" // nil pointer or nil interface
+	UntypedBool    Basic = "untyped bool"
 	UntypedInteger Basic = "untyped integer"
 	UntypedFloat   Basic = "untyped float"
 	UntypedComplex Basic = "untyped complex"

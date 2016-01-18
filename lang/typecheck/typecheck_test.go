@@ -111,6 +111,13 @@ var typeTests = []typeTest{
 		},
 		[]identType{{"z", tipe.Int64}},
 	},
+	{
+		[]string{
+			`err := error(nil)`,
+			`err = nil`,
+		},
+		[]identType{{"err", Universe.Objs["error"].Type}},
+	},
 }
 
 func TestBasic(t *testing.T) {
