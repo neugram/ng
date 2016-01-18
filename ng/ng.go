@@ -13,7 +13,6 @@ import (
 	"neugram.io/eval"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/tipe"
-	"neugram.io/lang/token"
 	"neugram.io/parser"
 
 	"github.com/peterh/liner"
@@ -28,6 +27,8 @@ var (
 	lineSh        *liner.State // shell-mode line reader
 	historyShFile = ""
 	historySh     = make(chan string, 1)
+
+	prg *eval.Program
 )
 
 func cleanup() {
@@ -112,7 +113,7 @@ func setWindowSize(env map[interface{}]interface{}) {
 
 func loop() {
 	p := parser.New()
-	prg := eval.New()
+	prg = eval.New()
 
 	// TODO this env setup could be done in neugram code
 	env := prg.Cur.Lookup("env").Value.(map[interface{}]interface{})
@@ -273,22 +274,4 @@ func historyWriter(dst string, src <-chan string) {
 			batch = nil
 		}
 	}
-}
-
-func completer(line string) []string {
-	// TODO match on word not line.
-	// TODO walk the scope for possible names.
-	var res []string
-	for keyword := range token.Keywords {
-		if strings.HasPrefix(keyword, line) {
-			res = append(res, keyword)
-		}
-	}
-	return res
-}
-
-func completerSh(line string) []string {
-	// TODO scan path
-	var res []string
-	return res
 }
