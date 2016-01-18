@@ -42,6 +42,12 @@ var universeObjs = map[string]*Obj{
 			Variadic: true,
 		},
 	},
+	"panic": &Obj{
+		Kind: ObjVar,
+		Type: &tipe.Func{
+			Params: &tipe.Tuple{Elems: []tipe.Type{tipe.String}},
+		},
+	},
 }
 
 func init() {

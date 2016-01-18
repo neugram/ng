@@ -139,6 +139,19 @@ type Closure struct {
 	Scope *Scope
 }
 
+var panicFunc = &expr.FuncLiteral{
+	Name: "panic",
+	Type: typecheck.Universe.Objs["panic"].Type.(*tipe.Func),
+}
+
+type Panic struct {
+	str string
+}
+
+func (p Panic) Error() string {
+	return fmt.Sprintf("neugram panic: %s", p.str)
+}
+
 func New() *Program {
 	universe := &Scope{Var: map[string]*Variable{
 		"true":  &Variable{Value: true},
@@ -152,6 +165,7 @@ func New() *Program {
 			Type: typecheck.Universe.Objs["printf"].Type.(*tipe.Func),
 			Func: builtinPrintf,
 		}},
+		"panic": &Variable{Value: panicFunc},
 	}}
 
 	p := &Program{
@@ -524,6 +538,10 @@ func (p *Program) callClosure(c *Closure, args []interface{}) ([]interface{}, er
 }
 
 func (p *Program) callFuncLiteral(f *expr.FuncLiteral, args []interface{}) ([]interface{}, error) {
+	if f == panicFunc {
+		return nil, Panic{str: args[0].(string)}
+	}
+
 	p.pushScope()
 	defer p.popScope()
 

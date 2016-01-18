@@ -156,6 +156,9 @@ func runProgram(b []byte) error {
 		}
 		for _, s := range res.Stmts {
 			if _, _, err := prg.Eval(s); err != nil {
+				if _, isPanic := err.(Panic); isPanic {
+					return err
+				}
 				return fmt.Errorf("%d: %v", i+1, err)
 			}
 		}
@@ -212,7 +215,13 @@ func TestPrograms(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := runProgram(contents); err != nil {
+		err = runProgram(contents)
+		if strings.HasSuffix(file, "_panic.ng") {
+			if _, isPanic := err.(Panic); !isPanic {
+				t.Errorf("%s: expect panic, got: %v", file, err)
+				continue
+			}
+		} else if err != nil {
 			t.Errorf("%s:%v", file, err)
 			continue
 		}
@@ -226,7 +235,7 @@ func TestPrograms(t *testing.T) {
 		}
 		output := string(b)
 		t.Logf("output: %s", output)
-		if !strings.HasSuffix(output, "OK\n") {
+		if !strings.HasSuffix(file, "_panic.ng") && !strings.HasSuffix(output, "OK\n") {
 			t.Errorf("%s missing OK", file)
 		}
 	}
