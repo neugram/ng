@@ -35,7 +35,7 @@ type Checker struct {
 
 	cur *Scope
 
-	Memory *tipe.Memory
+	memory *tipe.Memory
 }
 
 func New() *Checker {
@@ -51,7 +51,7 @@ func New() *Checker {
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
-		Memory: tipe.NewMemory(),
+		memory: tipe.NewMemory(),
 	}
 }
 
@@ -878,7 +878,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			return left
 		}
 
-		methodNames, methods := c.Memory.Methods(left.typ)
+		methodNames, methods := c.memory.Methods(left.typ)
 		for i, name := range methodNames {
 			if name == right {
 				p.mode = modeVar // modeFunc?
@@ -995,12 +995,12 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 		if src == tipe.UntypedNil {
 			return true
 		}
-		srcNames, srcTypes := c.Memory.Methods(src)
+		srcNames, srcTypes := c.memory.Methods(src)
 		srcm := make(map[string]tipe.Type)
 		for i, name := range srcNames {
 			srcm[name] = srcTypes[i]
 		}
-		dstNames, dstTypes := c.Memory.Methods(dst)
+		dstNames, dstTypes := c.memory.Methods(dst)
 		//panic(fmt.Sprintf("dst: %s, dstNames: %s, dstTypes: %s\n", dst, dstNames, dstTypes))
 		for i, name := range dstNames {
 			if !tipe.Equal(dstTypes[i], srcm[name]) {
