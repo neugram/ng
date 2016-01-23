@@ -33,10 +33,13 @@ type Struct struct {
 }
 
 type Methodik struct {
+	// TODO: need to track the definition package so the evaluator can
+	// extract the mscope from the right place. Is this the only
+	// instance of needing the source package? What about debug printing?
 	Spec        Specialization
 	Type        Type
 	MethodNames []string
-	Methods     []Type
+	Methods     []*Func
 }
 
 type Table struct {
@@ -552,6 +555,13 @@ func methods(t Type, methodset map[string]Type, pointersRemoved int) {
 	case *Pointer:
 		if pointersRemoved < 1 {
 			methods(t.Elem, methodset, pointersRemoved+1)
+		}
+	case *Interface:
+		for name, typ := range t.Methods {
+			if methodset[name] != nil {
+				continue
+			}
+			methodset[name] = typ
 		}
 	case *Methodik:
 		for i, name := range t.MethodNames {

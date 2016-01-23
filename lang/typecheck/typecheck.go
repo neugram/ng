@@ -35,7 +35,7 @@ type Checker struct {
 
 	cur *Scope
 
-	memory *tipe.Memory
+	Memory *tipe.Memory
 }
 
 func New() *Checker {
@@ -51,7 +51,7 @@ func New() *Checker {
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
-		memory: tipe.NewMemory(),
+		Memory: tipe.NewMemory(),
 	}
 }
 
@@ -74,16 +74,45 @@ type partial struct {
 	expr expr.Expr
 }
 
+func isError(t tipe.Type) bool {
+	return Universe.Objs["error"].Type == t
+}
+
 func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	switch s := s.(type) {
 	case *stmt.Assign:
-		if len(s.Left) != len(s.Right) {
-			panic("TODO artity mismatch, i.e. x, y := f()")
-		}
 		var partials []partial
 		for _, rhs := range s.Right {
+			p := c.expr(rhs)
+			if p.mode == modeInvalid {
+				return nil
+			}
+			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
+				if len(s.Right) > 1 {
+					c.errorf("multiple value %s in single-value context", rhs)
+					return nil
+				}
+				for _, t := range tuple.Elems {
+					partials = append(partials, partial{
+						mode: modeVar,
+						typ:  t,
+					})
+				}
+				continue
+			}
 			partials = append(partials, c.expr(rhs))
 		}
+		if len(s.Left) == len(partials)-1 && isError(partials[len(partials)-1].typ) {
+			// func f() (T, error) { ... )
+			// x := f()
+			partials = partials[:len(partials)-1]
+		}
+
+		if len(s.Left) != len(partials) {
+			c.errorf("arity mismatch, left %d != right %d", len(s.Left), len(partials))
+			return nil
+		}
+
 		if s.Decl {
 			for i, lhs := range s.Left {
 				p := partials[i]
@@ -181,13 +210,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.MethodikDecl:
 		var usesNum bool
-		var resolved bool
-		for i, f := range s.Type.Methods {
-			s.Type.Methods[i], resolved = c.resolve(f)
-			usesNum = usesNum || tipe.UsesNum(s.Type.Methods[i])
-			if !resolved {
-				return nil
-			}
+		for _, f := range s.Type.Methods {
+			usesNum = usesNum || tipe.UsesNum(f)
 		}
 
 		for _, m := range s.Methods {
@@ -260,9 +284,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		for i := range want {
-			if !tipe.Equal(got[i], want[i]) {
-				c.errorf("cannot use %s as %s (%T) in return argument", got[i], want[i])
-				return nil
+			if !c.assignable(want[i], got[i]) {
+				c.errorf("cannot use %s as %s in return argument", got[i], want[i])
 			}
 		}
 		return nil
@@ -855,7 +878,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			return left
 		}
 
-		methodNames, methods := c.memory.Methods(left.typ)
+		methodNames, methods := c.Memory.Methods(left.typ)
 		for i, name := range methodNames {
 			if name == right {
 				p.mode = modeVar // modeFunc?
@@ -947,8 +970,8 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 		}
 	}
 
-	if !convertible(t, p.typ) {
-		c.errorf("cannot use %s as %s", p.typ, t)
+	if !c.convertible(t, p.typ) {
+		c.errorf("cannot convert %s to %s", p.typ, t)
 		p.mode = modeInvalid
 		return
 	}
@@ -960,23 +983,43 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 	}
 }
 
-func convertible(dst, src tipe.Type) bool {
+func (c *Checker) assignable(dst, src tipe.Type) bool {
 	if tipe.Equal(dst, src) {
 		return true
 	}
-	// numerics can be converted to one another
-	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
-		return true
-	}
 	if idst, ok := dst.(*tipe.Interface); ok {
-		// Everything can be converted to interface{}.
+		// Everything can be assigned to interface{}.
 		if len(idst.Methods) == 0 {
 			return true
 		}
 		if src == tipe.UntypedNil {
 			return true
 		}
-		// TODO matching method sets
+		srcNames, srcTypes := c.Memory.Methods(src)
+		srcm := make(map[string]tipe.Type)
+		for i, name := range srcNames {
+			srcm[name] = srcTypes[i]
+		}
+		dstNames, dstTypes := c.Memory.Methods(dst)
+		//panic(fmt.Sprintf("dst: %s, dstNames: %s, dstTypes: %s\n", dst, dstNames, dstTypes))
+		for i, name := range dstNames {
+			if !tipe.Equal(dstTypes[i], srcm[name]) {
+				// TODO: report missing method?
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func (c *Checker) convertible(dst, src tipe.Type) bool {
+	if c.assignable(dst, src) {
+		return true
+	}
+	// numerics can be converted to one another
+	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
+		return true
 	}
 
 	// TODO several other forms of "identical" types,
