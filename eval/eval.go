@@ -606,7 +606,7 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 	case *StructVal:
 		return v, nil
 	case *MethodikVal:
-		return v.Value, nil
+		return v, nil
 	case map[interface{}]interface{}:
 		return v, nil
 	default:
@@ -662,18 +662,17 @@ func (p *Program) evalSelector(e *expr.Selector) ([]interface{}, error) {
 	t := p.Types.Types[e.Left]
 	switch lhs := lhs.(type) {
 	case *MethodikVal:
-		// TODO
-		// TODO pre-build closures for methods in MethodikVal?
-		// TODO
-		methodNames, methods := p.Types.Memory.Methods(t)
-		for i, n := range methodNames {
+		if m := lhs.Methods[e.Right.Name]; m != nil {
+			return []interface{}{m}, nil
+		}
+		// TODO: non-struct methodik
+		structt := tipe.Underlying(t).(*tipe.Struct)
+		for i, n := range structt.FieldNames {
 			if n == e.Right.Name {
-				method := methods[i]
-				_ = method
-				//return []interface{}
-				panic("TODO method call")
+				return []interface{}{lhs.Value.(*StructVal).Fields[i]}, nil
 			}
 		}
+		return nil, fmt.Errorf("unknown method or field %s in %s", e.Right.Name, t)
 	case *StructVal:
 		t := tipe.Underlying(t).(*tipe.Struct)
 		for i, n := range t.FieldNames {
@@ -756,7 +755,6 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 						s.Fields[i] = zeroVariable(ft)
 					}
 				}
-				return []interface{}{s}, nil
 			} else {
 				for i, expr := range e.Elements {
 					v, err := p.evalExprAndReadVar(expr)
@@ -776,6 +774,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 				Value:   res,
 				Methods: make(map[string]*Closure),
 			}
+			res = mval
 			for i, name := range mdik.MethodNames {
 				mlit := mscope.Decl.Methods[i]
 				scope := mscope.Scope
@@ -793,7 +792,6 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 					Scope: scope,
 				}
 			}
-			res = mval
 		}
 		return []interface{}{res}, nil
 	case *expr.MapLiteral:
@@ -817,6 +815,11 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			c := &Closure{
 				Func: e,
 				Scope: &Scope{
+					// TODO: p.Universe, not p.Cur.
+					// Pinning p.Cur is a liveness bug, a closure
+					// keeps alive all memory active in the stack
+					// that created it. But we need a FreeVars
+					// equivalent for LookupMdik.
 					Parent: p.Cur,
 					Var:    make(map[string]*Variable),
 				},

@@ -1,0 +1,29 @@
+f := func() {}
+
+{
+	four := 3
+
+	methodik obj struct {} {
+		func (a) NumberFour() num {
+			methodik o2 struct {} {
+				func (a2) N4() num { return four }
+			}
+			four := 6
+			x := o2{}
+			return x.N4()
+		}
+	}
+
+	four++
+
+	f = func() {
+		four := 5 // check we use the correctly scoped four
+		x := obj{}
+		// TODO y := &obj{}  then + y.NumberFour() == 8
+		if x.NumberFour() == 4 {
+			print("OK")
+		}
+	}
+}
+
+f()
