@@ -193,8 +193,8 @@ var parserTests = []parserTest{
 		},
 	},
 	{"x.y.z", &expr.Selector{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}, &expr.Ident{"z"}}},
-	//{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	//TODO{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
+	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
+	{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
 	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
 	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
@@ -409,10 +409,8 @@ var stmtTests = []stmtTest{
 			Type: &tipe.Methodik{
 				Type:        tipe.Integer,
 				MethodNames: []string{"f"},
-				Methods: []tipe.Type{
-					&tipe.Func{
-						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
-					},
+				Methods: []*tipe.Func{
+					{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}}},
 				},
 			},
 			Methods: []*expr.FuncLiteral{{
@@ -445,12 +443,10 @@ var stmtTests = []stmtTest{
 					Fields:     []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
 				},
 				MethodNames: []string{"f"},
-				Methods: []tipe.Type{
-					&tipe.Func{
-						Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
-						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
-					},
-				},
+				Methods: []*tipe.Func{{
+					Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+				}},
 			},
 			Methods: []*expr.FuncLiteral{{
 				Name:            "f",
@@ -484,6 +480,51 @@ var stmtTests = []stmtTest{
 	{"sync.Mutex{}", &stmt.Simple{&expr.CompLiteral{
 		Type: &tipe.Unresolved{Package: "sync", Name: "Mutex"},
 	}}},
+	{"_ = 5", &stmt.Assign{Left: []expr.Expr{&expr.Ident{"_"}}, Right: []expr.Expr{basic(5)}}},
+	{"x, _ := 4, 5", &stmt.Assign{
+		Decl:  true,
+		Left:  []expr.Expr{&expr.Ident{"x"}, &expr.Ident{"_"}},
+		Right: []expr.Expr{basic(4), basic(5)},
+	}},
+	{`if x == y && y == z {}`, &stmt.If{
+		Cond: &expr.Binary{
+			Op:    token.LogicalAnd,
+			Left:  &expr.Binary{Op: token.Equal, Left: &expr.Ident{"x"}, Right: &expr.Ident{"y"}},
+			Right: &expr.Binary{Op: token.Equal, Left: &expr.Ident{"y"}, Right: &expr.Ident{"z"}},
+		},
+		Body: &stmt.Block{},
+	}},
+	{`if (x == T{}) {}`, &stmt.If{
+		Cond: &expr.Unary{
+			Op: token.LeftParen,
+			Expr: &expr.Binary{
+				Op:    token.Equal,
+				Left:  &expr.Ident{"x"},
+				Right: &expr.CompLiteral{Type: &tipe.Unresolved{Name: "T"}},
+			},
+		},
+		Body: &stmt.Block{},
+	}},
+	{
+		`f(x, // a comment
+		y)`,
+		&stmt.Simple{&expr.Call{
+			Func: &expr.Ident{"f"},
+			Args: []expr.Expr{&expr.Ident{"x"}, &expr.Ident{"y"}},
+		}},
+	},
+	{
+		`for {
+			x := 4 // a comment
+			x = 5
+		}`,
+		&stmt.For{
+			Body: &stmt.Block{Stmts: []stmt.Stmt{
+				&stmt.Assign{Left: []expr.Expr{&expr.Ident{"x"}}, Right: []expr.Expr{basic(4)}},
+				&stmt.Assign{Left: []expr.Expr{&expr.Ident{"x"}}, Right: []expr.Expr{basic(5)}},
+			}},
+		},
+	},
 }
 
 func TestParseStmt(t *testing.T) {

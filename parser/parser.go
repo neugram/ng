@@ -47,7 +47,7 @@ func (p *Parser) ParseLine(line []byte) Result {
 type Parser struct {
 	res Result
 
-	inForLoop bool // to resolve composite literal parsing
+	noCompLit bool // to resolve composite literal parsing
 	s         *Scanner
 }
 
@@ -318,12 +318,15 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 				p.parseCompLiteral(xpr)
 			}
 
-			// The problem is that
+			// The problem is that in expressions like
 			//	for x := y; x.v++; x = T{}
-			// are the final braces part of a composite literal, or
-			// the body of the loop? Resolve this by requiring
-			// parens around CompLiteral in loop definition.
-			if p.inForLoop {
+			// and
+			//	if x == T {}
+			// are the final braces part of a composite literal
+			// T{}, or the body of the block? Resolve this by
+			// requiring parens around CompLiteral in loop
+			// definition.
+			if p.noCompLit {
 				return x
 			}
 
@@ -800,6 +803,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 	case token.If:
 		s := &stmt.If{}
 		p.next()
+		p.noCompLit = true
 		if p.s.Token == token.Semicolon {
 			// Blank Init statement.
 			p.next()
@@ -815,6 +819,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 				s.Init = nil
 			}
 		}
+		p.noCompLit = false
 		s.Body = p.parseBlock()
 		if p.s.Token == token.Else {
 			p.next()
@@ -894,9 +899,9 @@ func (p *Parser) parseFor() stmt.Stmt {
 	p.expect(token.For)
 	p.next()
 
-	p.inForLoop = true
+	p.noCompLit = true
 	body := func() stmt.Stmt {
-		p.inForLoop = false
+		p.noCompLit = false
 		b := p.parseBlock()
 		p.expectSemi()
 		return b
@@ -1071,10 +1076,13 @@ func (p *Parser) parseOperand() expr.Expr {
 		p.next()
 		return x
 	case token.LeftParen:
+		origNoCompLit := p.noCompLit
+		p.noCompLit = false
 		p.next()
 		ex := p.parseExpr() // TODO or a type?
 		p.expect(token.RightParen)
 		p.next()
+		p.noCompLit = origNoCompLit
 		return &expr.Unary{Op: token.LeftParen, Expr: ex}
 	case token.Func:
 		return p.parseFunc(false)

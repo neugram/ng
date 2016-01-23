@@ -96,7 +96,7 @@ func (s *Scanner) skipWhitespace() {
 
 func (s *Scanner) scanIdentifier() string {
 	off := s.Offset
-	for unicode.IsLetter(s.r) || unicode.IsDigit(s.r) {
+	for unicode.IsLetter(s.r) || unicode.IsDigit(s.r) || s.r == '_' {
 		s.next()
 	}
 	return string(s.src[off:s.Offset])
@@ -236,6 +236,7 @@ func (s *Scanner) scanComment() string {
 		for s.r > 0 && s.r != '\n' {
 			s.next()
 		}
+		fmt.Printf("done with comment, s.r=%q\n", string(s.r))
 	} else {
 		// multi-line "/* comment */"
 		s.next()
@@ -341,7 +342,7 @@ func (s *Scanner) Next() {
 		//fmt.Printf("inShell, r=%q\n", string(r))
 		s.nextInShell(r)
 		return
-	case unicode.IsLetter(r):
+	case unicode.IsLetter(r) || r == '_':
 		lit := s.scanIdentifier()
 		s.Token = token.Keyword(lit)
 		if s.Token == token.Unknown {
@@ -451,7 +452,9 @@ func (s *Scanner) Next() {
 	case '/':
 		switch s.r {
 		case '/', '*': // comment
-			// TODO if s.semi and no more tokens on this line, insert newline
+			// Interpret newline after comment as a semicolon if the previous
+			// token would have done the same.
+			s.semi = wasSemi
 			s.Literal = s.scanComment()
 			s.Token = token.Comment
 		case '=':
