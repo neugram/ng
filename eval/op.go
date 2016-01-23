@@ -10,6 +10,47 @@ import (
 	"neugram.io/lang/token"
 )
 
+func valEq(x, y interface{}) bool {
+	if xvar, ok := x.(*Variable); ok {
+		x = xvar.Value
+	}
+	if yvar, ok := y.(*Variable); ok {
+		y = yvar.Value
+	}
+	if x == y {
+		return true
+	}
+	if x == nil || y == nil {
+		return false
+	}
+	switch x := x.(type) {
+	case *big.Int:
+		switch y := y.(type) {
+		case *big.Int:
+			return x.Cmp(y) == 0
+		}
+	case *big.Float:
+		switch y := y.(type) {
+		case *big.Float:
+			return x.Cmp(y) == 0
+		}
+	case *StructVal:
+		switch y := y.(type) {
+		case *StructVal:
+			if len(x.Fields) != len(y.Fields) { // TODO compare tipe.Type
+				return false
+			}
+			for i := range x.Fields {
+				if !valEq(x.Fields[i], y.Fields[i]) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
 func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 	if v, ok := x.(*Variable); ok {
 		x = v.Value
@@ -105,21 +146,7 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 	case token.LogicalAnd, token.LogicalOr:
 		panic("logical ops processed before binOp")
 	case token.Equal:
-		if x == y {
-			return true, nil
-		}
-		switch x := x.(type) {
-		case *big.Int:
-			switch y := y.(type) {
-			case *big.Int:
-				return x.Cmp(y) == 0, nil
-			}
-		case *big.Float:
-			switch y := y.(type) {
-			case *big.Float:
-				return x.Cmp(y) == 0, nil
-			}
-		}
+		return valEq(x, y), nil
 	case token.NotEqual:
 		if x == y {
 			return false, nil
@@ -164,5 +191,5 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	}
 	//return nil, fmt.Errorf("type mismatch Left: %T, Right: %T", x, y)
-	panic(fmt.Sprintf("binOp type mismatch Left: %T, Right: %T", x, y))
+	panic(fmt.Sprintf("binOp type mismatch Left: %+v, Right: %+v", x, y))
 }

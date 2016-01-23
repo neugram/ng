@@ -1,0 +1,7 @@
+methodik anError struct {} {
+	func (a) Error() string { return "anError" }
+}
+
+func g() (integer, error) { return 5, anError{} }
+
+x := g() // sloppy error gets transformed into a panic

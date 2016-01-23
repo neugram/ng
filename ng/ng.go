@@ -236,7 +236,7 @@ func printValue(t tipe.Type, v interface{}) {
 		fmt.Print("{")
 		for i, name := range t.FieldNames {
 			fmt.Printf("%s: ", name)
-			printValue(t.Fields[i], v.(*eval.Struct).Fields[i].Value)
+			printValue(t.Fields[i], v.(*eval.StructVal).Fields[i].Value)
 			if i < len(t.FieldNames)-1 {
 				fmt.Print(", ")
 			}

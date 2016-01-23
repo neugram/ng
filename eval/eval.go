@@ -67,11 +67,21 @@ type goPtr struct {
 
 func (p goPtr) Assign(val interface{}) { p.v.Elem().Set(reflect.ValueOf(val)) }
 
+type MethodikDeclScope struct {
+	Decl  *stmt.MethodikDecl
+	Scope *Scope
+}
+
 // TODO The Var map needs a lock. Right now two goroutines running neugram code
 // with no shared memory will conflict over Var map writes.
 type Scope struct {
 	Parent *Scope
 	Var    map[string]*Variable // variable name -> variable
+	Mdik   map[*tipe.Methodik]MethodikDeclScope
+
+	// Implicit is set if the Scope was created mid block and should be
+	// unrolled when block ends.
+	Implicit bool
 }
 
 func (s *Scope) Lookup(name string) *Variable {
@@ -82,6 +92,16 @@ func (s *Scope) Lookup(name string) *Variable {
 		return s.Parent.Lookup(name)
 	}
 	return nil
+}
+
+func (s *Scope) LookupMdik(m *tipe.Methodik) MethodikDeclScope {
+	if v, ok := s.Mdik[m]; ok {
+		return v
+	}
+	if s.Parent != nil {
+		return s.Parent.LookupMdik(m)
+	}
+	return MethodikDeclScope{}
 }
 
 func builtinPrint(v ...interface{})                 { fmt.Println(v...) }
@@ -115,7 +135,7 @@ func zeroVariable(t tipe.Type) *Variable {
 	case *tipe.Func:
 		return &Variable{Value: nil}
 	case *tipe.Struct:
-		s := &Struct{Fields: make([]*Variable, len(t.Fields))}
+		s := &StructVal{Fields: make([]*Variable, len(t.Fields))}
 		for i, ft := range t.Fields {
 			s.Fields[i] = zeroVariable(ft)
 		}
@@ -130,8 +150,15 @@ func zeroVariable(t tipe.Type) *Variable {
 	}
 }
 
-type Struct struct {
+type StructVal struct {
+	// TODO: if a Neugram interface value is satisfied by a *StructVal,
+	// then we are going to have to carry the underlying tipe.Type here.
 	Fields []*Variable
+}
+
+type MethodikVal struct {
+	Value   interface{}
+	Methods map[string]*Closure
 }
 
 type Closure struct {
@@ -157,6 +184,7 @@ func New() *Program {
 		"true":  &Variable{Value: true},
 		"false": &Variable{Value: false},
 		"env":   &Variable{Value: make(map[interface{}]interface{})},
+		"nil":   &Variable{Value: nil},
 		"print": &Variable{Value: &GoFunc{
 			Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
 			Func: builtinPrint,
@@ -293,8 +321,22 @@ func (p *Program) pushScope() {
 		Var:    make(map[string]*Variable),
 	}
 }
+func (p *Program) pushImplicitScope() {
+	p.Cur = &Scope{
+		Parent:   p.Cur,
+		Var:      make(map[string]*Variable),
+		Implicit: true,
+	}
+}
 func (p *Program) popScope() {
+	for p.Cur.Implicit {
+		p.Cur = p.Cur.Parent
+	}
 	p.Cur = p.Cur.Parent
+}
+
+func isError(t tipe.Type) bool {
+	return typecheck.Universe.Objs["error"].Type == t
 }
 
 func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
@@ -328,6 +370,24 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		}
 		for i := range vars {
 			vars[i].Assign(vals[i])
+		}
+		isLastError := false
+		if len(s.Right) == 1 {
+			t := p.Types.Types[s.Right[0]]
+			if isError(t) {
+				isLastError = true
+			} else if tuple, isTuple := t.(*tipe.Tuple); isTuple {
+				if isError(tuple.Elems[len(tuple.Elems)-1]) {
+					isLastError = true
+				}
+			}
+		}
+		if isLastError && len(vars) == len(vals)-1 {
+			// last error is ignored, panic if non-nil
+			errVal := vals[len(vals)-1]
+			if errVal != nil {
+				return nil, Panic{str: "TODO read Error value"}
+			}
 		}
 		return nil, nil
 	case *stmt.Simple:
@@ -419,6 +479,25 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 		return nil, nil
 	case *stmt.TypeDecl:
 		return nil, nil
+	case *stmt.MethodikDecl:
+		// When a Methodik is defined, we capture its current scope.
+		scope := &Scope{
+			Parent: p.Universe,
+			Var:    make(map[string]*Variable),
+		}
+		for _, m := range s.Methods {
+			for _, freeVar := range m.Type.FreeVars {
+				scope.Var[freeVar] = p.Cur.Lookup(freeVar)
+			}
+		}
+		p.pushImplicitScope()
+		p.Cur.Mdik = map[*tipe.Methodik]MethodikDeclScope{
+			s.Type: MethodikDeclScope{
+				Decl:  s,
+				Scope: scope,
+			},
+		}
+		return nil, nil
 	}
 	if s == nil {
 		return nil, fmt.Errorf("Parser.evalStmt: statement is nil")
@@ -509,6 +588,9 @@ func (p *Program) evalExprAsVar(e expr.Expr) (interface{}, error) {
 }
 
 func (p *Program) readVar(e interface{}) (interface{}, error) {
+	if e == nil {
+		return nil, nil
+	}
 	switch v := e.(type) {
 	case *expr.FuncLiteral, *GoFunc, *GoValue, *Closure, *Ptr:
 		// lack of symmetry with BasicLiteral is unfortunate
@@ -521,8 +603,10 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v, nil
 	case int, string: // TODO: are these all GoValues now?
 		return v, nil
-	case *Struct:
+	case *StructVal:
 		return v, nil
+	case *MethodikVal:
+		return v.Value, nil
 	case map[interface{}]interface{}:
 		return v, nil
 	default:
@@ -566,18 +650,93 @@ func (p *Program) callFuncLiteral(f *expr.FuncLiteral, args []interface{}) ([]in
 	return res, nil
 }
 
+func (p *Program) evalSelector(e *expr.Selector) ([]interface{}, error) {
+	lhs, err := p.evalExprAsVar(e.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	if v, ok := lhs.(*Variable); ok {
+		lhs = v.Value
+	}
+	t := p.Types.Types[e.Left]
+	switch lhs := lhs.(type) {
+	case *MethodikVal:
+		// TODO
+		// TODO pre-build closures for methods in MethodikVal?
+		// TODO
+		methodNames, methods := p.Types.Memory.Methods(t)
+		for i, n := range methodNames {
+			if n == e.Right.Name {
+				method := methods[i]
+				_ = method
+				//return []interface{}
+				panic("TODO method call")
+			}
+		}
+	case *StructVal:
+		t := tipe.Underlying(t).(*tipe.Struct)
+		for i, n := range t.FieldNames {
+			if n == e.Right.Name {
+				return []interface{}{lhs.Fields[i]}, nil
+			}
+		}
+		return nil, fmt.Errorf("unknown field %s in %s", e.Right.Name, t)
+	case *GoValue:
+		v := reflect.ValueOf(lhs.Value)
+		if m := v.MethodByName(e.Right.Name); (m != reflect.Value{}) {
+			res := &GoFunc{
+				Type: p.Types.Types[e].(*tipe.Func),
+				Func: m.Interface(),
+			}
+			return []interface{}{res}, nil
+		}
+		panic("field selector on a GoValue")
+	case *GoPkg:
+		v := lhs.Type.Exports[e.Right.Name]
+		if v == nil {
+			return nil, fmt.Errorf("%s not found in Go package %s", e, e.Left)
+		}
+		switch v := v.(type) {
+		case *tipe.Func:
+			res := &GoFunc{
+				Type: v,
+				Func: gowrap.Pkgs[lhs.Type.Path].Exports[e.Right.Name],
+			}
+			return []interface{}{res}, nil
+		}
+		return nil, fmt.Errorf("TODO GoPkg: %#+v\n", lhs)
+	}
+
+	fmt.Printf("lhs: %#+v\n", lhs)
+	return nil, fmt.Errorf("unexpected selector LHS: %s, %T", e.Left.Sexp(), lhs)
+}
+
 func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 	switch e := e.(type) {
 	case *expr.BasicLiteral:
 		return []interface{}{e}, nil
 	case *expr.CompLiteral:
-		switch t := tipe.Underlying(e.Type).(type) {
-		case *tipe.Struct:
-			if goType := p.Types.GoEquiv[e.Type]; goType != nil {
-				typeName := goType.(*gotypes.Named).Obj()
-				return []interface{}{makeGoStruct(e, e.Type, typeName)}, nil
+		if goType := p.Types.GoEquiv[e.Type]; goType != nil {
+			typeName := goType.(*gotypes.Named).Obj()
+			return []interface{}{makeGoStruct(e, e.Type, typeName)}, nil
+		}
+		t := e.Type
+		/* TODO peel off *Named
+		for {
+			named, ok := t.(*tipe.Named)
+			if !ok {
+				break
 			}
-			s := &Struct{
+			t = named.Type
+		}
+		*/
+		var res interface{}
+		switch t := tipe.Underlying(t).(type) {
+		default:
+			return nil, fmt.Errorf("non-struct composite literal: %T", e.Type)
+		case *tipe.Struct:
+			s := &StructVal{
 				Fields: make([]*Variable, len(t.Fields)),
 			}
 			if len(e.Keys) > 0 {
@@ -598,16 +757,45 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 					}
 				}
 				return []interface{}{s}, nil
-			}
-			for i, expr := range e.Elements {
-				v, err := p.evalExprAndReadVar(expr)
-				if err != nil {
-					return nil, err
+			} else {
+				for i, expr := range e.Elements {
+					v, err := p.evalExprAndReadVar(expr)
+					if err != nil {
+						return nil, err
+					}
+					s.Fields[i] = &Variable{Value: v}
 				}
-				s.Fields[i] = &Variable{Value: v}
 			}
-			return []interface{}{s}, nil
+			res = s
 		}
+		if mdik, ok := t.(*tipe.Methodik); ok {
+			// TODO: find right p.Pkg[pkgName] if Methodik is local.
+			pkgScope := p.Cur
+			mscope := pkgScope.LookupMdik(mdik)
+			mval := &MethodikVal{
+				Value:   res,
+				Methods: make(map[string]*Closure),
+			}
+			for i, name := range mdik.MethodNames {
+				mlit := mscope.Decl.Methods[i]
+				scope := mscope.Scope
+				if mlit.ReceiverName != "" {
+					// TODO: support PointerReceiver
+					scope = &Scope{
+						Parent: scope,
+						Var: map[string]*Variable{
+							mlit.ReceiverName: &Variable{mval},
+						},
+					}
+				}
+				mval.Methods[name] = &Closure{
+					Func:  mlit,
+					Scope: scope,
+				}
+			}
+			res = mval
+		}
+		return []interface{}{res}, nil
 	case *expr.MapLiteral:
 		//t := e.Type.(*tipe.Map)
 		m := make(map[interface{}]interface{}, len(e.Keys))
@@ -699,6 +887,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
+			// TODO use exprType := p.Types.Types[e.Expr]
 			var lhs interface{}
 			switch rhs.(type) {
 			case int64:
@@ -802,52 +991,8 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		}
 		return nil, nil
 	case *expr.Selector:
-		lhs, err := p.evalExprAsVar(e.Left)
-		if err != nil {
-			return nil, err
-		}
-		if v, ok := lhs.(*Variable); ok {
-			lhs = v.Value
-		}
-		t := p.Types.Types[e.Left]
-		switch lhs := lhs.(type) {
-		case *Struct:
-			t := tipe.Underlying(t).(*tipe.Struct)
-			name := e.Right.Name
-			for i, n := range t.FieldNames {
-				if n == name {
-					return []interface{}{lhs.Fields[i]}, nil
-				}
-			}
-			return nil, fmt.Errorf("unknown field %s in %s", name, t)
-		case *GoValue:
-			v := reflect.ValueOf(lhs.Value)
-			if m := v.MethodByName(e.Right.Name); (m != reflect.Value{}) {
-				res := &GoFunc{
-					Type: p.Types.Types[e].(*tipe.Func),
-					Func: m.Interface(),
-				}
-				return []interface{}{res}, nil
-			}
-			panic("field selector on a GoValue")
-		case *GoPkg:
-			v := lhs.Type.Exports[e.Right.Name]
-			if v == nil {
-				return nil, fmt.Errorf("%s not found in Go package %s", e, e.Left)
-			}
-			switch v := v.(type) {
-			case *tipe.Func:
-				res := &GoFunc{
-					Type: v,
-					Func: gowrap.Pkgs[lhs.Type.Path].Exports[e.Right.Name],
-				}
-				return []interface{}{res}, nil
-			}
-			return nil, fmt.Errorf("TODO GoPkg: %#+v\n", lhs)
-		}
+		return p.evalSelector(e)
 
-		fmt.Printf("lhs: %#+v\n", lhs)
-		return nil, fmt.Errorf("unexpected selector LHS: %s, %T", e.Left.Sexp(), lhs)
 	case *expr.Index:
 		container, err := p.evalExprAndReadVar(e.Expr)
 		if err != nil {
