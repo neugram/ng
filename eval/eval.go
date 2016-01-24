@@ -150,6 +150,10 @@ func zeroVariable(t tipe.Type) *Variable {
 	}
 }
 
+// A *StructVal is a Neugram object for a *tipe.Struct.
+//
+// Replace this with reflect.MakeStruct when it exists, for compatibility
+// with packages that use reflection (like encoding/json and fmt).
 type StructVal struct {
 	// TODO: if a Neugram interface value is satisfied by a *StructVal,
 	// then we are going to have to carry the underlying tipe.Type here.
@@ -386,7 +390,17 @@ func (p *Program) evalStmt(s stmt.Stmt) ([]interface{}, error) {
 			// last error is ignored, panic if non-nil
 			errVal := vals[len(vals)-1]
 			if errVal != nil {
-				return nil, Panic{str: "TODO read Error value"}
+				// TODO: Go object
+				errFn := errVal.(*MethodikVal).Methods["Error"]
+				res, err := p.callClosure(errFn, nil)
+				if err != nil {
+					return nil, Panic{str: fmt.Sprintf("panic during error panic: %v", err)}
+				}
+				v, err := p.readVar(res[0])
+				if err != nil {
+					return nil, Panic{str: fmt.Sprintf("panic during error result: %v", err)}
+				}
+				return nil, Panic{str: fmt.Sprintf("uncaught error: %v", v)}
 			}
 		}
 		return nil, nil
