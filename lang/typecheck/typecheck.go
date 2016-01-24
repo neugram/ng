@@ -630,6 +630,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		c.pushScope()
 		defer c.popScope()
 		c.cur.foundInParent = make(map[string]bool)
+		c.cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
 				e.Type.Params.Elems[i], _ = c.resolve(t)
@@ -648,6 +649,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
 		for name := range c.cur.foundInParent {
 			e.Type.FreeVars = append(e.Type.FreeVars, name)
+		}
+		for mdik := range c.cur.foundMdikInParent {
+			e.Type.FreeMdik = append(e.Type.FreeMdik, mdik)
 		}
 		p.typ = e.Type
 		p.mode = modeFunc
@@ -1215,7 +1219,11 @@ type Scope struct {
 	Parent *Scope
 	Objs   map[string]*Obj
 
-	foundInParent map[string]bool
+	// foundInParent tracks variables which were found in the Parent scope.
+	// foundMdikInParent tracks any Methodik defined up the scope chain.
+	// These are used to build a list of free variables.
+	foundInParent     map[string]bool
+	foundMdikInParent map[*tipe.Methodik]bool
 	// TODO: NumSpec tipe.Type?
 }
 
@@ -1227,8 +1235,16 @@ func (s *Scope) LookupRec(name string) *Obj {
 		return nil
 	}
 	o := s.Parent.LookupRec(name)
-	if o != nil && s.foundInParent != nil && o.Kind == ObjVar {
+	if o == nil {
+		return nil
+	}
+	if s.foundInParent != nil && o.Kind == ObjVar {
 		s.foundInParent[name] = true
+	}
+	if s.foundMdikInParent != nil && o.Kind == ObjType {
+		if mdik, ok := o.Type.(*tipe.Methodik); ok {
+			s.foundMdikInParent[mdik] = true
+		}
 	}
 	return o
 }

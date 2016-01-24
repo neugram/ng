@@ -813,19 +813,20 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		var res interface{}
 		if len(e.Type.FreeVars) > 0 {
 			c := &Closure{
-				Func: e,
-				Scope: &Scope{
-					// TODO: p.Universe, not p.Cur.
-					// Pinning p.Cur is a liveness bug, a closure
-					// keeps alive all memory active in the stack
-					// that created it. But we need a FreeVars
-					// equivalent for LookupMdik.
-					Parent: p.Cur,
-					Var:    make(map[string]*Variable),
-				},
+				Func:  e,
+				Scope: &Scope{Parent: p.Universe},
 			}
 			for _, name := range e.Type.FreeVars {
+				if c.Scope.Var == nil {
+					c.Scope.Var = make(map[string]*Variable)
+				}
 				c.Scope.Var[name] = p.Cur.Lookup(name)
+			}
+			for _, mdik := range e.Type.FreeMdik {
+				if c.Scope.Mdik == nil {
+					c.Scope.Mdik = make(map[*tipe.Methodik]MethodikDeclScope)
+				}
+				c.Scope.Mdik[mdik] = p.Cur.LookupMdik(mdik)
 			}
 			res = c
 		} else {

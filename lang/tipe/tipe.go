@@ -24,6 +24,7 @@ type Func struct {
 	Results  *Tuple
 	Variadic bool // last value of Params is a slice
 	FreeVars []string
+	FreeMdik []*Methodik
 }
 
 type Struct struct {
