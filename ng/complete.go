@@ -14,6 +14,9 @@ import (
 )
 
 func completer(line string) []string {
+	if strings.TrimSpace(line) == "" {
+		return nil
+	}
 	// TODO match on word not line.
 	// TODO walk the scope for possible names.
 	var res []string
