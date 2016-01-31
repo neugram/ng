@@ -1,16 +1,10 @@
-# Neugram is data processing system (including a scripting language).
+# Neugram
 
-Neugram is a numerical processing library and language. Because in
-practice numerical processing is all about finding an moving data
-around, and often doing parts of the processing elsewhere (for example,
-inside an SQL query's WHERE clause), the library includes a small
-interpreted programming language. The langauge is starting as a subset
-of Go with a couple of key numerical features added.
+Neugram is a programming language focused on numerical data processing.
+The key data structure is the table. A table has a small (known) number
+of named columns and many rows.
 
-The key data structure is the table. A table has a small (known)
-number of named columns and many rows.
-
-Very imporant: it's easy to import Go packages and call Go from inside
+Very imporant: it is easy to import Go packages and call Go from inside
 Neugram. Serious work should be implemented in Go, Neugram is the
 numerical glue.
 
@@ -47,6 +41,8 @@ We borrow GOPATH.
 	float32
 	complex128
 	struct
+	[]T           (slice, for any concrete type T)
+	map[T]U       (map, for comparable concrete type T)
 ```
 
 ## Abstract types
@@ -57,9 +53,9 @@ interface{}. It can have methods and hold any concrete type.
 In addition, Neugram has a family of type aliases for certain interface
 types that provide additional syntax.
 
-### Maps
+### Dictionary
 
-The abstract type alias ```map[interface{}]interface{}``` is equivalent to:
+The abstract type alias ```dict[interface{}]interface{}``` is equivalent to:
 
 ```
 	interface {
@@ -71,9 +67,9 @@ The abstract type alias ```map[interface{}]interface{}``` is equivalent to:
 	}
 ```
 
-Get returns NotFound if the key is not in the map.
+Get returns NotFound if the key is not in the dictionary.
 
-A map may optionally implement any of:
+A dictionary may optionally implement any of:
 
 ```
 	interface { Set(key, value interface{}) }
@@ -81,34 +77,38 @@ A map may optionally implement any of:
 	interface { Range() interface { Next() (k, v interface{}, err error) } }
 ```
 
+TODO: should the Range method take a callback function?
+
 When the end of a range is reached, Next returns EndOfRange.
 
-The key and value of a map can be specialized to any comparable T and U.
-If a map has a specialized key T or value U, a zero value of that type
-is returned by ZeroKeyValue.
+The key and value of a dictionary can be specialized to any comparable
+T and U.
+If a dictionary has a specialized key T or value U, a zero value of
+that type is returned by ZeroKeyValue.
 
-Thus a map[T]U can be converted to map[interface{}]U, map[T]interface{},
-map[interface{}]interface{}.
+Thus a dict[T]U can be converted to dict[interface{}]U,
+dict[T]interface{}, dict[interface{}]interface{}.
 
-When Go maps are passed to Neugram they are represented as a
-Neugram map. A Neugram map can only be used as a Go map if it
-is dynamically determined to be stored by an underlying Go map.
-(TODO: provide a common library function to convert maps if
-necessary.)
+When Go maps are passed to Neugram they become Neugram maps.
+A Neugram map can be cast to a dictionary. If a dictionary is backed
+by a map, it can be dynamically cast back to the backing map type.
 
-A Neugram implementation may also use the Go type map[T]U as an
-implementation of the Neugram map[T]U.
+Dictionaries in Neugram use the same syntax as Neugram and Go maps.
 
-Maps in Neugram use the same syntax as Go maps.
+To construct a dictionary with a composite literal, construct a map
+and then cast it to a dictionary. For example:
 
-Constructing a map with a composite literal uses a growable im-memory
-hash map as the implementation.
+```
+d := dict[string]string(map[string]string{
+	"foo": "bar",
+})
+```
 
 ### Tables
 
 A table is a multi-dimensional list with a specified value type.
 
-A table ```[]interface{}``` is equivalent to:
+A table ```[|]interface{}``` is equivalent to:
 
 ```
 	interface {
@@ -123,13 +123,13 @@ A table may optionally implement any of:
 
 ```
 	interface { Set(value interface{}, index ...int) }
-	interface { Slice(index ...int) []interface{} }
+	interface { Slice(index ...int) [|]interface{} }
 	interface { Col() []string }               // requires Dim()==2
-	interface { SliceCol(name ...string) []interface{} }
+	interface { SliceCol(name ...string) [|]interface{} }
 ```
 
-A table can be specialized to ```[]T``` if a zero value of the type T
-is returned by ZeroValue. Any []T can be cast to []interface{}.
+A table can be specialized to ```[|]T``` if a zero value of the type T
+is returned by ZeroValue. Any [|]T can be cast to [|]interface{}.
 
 Constructing a table with a composite literal uses an in-memory
 contiguous array as the implementation.
@@ -197,11 +197,11 @@ the variable adopts the type of num.
 If in a scope where num is not assigned a type, the default numeric
 type is float64.
 
-The type []num can be used to represent a matrix whose type matches
+The type [|]num can be used to represent a matrix whose type matches
 the type parameter.
 
 ```
-	func fill(mat []num, v num) {
+	func fill(mat [|]num, v num) {
 		w, h := len(mat)
 		for x := 0; x < w; x++ {
 			for y := 0; y < h; y++ {
@@ -341,13 +341,13 @@ Given x:
 or
 
 ```
-ident3x3 := []float64{
+ident3x3 := [|]float64{
 	{1, 0, 0},
 	{0, 1, 0},
 	{0, 0, 1},
 }
 
-presidents := []val{
+presidents := [|]interface{}{
 	{|"ID", "Name", "Term1", "Term2"|},
 	{1, "George Washington", 1789, 1792},
 	{2, "John Adams", 1797, 0},
@@ -355,7 +355,7 @@ presidents := []val{
 	{4, "James Madison", 1808, 1812},
 }
 
-presidents["Name"] == presidents[1] == []val{
+presidents["Name"] == presidents[1] == [|]interface{}{
 	{|"Name"|},
 	{"George Washington"},
 	{"John Adams"},
@@ -363,26 +363,26 @@ presidents["Name"] == presidents[1] == []val{
 	{"James Madison"},
 }
 
-x = []num{
+x = [|]num{
 	{|"Col0", "Col1", "Col2"|},
 	{0.0, 0.1, 0.2},
 	{1.0, 1.1, 1.2},
 	{2.0, 2.1  2.2},
 }
 
-x[1] == x["Col1"] == []num{
+x[1] == x["Col1"] == [|]num{
 	{|"Col1"|},
 	{0.1},
 	{1.1},
 	{2.1},
 }
 
-x[,2] == []num{
+x[,2] == [|]num{
 	{|"Col0", "Col1", "Col2"|},
 	{2.0, 2.1  2.2},
 }
 
-x[0|2] == x["Col0"|"Col2"] == []num{
+x[0|2] == x["Col0"|"Col2"] == [|]num{
 	{|"Col0", "Col2"|},
 	{0.0, 0.2},
 	{1.0, 1.2},
@@ -391,7 +391,7 @@ x[0|2] == x["Col0"|"Col2"] == []num{
 
 x[0:1] == x[0|1] == x["Col0"|"Col1"]
 
-x[1,0:1] == []num{
+x[1,0:1] == [|]num{
 	{|"Col1"|},
 	{0.1},
 	{1.1},
