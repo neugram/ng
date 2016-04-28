@@ -22,20 +22,14 @@ var (
 	lineNg        *liner.State // ng-mode line reader
 	historyNgFile = ""
 	historyNg     = make(chan string, 1)
-	lineSh        *liner.State // shell-mode line reader
 	historyShFile = ""
 	historySh     = make(chan string, 1)
 
 	prg *eval.Program
 )
 
-func cleanup() {
-	lineSh.Close()
-	lineNg.Close()
-}
-
 func exit(code int) {
-	cleanup()
+	lineNg.Close()
 	os.Exit(code)
 }
 
@@ -57,7 +51,6 @@ func main() {
 
 	origMode = mode()
 	lineNg = liner.NewLiner()
-	lineSh = liner.NewLiner()
 	loop()
 }
 
@@ -93,41 +86,44 @@ func loop() {
 	setWindowSize(env)
 
 	lineNg.SetCompleter(completer)
+
+	if f, err := os.Open(historyShFile); err == nil {
+		lineNg.SetMode("sh")
+		lineNg.ReadHistory(f)
+		f.Close()
+	}
+	go historyWriter(historyShFile, historySh)
+
 	if f, err := os.Open(historyNgFile); err == nil {
+		lineNg.SetMode("ng")
 		lineNg.ReadHistory(f)
 		f.Close()
 	}
 	go historyWriter(historyNgFile, historyNg)
 
-	lineSh.SetCompleter(completerSh)
-	if f, err := os.Open(historyShFile); err == nil {
-		lineSh.ReadHistory(f)
-		f.Close()
-	}
-	go historyWriter(historyShFile, historySh)
-
 	state := parser.StateStmt
 	for {
 		var (
+			mode    string
 			prompt  string
-			line    *liner.State
 			history chan string
 		)
 		switch state {
 		case parser.StateUnknown:
-			prompt, line, history = "??> ", lineNg, historyNg
+			mode, prompt, history = "ng", "??> ", historyNg
 		case parser.StateStmt:
-			prompt, line, history = "ng> ", lineNg, historyNg
+			mode, prompt, history = "ng", "ng> ", historyNg
 		case parser.StateStmtPartial:
-			prompt, line, history = "..> ", lineNg, historyNg
+			mode, prompt, history = "ng", "..> ", historyNg
 		case parser.StateCmd:
-			prompt, line, history = "$ ", lineSh, historySh
+			mode, prompt, history = "sh", "$ ", historySh
 		case parser.StateCmdPartial:
-			prompt, line, history = "..$ ", lineSh, historySh
+			mode, prompt, history = "sh", "..$ ", historySh
 		default:
 			exitf("unkown parser state: %v", state)
 		}
-		data, err := line.Prompt(prompt)
+		lineNg.SetMode(mode)
+		data, err := lineNg.Prompt(prompt)
 		if err != nil {
 			if err == io.EOF {
 				exit(0)
@@ -137,7 +133,7 @@ func loop() {
 		if data == "" {
 			continue
 		}
-		line.AppendHistory(data)
+		lineNg.AppendHistory(mode, data)
 		history <- data
 		res := p.ParseLine([]byte(data))
 
@@ -232,6 +228,7 @@ func historyWriter(dst string, src <-chan string) {
 			batch = append(batch, line)
 		case <-ticker:
 			if len(batch) > 0 && dst != "" {
+				// TODO: FcntlFlock
 				f, err := os.OpenFile(dst, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
 				if err == nil {
 					for _, line := range batch {

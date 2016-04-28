@@ -13,7 +13,18 @@ import (
 	"neugram.io/lang/token"
 )
 
-func completer(line string) []string {
+func completer(mode, line string) []string {
+	switch mode {
+	case "ng":
+		return completerNg(line)
+	case "sh":
+		return completerSh(line)
+	default:
+		panic("ng: unknown completer: " + mode)
+	}
+}
+
+func completerNg(line string) []string {
 	if strings.TrimSpace(line) == "" {
 		return nil
 	}
