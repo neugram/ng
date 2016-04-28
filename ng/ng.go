@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"neugram.io/eval"
@@ -57,38 +55,9 @@ func mode() liner.ModeApplier {
 func main() {
 	shell.Init()
 
-	// TODO
-	// This is getting a bit absurd. It's time to write our own liner
-	// package, one that supports the two modes we need and meshes well
-	// with our own signal handling.
-	ch := make(chan os.Signal, 1)
-	winch1 := make(chan os.Signal, 1)
-	winch2 := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGWINCH)
-	go func() {
-		for {
-			sig := <-ch
-			fmt.Printf("got signal: %s\n", sig)
-			switch sig {
-			case syscall.SIGWINCH:
-				// TODO: don't drop this signal.
-				// Instead, rewrite liner and make sure we
-				// are always processing this.
-				select {
-				case winch1 <- syscall.SIGWINCH:
-				default:
-				}
-				select {
-				case winch2 <- syscall.SIGWINCH:
-				default:
-				}
-			}
-		}
-	}()
-
 	origMode = mode()
-	lineNg = liner.NewLiner(os.Stdin, winch1)
-	lineSh = liner.NewLiner(os.Stdin, winch2)
+	lineNg = liner.NewLiner()
+	lineSh = liner.NewLiner()
 	loop()
 }
 
