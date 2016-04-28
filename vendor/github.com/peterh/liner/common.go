@@ -20,7 +20,8 @@ type commonState struct {
 	terminalSupported bool
 	outputRedirected  bool
 	inputRedirected   bool
-	history           []string
+	mode              string
+	history           map[string][]string
 	historyMutex      sync.RWMutex
 	completer         WordCompleter
 	columns           int
@@ -72,6 +73,7 @@ func (s *State) ReadHistory(r io.Reader) (num int, err error) {
 
 	in := bufio.NewReader(r)
 	num = 0
+	var history []string
 	for {
 		line, part, err := in.ReadLine()
 		if err == io.EOF {
@@ -87,11 +89,15 @@ func (s *State) ReadHistory(r io.Reader) (num int, err error) {
 			return num, fmt.Errorf("invalid string at line %d", num+1)
 		}
 		num++
-		s.history = append(s.history, string(line))
-		if len(s.history) > HistoryLimit {
-			s.history = s.history[1:]
+		history = append(history, string(line))
+		if len(history) > HistoryLimit {
+			history = history[1:]
 		}
 	}
+	if s.history == nil {
+		s.history = make(map[string][]string)
+	}
+	s.history[s.mode] = history
 	return num, nil
 }
 
@@ -106,7 +112,7 @@ func (s *State) WriteHistory(w io.Writer) (num int, err error) {
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
-	for _, item := range s.history {
+	for _, item := range s.history[s.mode] {
 		_, err := fmt.Fprintln(w, item)
 		if err != nil {
 			return num, err
@@ -118,24 +124,33 @@ func (s *State) WriteHistory(w io.Writer) (num int, err error) {
 
 // AppendHistory appends an entry to the scrollback history. AppendHistory
 // should be called iff Prompt returns a valid command.
-func (s *State) AppendHistory(item string) {
+func (s *State) AppendHistory(mode, item string) {
 	s.historyMutex.Lock()
 	defer s.historyMutex.Unlock()
 
-	if len(s.history) > 0 {
-		if item == s.history[len(s.history)-1] {
+	history := s.history[mode]
+	if len(history) > 0 {
+		if item == history[len(history)-1] {
 			return
 		}
 	}
-	s.history = append(s.history, item)
-	if len(s.history) > HistoryLimit {
-		s.history = s.history[1:]
+	history = append(history, item)
+	if len(history) > HistoryLimit {
+		history = history[1:]
 	}
+	if s.history == nil {
+		s.history = make(map[string][]string)
+	}
+	s.history[mode] = history
+}
+
+func (s *State) SetMode(mode string) {
+	s.mode = mode
 }
 
 // Returns the history lines starting with prefix
 func (s *State) getHistoryByPrefix(prefix string) (ph []string) {
-	for _, h := range s.history {
+	for _, h := range s.history[s.mode] {
 		if strings.HasPrefix(h, prefix) {
 			ph = append(ph, h)
 		}
@@ -148,7 +163,7 @@ func (s *State) getHistoryByPattern(pattern string) (ph []string, pos []int) {
 	if pattern == "" {
 		return
 	}
-	for _, h := range s.history {
+	for _, h := range s.history[s.mode] {
 		if i := strings.Index(h, pattern); i >= 0 {
 			ph = append(ph, h)
 			pos = append(pos, i)
@@ -161,7 +176,7 @@ func (s *State) getHistoryByPattern(pattern string) (ph []string, pos []int) {
 // and returns a list of completion candidates.
 // If the line is "Hello, wo!!!" and the cursor is before the first '!', "Hello, wo" is passed
 // to the completer which may return {"Hello, world", "Hello, Word"} to have "Hello, world!!!".
-type Completer func(line string) []string
+type Completer func(mode, line string) []string
 
 // WordCompleter takes the currently edited line with the cursor position and
 // returns the completion candidates for the partial word to be completed.
@@ -177,7 +192,7 @@ func (s *State) SetCompleter(f Completer) {
 		return
 	}
 	s.completer = func(line string, pos int) (string, []string, string) {
-		return "", f(string([]rune(line)[:pos])), string([]rune(line)[pos:])
+		return "", f(s.mode, string([]rune(line)[:pos])), string([]rune(line)[pos:])
 	}
 }
 
