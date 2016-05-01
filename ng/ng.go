@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -74,6 +76,61 @@ func setWindowSize(env map[interface{}]interface{}) {
 	*/
 }
 
+func ps1(env map[interface{}]interface{}) string {
+	v, ok := env["PS1"].(string)
+	if !ok {
+		return "ng$ "
+	}
+	if strings.IndexByte(v, '\\') == -1 {
+		return v
+	}
+	var buf []byte
+	for {
+		i := strings.IndexByte(v, '\\')
+		if i == -1 || i == len(v)-1 {
+			break
+		}
+		buf = append(buf, v[:i]...)
+		b := v[i+1]
+		v = v[i+2:]
+		switch b {
+		case 'h', 'H':
+			out, err := exec.Command("hostname").CombinedOutput()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+				continue
+			}
+			if b == 'h' {
+				if i := bytes.IndexByte(out, '.'); i >= 0 {
+					out = out[:i]
+				}
+			}
+			if len(out) > 0 && out[len(out)-1] == '\n' {
+				out = out[:len(out)-1]
+			}
+			buf = append(buf, out...)
+		case 'n':
+			buf = append(buf, '\n')
+		case 'w', 'W':
+			cwd, err := os.Getwd()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+				continue
+			}
+			if home, ok := env["HOME"].(string); ok {
+				cwd = strings.Replace(cwd, home, "~", 1)
+			}
+			if b == 'W' {
+				cwd = filepath.Base(cwd)
+			}
+			buf = append(buf, cwd...)
+		}
+		// TODO: '!', '#', '$', 'nnn', 's', 'j', and more.
+	}
+	buf = append(buf, v...)
+	return string(buf)
+}
+
 func loop() {
 	p := parser.New()
 	prg = eval.New()
@@ -141,7 +198,7 @@ func loop() {
 		case parser.StateStmtPartial:
 			mode, prompt, history = "ng", "..> ", historyNg
 		case parser.StateCmd:
-			mode, prompt, history = "sh", "$ ", historySh
+			mode, prompt, history = "sh", ps1(env), historySh
 		case parser.StateCmdPartial:
 			mode, prompt, history = "sh", "..$ ", historySh
 		default:
