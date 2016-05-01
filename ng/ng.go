@@ -160,7 +160,7 @@ func loop() {
 	go historyWriter(historyNgFile, historyNg)
 
 	state := parser.StateStmt
-	if os.Args[0] == "ngsh" {
+	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
 		if f, err := os.Open(initFile); err == nil {
 			scanner := bufio.NewScanner(f)
