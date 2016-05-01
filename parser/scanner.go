@@ -199,6 +199,53 @@ func (s *Scanner) scanSingleQuotedShellWord() string {
 	return `'` + string(s.src[off:s.Offset])
 }
 
+func (s *Scanner) scanRawString() string {
+	off := s.Offset
+	s.next()
+
+	for {
+		r := s.r
+		if r <= 0 {
+			s.errorf("raw string literal not terminated")
+			break
+		}
+		s.next()
+		if r == '`' {
+			break
+		}
+	}
+	return "`" + string(s.src[off:s.Offset-1]) + "`"
+}
+
+func (s *Scanner) scanRune() rune {
+	off := s.Offset
+	s.next()
+
+	for {
+		r := s.r
+		if r <= 0 || r == '\n' {
+			s.errorf("character literal missing terminating \"'\"")
+			break
+		}
+		s.next()
+		if r == '\\' {
+			if s.r == '\'' {
+				s.next()
+			}
+		}
+		if r == '\'' {
+			break
+		}
+	}
+
+	str := string(s.src[off : s.Offset-1])
+	v, _, _, err := strconv.UnquoteChar(str, '\'')
+	if err != nil {
+		s.errorf("rune literal %v", err)
+	}
+	return v
+}
+
 func (s *Scanner) scanString(spanNewlines bool) string {
 	off := s.Offset
 	s.next()
@@ -399,6 +446,14 @@ func (s *Scanner) Next() {
 		s.semi = true
 		s.Token = token.String
 		s.Literal = s.scanString(false)
+	case '\'':
+		s.semi = true
+		s.Token = token.Rune
+		s.Literal = s.scanRune()
+	case '`':
+		s.semi = true
+		s.Token = token.String
+		s.Literal = s.scanRawString()
 	case '.':
 		s.Token = token.Period
 	case ':':

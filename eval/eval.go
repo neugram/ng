@@ -257,6 +257,8 @@ func (p *Program) Get(name string) string {
 	switch val := val.(type) {
 	case nil:
 		return ""
+	case rune:
+		return string(val)
 	case string:
 		return val
 	case int64:

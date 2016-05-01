@@ -607,6 +607,8 @@ func (p *Parser) maybeParseType() tipe.Type {
 			return tipe.Complex
 		case "string":
 			return tipe.String
+		case "rune":
+			return tipe.Rune
 		case "int64":
 			return tipe.Int64
 		case "float32":
@@ -829,7 +831,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		return s
 	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul, token.Map,
-		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Shell:
+		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Rune, token.Shell:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
 		p.expectSemi()
@@ -1067,6 +1069,10 @@ func (p *Parser) parseOperand() expr.Expr {
 		x := p.parseIdent()
 		return x
 	case token.Int, token.Float, token.Imaginary:
+		x := &expr.BasicLiteral{Value: p.s.Literal}
+		p.next()
+		return x
+	case token.Rune:
 		x := &expr.BasicLiteral{Value: p.s.Literal}
 		p.next()
 		return x

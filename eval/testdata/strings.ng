@@ -1,0 +1,22 @@
+s1 := "hello, world!\n"
+s2 := `hello, world!
+`
+
+if s1 != s2 {
+	panic("raw string newline failure")
+}
+
+r1 := 'う'
+r2 := '\u3046'
+if r1 != r2 {
+	panic("bad rune")
+}
+
+poo1 := '💩'
+poo2 := '\U0001f4a9'
+
+if poo1 != poo2 {
+	panic("bad poo")
+}
+
+print("OK")

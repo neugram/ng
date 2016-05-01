@@ -624,6 +624,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		case string:
 			p.mode = modeVar
 			p.typ = tipe.String
+		case rune:
+			p.mode = modeVar
+			p.typ = tipe.Rune
 		}
 		return p
 	case *expr.FuncLiteral:

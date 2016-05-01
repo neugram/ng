@@ -20,6 +20,7 @@ const (
 	Float     // E.g. 10.01
 	Imaginary // E.g. 10.01i
 	String    // E.g. "a string"
+	Rune      // E.g. '\u1f4a9'
 
 	// Expression Operators
 
@@ -110,6 +111,7 @@ var tokens = map[string]Token{
 	"float":        Float,
 	"Imaginary":    Imaginary,
 	"string":       String,
+	"rune":         Rune,
 	"+":            Add,
 	"-":            Sub,
 	"*":            Mul,

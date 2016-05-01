@@ -148,21 +148,7 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 	case token.Equal:
 		return valEq(x, y), nil
 	case token.NotEqual:
-		if x == y {
-			return false, nil
-		}
-		switch x := x.(type) {
-		case *big.Int:
-			switch y := y.(type) {
-			case *big.Int:
-				return x.Cmp(y) != 0, nil
-			}
-		case *big.Float:
-			switch y := y.(type) {
-			case *big.Float:
-				return x.Cmp(y) != 0, nil
-			}
-		}
+		return !valEq(x, y), nil
 	case token.Less:
 		switch x := x.(type) {
 		case *big.Int:
@@ -191,5 +177,5 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	}
 	//return nil, fmt.Errorf("type mismatch Left: %T, Right: %T", x, y)
-	panic(fmt.Sprintf("binOp type mismatch Left: %+v, Right: %+v", x, y))
+	panic(fmt.Sprintf("binOp type mismatch Left: %+v, Right: %+v op: %v", x, y, op))
 }

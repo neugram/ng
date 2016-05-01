@@ -202,17 +202,18 @@ func TestPrograms(t *testing.T) {
 	os.Stdout = out
 
 	for _, file := range files {
-		t.Logf("Testing program %q", file)
+		if !strings.Contains(file, "strings") {
+			continue
+		}
 		contents, err := ioutil.ReadFile(file)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", file, err)
 		}
-
 		if _, err := out.Seek(0, 0); err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", file, err)
 		}
 		if err := out.Truncate(0); err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", file, err)
 		}
 
 		err = runProgram(contents)
@@ -227,15 +228,15 @@ func TestPrograms(t *testing.T) {
 		}
 
 		if _, err := out.Seek(0, 0); err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: second seek: %v", file, err)
 		}
 		b, err := ioutil.ReadAll(out)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", file, err)
 		}
 		output := string(b)
-		t.Logf("output: %s", output)
 		if !strings.HasSuffix(file, "_panic.ng") && !strings.HasSuffix(output, "OK\n") {
+			t.Logf("Testing program %q, output:\n%s", file, output)
 			t.Errorf("%s missing OK", file)
 		}
 	}

@@ -1,4 +1,6 @@
-f := func() {}
+f := func() {
+	return
+}
 
 {
 	four := 3
