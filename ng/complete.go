@@ -39,14 +39,18 @@ func completerNg(line string) []string {
 	return res
 }
 
-func completerSh(line string) []string {
+func completerSh(line string) (res []string) {
 	i := strings.LastIndexByte(line, ' ')
+	i2 := strings.LastIndexByte(line, '=')
+	if i2 > i {
+		i = i2
+	}
 	if i == -1 {
-		return completeBin(line)
+		return completePath(line, true)
 	}
 	prefix := line[i+1:]
 	if prefix == "" {
-		return completePath("")
+		return completePath("", false)
 	}
 	// TODO: prefix="dir/$V" and prefix="--flag=$V" should complete var
 	switch prefix[0] {
@@ -55,7 +59,7 @@ func completerSh(line string) []string {
 	case '-':
 		return prepend(line[:i+1], completeFlag(prefix, line))
 	default:
-		return prepend(line[:i+1], completePath(prefix))
+		return prepend(line[:i+1], completePath(prefix, false))
 	}
 }
 
@@ -66,10 +70,6 @@ func prepend(prefix string, matches []string) []string {
 	return matches
 }
 
-func completeBin(prefix string) (res []string) {
-	return res // TODO
-}
-
 func completeVar(prefix string) (res []string) {
 	return res // TODO
 }
@@ -78,7 +78,7 @@ func completeFlag(prefix, line string) (res []string) {
 	return res // TODO
 }
 
-func completePath(prefix string) (res []string) {
+func completePath(prefix string, mustBeExec bool) (res []string) {
 	// TODO expand $ variables
 	dirPath, filePath := filepath.Split(prefix)
 	if dirPath == "" {
@@ -104,6 +104,9 @@ func completePath(prefix string) (res []string) {
 			if filePath == "" && strings.HasPrefix(info.Name(), ".") {
 				continue
 			}
+			if mustBeExec && !info.IsDir() && info.Mode()&0111 == 0 {
+				continue
+			}
 			if strings.HasPrefix(info.Name(), filePath) {
 				fi = append(fi, info)
 			}
@@ -115,7 +118,11 @@ func completePath(prefix string) (res []string) {
 		if info.IsDir() {
 			res = append(res, dirPrefix+info.Name()+"/")
 		} else {
-			res = append(res, dirPrefix+info.Name())
+			p := dirPrefix + info.Name()
+			if len(fi) == 1 {
+				p += " "
+			}
+			res = append(res, p)
 		}
 	}
 	return res
