@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -102,6 +103,30 @@ func loop() {
 	go historyWriter(historyNgFile, historyNg)
 
 	state := parser.StateStmt
+	if os.Args[0] == "ngsh" {
+		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
+		if f, err := os.Open(initFile); err == nil {
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				res := p.ParseLine(scanner.Bytes())
+				handleResult(res)
+				state = res.State
+			}
+			if err := scanner.Err(); err != nil {
+				exitf(".ngshinit: %v", err)
+			}
+			f.Close()
+		}
+		switch state {
+		case parser.StateStmtPartial, parser.StateCmdPartial:
+			exitf(".ngshinit: ends in a partial statement")
+		case parser.StateStmt:
+			res := p.ParseLine([]byte("$$"))
+			handleResult(res)
+			state = res.State
+		}
+	}
+
 	for {
 		var (
 			mode    string
@@ -136,54 +161,57 @@ func loop() {
 		lineNg.AppendHistory(mode, data)
 		history <- data
 		res := p.ParseLine([]byte(data))
-
-		for _, s := range res.Stmts {
-			v, t, err := prg.Eval(s)
-			if err != nil {
-				fmt.Printf("eval error: %v\n", err)
-				continue
-			}
-			switch len(v) {
-			case 0:
-			case 1:
-				printValue(t, v[0])
-				fmt.Print("\n")
-			default:
-				fmt.Println(v)
-			}
-		}
-		for _, err := range res.Errs {
-			fmt.Println(err.Error())
-		}
-		//editMode := mode()
-		//origMode.ApplyMode()
-		if len(res.Cmds) > 0 {
-			shell.Env = prg.Environ()
-		}
-		for _, cmd := range res.Cmds {
-			j := &shell.Job{
-				Cmd:    cmd,
-				Params: prg,
-				Stdin:  os.Stdin,
-				Stdout: os.Stdout,
-				Stderr: os.Stderr,
-			}
-			if err := j.Start(); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			done, err := j.Wait()
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			if !done {
-				break // TODO not right, instead we should just have one cmd, not Cmds here.
-			}
-		}
-		//editMode.ApplyMode()
+		handleResult(res)
 		state = res.State
 	}
+}
+
+func handleResult(res parser.Result) {
+	for _, s := range res.Stmts {
+		v, t, err := prg.Eval(s)
+		if err != nil {
+			fmt.Printf("eval error: %v\n", err)
+			continue
+		}
+		switch len(v) {
+		case 0:
+		case 1:
+			printValue(t, v[0])
+			fmt.Print("\n")
+		default:
+			fmt.Println(v)
+		}
+	}
+	for _, err := range res.Errs {
+		fmt.Println(err.Error())
+	}
+	//editMode := mode()
+	//origMode.ApplyMode()
+	if len(res.Cmds) > 0 {
+		shell.Env = prg.Environ()
+	}
+	for _, cmd := range res.Cmds {
+		j := &shell.Job{
+			Cmd:    cmd,
+			Params: prg,
+			Stdin:  os.Stdin,
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+		if err := j.Start(); err != nil {
+			fmt.Println(err)
+			continue
+		}
+		done, err := j.Wait()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		if !done {
+			break // TODO not right, instead we should just have one cmd, not Cmds here.
+		}
+	}
+	//editMode.ApplyMode()
 }
 
 func printValue(t tipe.Type, v interface{}) {
@@ -215,7 +243,7 @@ func printValue(t tipe.Type, v interface{}) {
 func init() {
 	if home := os.Getenv("HOME"); home != "" {
 		historyNgFile = filepath.Join(home, ".ng_history")
-		historyShFile = filepath.Join(home, ".ng_sh_history")
+		historyShFile = filepath.Join(home, ".ngsh_history")
 	}
 }
 
