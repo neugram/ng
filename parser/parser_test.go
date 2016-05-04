@@ -296,10 +296,10 @@ var parserTests = []parserTest{
 			Segment: expr.SegmentSemi,
 			List: []expr.Expr{&expr.ShellCmd{Argv: []string{
 				`echo`,
-				`"a b \""`,
-				`'c \'`,
+				`a b \"`,
+				`c \`,
 				`\d`,
-				`"e f'g"`,
+				`e f'g`,
 			}}},
 		}},
 	}}},

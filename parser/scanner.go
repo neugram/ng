@@ -329,12 +329,14 @@ func (s *Scanner) nextInShell(r rune) {
 	case '"':
 		s.next()
 		s.semi = true
-		s.Literal = s.scanString(true)
+		str := s.scanString(true)
+		s.Literal = str[1 : len(str)-1]
 		s.Token = token.ShellWord
 	case '\'':
 		s.next()
 		s.semi = true
-		s.Literal = s.scanSingleQuotedShellWord()
+		str := s.scanSingleQuotedShellWord()
+		s.Literal = str[1 : len(str)-1]
 		s.Token = token.ShellWord
 	case '\n':
 		s.Token = token.Semicolon
