@@ -50,7 +50,7 @@ func completerSh(line string) (res []string) {
 	}
 	prefix := line[i+1:]
 	if prefix == "" {
-		return completePath("", false)
+		return prepend(line[:i+1], completePath("", false))
 	}
 	// TODO: prefix="dir/$V" and prefix="--flag=$V" should complete var
 	switch prefix[0] {
@@ -103,6 +103,18 @@ func completePath(prefix string, mustBeExec bool) (res []string) {
 		for _, info := range potentials {
 			if filePath == "" && strings.HasPrefix(info.Name(), ".") {
 				continue
+			}
+			if !strings.HasPrefix(info.Name(), filePath) {
+				continue
+			}
+			// Follow symlink.
+			info, err := os.Stat(filepath.Join(dirPath, info.Name()))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+				continue
+			}
+			if info.Name() == "a_file" {
+				fmt.Printf("a_file: mustBeExec=%v, mode=0x%x\n", mustBeExec, info.Mode())
 			}
 			if mustBeExec && !info.IsDir() && info.Mode()&0111 == 0 {
 				continue

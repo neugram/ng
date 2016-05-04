@@ -13,6 +13,7 @@ import (
 
 type file struct {
 	name      string
+	linkto    string
 	dir, exec bool
 }
 
@@ -32,6 +33,8 @@ var justFilesDir = []file{
 	{name: "unique"},
 	{name: "file1"},
 	{name: "file2"},
+	{name: "cats"},
+	{name: "more_cats", linkto: "cats"},
 }
 
 var justFilesTests = []completeTest{
@@ -42,6 +45,8 @@ var justFilesTests = []completeTest{
 		"ls file2",
 	}},
 	{line: "find . -name=un", want: []string{"find . -name=unique "}},
+	{line: "cat", want: []string{"cat "}},
+	{line: "ls more_", want: []string{"ls more_cats "}},
 }
 
 var hierarchyDir = []file{
@@ -56,10 +61,12 @@ var hierarchyDir = []file{
 	{name: "hierarchy/and2", dir: true},
 	{name: "hierarchy/e1", exec: true},
 	{name: "hierarchy/e2", exec: true},
+	{name: "more_h", linkto: "hierarchy"},
 }
 
 var hierarchyTests = []completeTest{
 	{line: "ls h", want: []string{"ls hierarchy/"}},
+	{line: "ls more_", want: []string{"ls more_h/"}},
 	{line: "ls hierarchy", want: []string{"ls hierarchy/"}},
 	{line: "ls hierarchy/", want: []string{
 		"ls hierarchy/and1",
@@ -89,6 +96,10 @@ var hierarchyTests = []completeTest{
 		"./hierarchy/e1",
 		"./hierarchy/e2",
 	}},
+	{line: "hierarchy/f1 ", want: []string{
+		"hierarchy/f1 hierarchy/",
+		"hierarchy/f1 more_h/",
+	}},
 }
 
 func testCompleteSh(t *testing.T, testName string, files []file, tests []completeTest) {
@@ -114,6 +125,12 @@ func testCompleteSh(t *testing.T, testName string, files []file, tests []complet
 	}
 	for _, f := range files {
 		if f.dir {
+			continue
+		}
+		if f.linkto != "" {
+			if err := os.Symlink(f.linkto, f.name); err != nil {
+				t.Fatalf("%s: %v", testName, err)
+			}
 			continue
 		}
 		perm := os.FileMode(0644)
