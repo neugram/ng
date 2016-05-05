@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"neugram.io/eval/environ"
 )
 
 func findExec(name string) error {
@@ -23,7 +25,7 @@ func findExec(name string) error {
 	return nil
 }
 
-func findExecInPath(name string, env []string) (string, error) {
+func findExecInPath(name string, env *environ.Environ) (string, error) {
 	if strings.Contains(name, "/") {
 		err := findExec(name)
 		if err == nil {
@@ -32,13 +34,7 @@ func findExecInPath(name string, env []string) (string, error) {
 		return "", err
 	}
 
-	var path []string
-	for _, s := range env {
-		if strings.HasPrefix(s, "PATH=") {
-			path = filepath.SplitList(s[len("PATH="):])
-			break
-		}
-	}
+	path := filepath.SplitList(env.Get("PATH"))
 	if len(path) == 0 {
 		return "", fmt.Errorf("cannot find %q, no PATH", name)
 	}

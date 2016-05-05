@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"neugram.io/eval"
+	"neugram.io/eval/environ"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/tipe"
 	"neugram.io/parser"
@@ -76,9 +77,9 @@ func setWindowSize(env map[interface{}]interface{}) {
 	*/
 }
 
-func ps1(env map[interface{}]interface{}) string {
-	v, ok := env["PS1"].(string)
-	if !ok {
+func ps1(env *environ.Environ) string {
+	v := env.Get("PS1")
+	if v == "" {
 		return "ng$ "
 	}
 	if strings.IndexByte(v, '\\') == -1 {
@@ -112,12 +113,8 @@ func ps1(env map[interface{}]interface{}) string {
 		case 'n':
 			buf = append(buf, '\n')
 		case 'w', 'W':
-			cwd, err := os.Getwd()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
-				continue
-			}
-			if home, ok := env["HOME"].(string); ok {
+			cwd := env.Get("PWD")
+			if home := env.Get("HOME"); home != "" {
 				cwd = strings.Replace(cwd, home, "~", 1)
 			}
 			if b == 'W' {
@@ -136,12 +133,16 @@ func loop() {
 	prg = eval.New()
 
 	// TODO this env setup could be done in neugram code
-	env := prg.Cur.Lookup("env").Value.(map[interface{}]interface{})
+	env := prg.Cur.Lookup("env").Value.(*environ.Environ)
 	for _, s := range os.Environ() {
 		i := strings.Index(s, "=")
-		env[s[:i]] = s[i+1:]
+		env.Set(s[:i], s[i+1:])
 	}
-	setWindowSize(env)
+	wd, err := os.Getwd()
+	if err == nil {
+		env.Set("PWD", wd)
+	}
+	//setWindowSize(env)
 
 	lineNg.SetCompleter(completer)
 

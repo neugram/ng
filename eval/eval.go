@@ -12,8 +12,8 @@ import (
 	"os"
 	"reflect"
 	"runtime/debug"
-	"sort"
 
+	"neugram.io/eval/environ"
 	"neugram.io/eval/gowrap"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/expr"
@@ -55,11 +55,11 @@ type Assignable interface {
 }
 
 type mapKey struct {
-	m map[interface{}]interface{}
+	m mapImpl
 	k interface{}
 }
 
-func (m mapKey) Assign(val interface{}) { m.m[m.k] = val }
+func (m mapKey) Assign(val interface{}) { m.m.SetVal(m.k, val) }
 
 type goPtr struct {
 	v reflect.Value
@@ -187,7 +187,7 @@ func New() *Program {
 	universe := &Scope{Var: map[string]*Variable{
 		"true":  &Variable{Value: true},
 		"false": &Variable{Value: false},
-		"env":   &Variable{Value: make(map[interface{}]interface{})},
+		"env":   &Variable{Value: environ.New()},
 		"nil":   &Variable{Value: nil},
 		"print": &Variable{Value: &GoFunc{
 			Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
@@ -224,29 +224,15 @@ type Program struct {
 	Breaking  bool
 }
 
-// TODO needs a lock
-func (p *Program) Environ() []string {
-	// TODO come up with a way to cache this.
-	// If Scope used an interface for Variable, we could update
-	// a copy of the slice on each write to env.
-	env := p.Universe.Lookup("env").Value.(map[interface{}]interface{})
-	var kv []string
-	for k, v := range env {
-		kv = append(kv, k.(string)+"="+v.(string))
-	}
-	sort.Strings(kv)
-	return kv
+func (p *Program) Environ() *environ.Environ {
+	return p.Universe.Lookup("env").Value.(*environ.Environ)
 }
 
 // Get is part of the implementation of shell.Params.
 func (p *Program) Get(name string) string {
 	v := p.Cur.Lookup(name)
 	if v == nil {
-		env := p.Universe.Lookup("env").Value.(map[interface{}]interface{})
-		if v := env[name]; v != nil {
-			return env[name].(string)
-		}
-		return ""
+		return p.Environ().Get(name)
 	}
 	// TODO this is handy. Could we reasonably define a string(val)
 	// constructor in the language that follows this same logic?
@@ -537,7 +523,7 @@ func (p *Program) evalExprAsAssignable(e expr.Expr) (Assignable, error) {
 			if err != nil {
 				return nil, err
 			}
-			m := container[0].(*Variable).Value.(map[interface{}]interface{})
+			m := container[0].(*Variable).Value.(mapImpl)
 			return mapKey{m: m, k: k}, nil
 		}
 		panic("evalExprAsAssignable Index TODO")
@@ -623,7 +609,7 @@ func (p *Program) readVar(e interface{}) (interface{}, error) {
 		return v, nil
 	case *MethodikVal:
 		return v, nil
-	case map[interface{}]interface{}:
+	case mapImpl:
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %T for value", v)
@@ -812,7 +798,7 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 		return []interface{}{res}, nil
 	case *expr.MapLiteral:
 		//t := e.Type.(*tipe.Map)
-		m := make(map[interface{}]interface{}, len(e.Keys))
+		m := make(mapImplM, len(e.Keys))
 		for i, kexpr := range e.Keys {
 			k, err := p.evalExprAndReadVar(kexpr)
 			if err != nil {
@@ -1023,9 +1009,19 @@ func (p *Program) evalExpr(e expr.Expr) ([]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			v := container.(map[interface{}]interface{})[k]
+			v := container.(mapImpl).GetVal(k)
 			return []interface{}{v}, nil
 		}
 	}
 	return nil, fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)
 }
+
+type mapImpl interface {
+	GetVal(key interface{}) interface{}
+	SetVal(key, val interface{})
+}
+
+type mapImplM map[interface{}]interface{}
+
+func (m mapImplM) GetVal(key interface{}) interface{} { return m[key] }
+func (m mapImplM) SetVal(key, val interface{})        { m[key] = val }

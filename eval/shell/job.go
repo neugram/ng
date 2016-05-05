@@ -8,15 +8,17 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 
+	"neugram.io/eval/environ"
 	"neugram.io/lang/expr"
 )
 
-var Env []string
+var Env *environ.Environ
 
 type Params interface {
 	Get(name string) string
@@ -235,15 +237,12 @@ func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
 	case "cd":
 		dir := ""
 		if len(argv) == 1 {
-			dir = os.Getenv("HOME")
+			dir = Env.Get("HOME")
 		} else {
 			dir = argv[1]
 		}
-		if err := os.Chdir(dir); err != nil {
-			return nil, err
-		}
-		wd, err := os.Getwd()
-		if err != nil {
+		wd := filepath.Join(Env.Get("PWD"), dir)
+		if err := os.Chdir(wd); err != nil {
 			return nil, err
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
@@ -379,7 +378,7 @@ func (p *proc) start() error {
 	}
 
 	attr := &os.ProcAttr{
-		Env:   Env,
+		Env:   Env.List(),
 		Files: []*os.File{p.sio.in, p.sio.out, p.sio.err},
 	}
 	if interactive {
