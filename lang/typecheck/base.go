@@ -12,6 +12,7 @@ var universeObjs = map[string]*Obj{
 	"false": &Obj{Kind: ObjVar, Type: tipe.Bool},
 	"nil":   &Obj{Kind: ObjVar, Type: tipe.UntypedNil},
 	"env":   &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
+	"alias": &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
 	"error": &Obj{
 		Kind: ObjType,
 		Type: &tipe.Interface{

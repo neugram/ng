@@ -283,7 +283,6 @@ func (s *Scanner) scanComment() string {
 		for s.r > 0 && s.r != '\n' {
 			s.next()
 		}
-		fmt.Printf("done with comment, s.r=%q\n", string(s.r))
 	} else {
 		// multi-line "/* comment */"
 		s.next()

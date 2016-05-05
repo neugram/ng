@@ -18,7 +18,10 @@ import (
 	"neugram.io/lang/expr"
 )
 
-var Env *environ.Environ
+var (
+	Env   *environ.Environ
+	Alias *environ.Environ
+)
 
 type Params interface {
 	Get(name string) string
@@ -232,6 +235,14 @@ func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
 	argv, err := expansion(cmd.Argv, j.Params)
 	if err != nil {
 		return nil, err
+	}
+	if a := Alias.Get(argv[0]); a != "" {
+		// TODO: This is entirely wrong. The alias string needs to be
+		// parsed like a typical shell command. That is:
+		//	alias["gsm"] = `go build "-ldflags=-w -s"`
+		// should be three args, not four.
+		aliasArgs := strings.Split(a, " ")
+		argv = append(aliasArgs, argv[1:]...)
 	}
 	switch argv[0] {
 	case "cd":

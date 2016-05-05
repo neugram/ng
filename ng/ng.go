@@ -131,6 +131,8 @@ func ps1(env *environ.Environ) string {
 func loop() {
 	p := parser.New()
 	prg = eval.New()
+	shell.Env = prg.Environ()
+	shell.Alias = prg.Alias()
 
 	// TODO this env setup could be done in neugram code
 	env := prg.Cur.Lookup("env").Value.(*environ.Environ)
@@ -245,9 +247,6 @@ func handleResult(res parser.Result) {
 	}
 	//editMode := mode()
 	//origMode.ApplyMode()
-	if len(res.Cmds) > 0 {
-		shell.Env = prg.Environ()
-	}
 	for _, cmd := range res.Cmds {
 		j := &shell.Job{
 			Cmd:    cmd,

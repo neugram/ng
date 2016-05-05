@@ -188,6 +188,7 @@ func New() *Program {
 		"true":  &Variable{Value: true},
 		"false": &Variable{Value: false},
 		"env":   &Variable{Value: environ.New()},
+		"alias": &Variable{Value: environ.New()},
 		"nil":   &Variable{Value: nil},
 		"print": &Variable{Value: &GoFunc{
 			Type: typecheck.Universe.Objs["print"].Type.(*tipe.Func),
@@ -226,6 +227,10 @@ type Program struct {
 
 func (p *Program) Environ() *environ.Environ {
 	return p.Universe.Lookup("env").Value.(*environ.Environ)
+}
+
+func (p *Program) Alias() *environ.Environ {
+	return p.Universe.Lookup("alias").Value.(*environ.Environ)
 }
 
 // Get is part of the implementation of shell.Params.
