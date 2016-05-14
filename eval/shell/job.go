@@ -252,10 +252,16 @@ func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
 		} else {
 			dir = argv[1]
 		}
-		wd := filepath.Join(Env.Get("PWD"), dir)
+		wd := ""
+		if filepath.IsAbs(dir) {
+			wd = filepath.Clean(dir)
+		} else {
+			wd = filepath.Join(Env.Get("PWD"), dir)
+		}
 		if err := os.Chdir(wd); err != nil {
 			return nil, err
 		}
+		Env.Set("PWD", wd)
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
 		return nil, nil
 	case "fg":
