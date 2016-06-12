@@ -345,7 +345,7 @@ func (s *State) tabComplete(p []rune, line []rune, pos int) ([]rune, int, interf
 	if s.completer == nil {
 		return line, pos, rune(esc), nil
 	}
-	head, list, tail := s.completer(string(line), pos)
+	head, list, tail := s.completer(s.mode, string(line), pos)
 	if len(list) <= 0 {
 		return line, pos, rune(esc), nil
 	}

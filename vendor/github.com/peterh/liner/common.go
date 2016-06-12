@@ -182,7 +182,7 @@ type Completer func(mode, line string) []string
 // returns the completion candidates for the partial word to be completed.
 // If the line is "Hello, wo!!!" and the cursor is before the first '!', ("Hello, wo!!!", 9) is passed
 // to the completer which may returns ("Hello, ", {"world", "Word"}, "!!!") to have "Hello, world!!!".
-type WordCompleter func(line string, pos int) (head string, completions []string, tail string)
+type WordCompleter func(mode, line string, pos int) (head string, completions []string, tail string)
 
 // SetCompleter sets the completion function that Liner will call to
 // fetch completion candidates when the user presses tab.
@@ -191,8 +191,8 @@ func (s *State) SetCompleter(f Completer) {
 		s.completer = nil
 		return
 	}
-	s.completer = func(line string, pos int) (string, []string, string) {
-		return "", f(s.mode, string([]rune(line)[:pos])), string([]rune(line)[pos:])
+	s.completer = func(mode, line string, pos int) (string, []string, string) {
+		return "", f(mode, string([]rune(line)[:pos])), string([]rune(line)[pos:])
 	}
 }
 
