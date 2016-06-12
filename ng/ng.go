@@ -146,7 +146,8 @@ func loop() {
 	}
 	//setWindowSize(env)
 
-	lineNg.SetCompleter(completer)
+	lineNg.SetTabCompletionStyle(liner.TabPrints)
+	lineNg.SetWordCompleter(completer)
 
 	if f, err := os.Open(historyShFile); err == nil {
 		lineNg.SetMode("sh")

@@ -13,20 +13,23 @@ import (
 	"neugram.io/lang/token"
 )
 
-func completer(mode, line string) []string {
+func completer(mode, line string, pos int) (prefix string, completions []string, suffix string) {
 	switch mode {
 	case "ng":
-		return completerNg(line)
+		return completerNg(line, pos)
 	case "sh":
-		return completerSh(line)
+		return completerSh(line, pos)
 	default:
 		panic("ng: unknown completer: " + mode)
 	}
 }
 
-func completerNg(line string) []string {
+func completerNg(line string, pos int) (prefix string, completions []string, suffix string) {
+	if pos != len(line) { // TODO mid-line matching
+		return line, nil, ""
+	}
 	if strings.TrimSpace(line) == "" {
-		return nil
+		return line, nil, ""
 	}
 	// TODO match on word not line.
 	// TODO walk the scope for possible names.
@@ -36,38 +39,35 @@ func completerNg(line string) []string {
 			res = append(res, keyword)
 		}
 	}
-	return res
+	return "", res, ""
 }
 
-func completerSh(line string) (res []string) {
+func completerSh(line string, pos int) (prefix string, completions []string, suffix string) {
+	if pos != len(line) { // TODO mid-line matching
+		return line, nil, ""
+	}
+
 	i := strings.LastIndexByte(line, ' ')
 	i2 := strings.LastIndexByte(line, '=')
 	if i2 > i {
 		i = i2
 	}
 	if i == -1 {
-		return completePath(line, true)
+		return "", completePath(line, true), ""
 	}
-	prefix := line[i+1:]
-	if prefix == "" {
-		return prepend(line[:i+1], completePath("", false))
+	prefix, word := line[:i+1], line[i+1:]
+	if word == "" {
+		return prefix, completePath("", false), ""
 	}
-	// TODO: prefix="dir/$V" and prefix="--flag=$V" should complete var
-	switch prefix[0] {
+	// TODO: word="dir/$V" and word="--flag=$V" should complete var
+	switch word[0] {
 	case '$':
-		return prepend(line[:i+1], completeVar(prefix))
+		return prefix, completeVar(word), ""
 	case '-':
-		return prepend(line[:i+1], completeFlag(prefix, line))
+		return prefix, completeFlag(word, line), ""
 	default:
-		return prepend(line[:i+1], completePath(prefix, false))
+		return prefix, completePath(word, false), ""
 	}
-}
-
-func prepend(prefix string, matches []string) []string {
-	for i, m := range matches {
-		matches[i] = prefix + m
-	}
-	return matches
 }
 
 func completeVar(prefix string) (res []string) {
