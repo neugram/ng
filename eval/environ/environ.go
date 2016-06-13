@@ -2,6 +2,7 @@ package environ
 
 import (
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -39,4 +40,17 @@ func (e *Environ) List() []string {
 	e.mu.Unlock()
 	sort.Strings(l)
 	return l
+}
+
+func (e *Environ) Keys(prefix string) []string {
+	var res []string
+	e.mu.Lock()
+	for k := range e.m {
+		if strings.HasPrefix(k, prefix) {
+			res = append(res, k)
+		}
+	}
+	e.mu.Unlock()
+	sort.Strings(res)
+	return res
 }

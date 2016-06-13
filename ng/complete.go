@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"neugram.io/eval/shell"
 	"neugram.io/lang/token"
 )
 
@@ -71,7 +72,11 @@ func completerSh(line string, pos int) (prefix string, completions []string, suf
 }
 
 func completeVar(prefix string) (res []string) {
-	return res // TODO
+	res = shell.Env.Keys(prefix[1:])
+	for i, s := range res {
+		res[i] = "$" + s + " "
+	}
+	return res
 }
 
 func completeFlag(prefix, line string) (res []string) {
