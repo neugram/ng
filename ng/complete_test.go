@@ -18,15 +18,16 @@ type file struct {
 }
 
 type completeTest struct {
-	line string
-	want []string
+	line       string
+	wantPrefix string
+	want       []string
 }
 
 var emptyDir = []file{}
 
 var emptyTests = []completeTest{
 	{line: "", want: nil},
-	{line: "ls ", want: nil},
+	{line: "ls ", wantPrefix: "ls ", want: nil},
 }
 
 var justFilesDir = []file{
@@ -38,15 +39,32 @@ var justFilesDir = []file{
 }
 
 var justFilesTests = []completeTest{
-	{line: "ls u", want: []string{"ls unique "}},
-	{line: "ls file1", want: []string{"ls file1 "}},
-	{line: "ls f", want: []string{
-		"ls file1",
-		"ls file2",
-	}},
-	{line: "find . -name=un", want: []string{"find . -name=unique "}},
-	{line: "cat", want: []string{"cat "}},
-	{line: "ls more_", want: []string{"ls more_cats "}},
+	{
+		line:       "ls u",
+		wantPrefix: "ls ",
+		want:       []string{"unique "},
+	},
+	{
+		line:       "ls file1",
+		wantPrefix: "ls ",
+		want:       []string{"file1 "},
+	},
+	{
+		line:       "ls f",
+		wantPrefix: "ls ",
+		want:       []string{"file1", "file2"},
+	},
+	{
+		line:       "find . -name=un",
+		wantPrefix: "find . -name=",
+		want:       []string{"unique "},
+	},
+	{line: "cat"},
+	{
+		line:       "ls more_",
+		wantPrefix: "ls ",
+		want:       []string{"more_cats "},
+	},
 }
 
 var hierarchyDir = []file{
@@ -65,41 +83,84 @@ var hierarchyDir = []file{
 }
 
 var hierarchyTests = []completeTest{
-	{line: "ls h", want: []string{"ls hierarchy/"}},
-	{line: "ls more_", want: []string{"ls more_h/"}},
-	{line: "ls hierarchy", want: []string{"ls hierarchy/"}},
-	{line: "ls hierarchy/", want: []string{
-		"ls hierarchy/and1",
-		"ls hierarchy/and2/",
-		"ls hierarchy/d1/",
-		"ls hierarchy/d2/",
-		"ls hierarchy/e1",
-		"ls hierarchy/e2",
-		"ls hierarchy/f1",
-		"ls hierarchy/f2",
-	}},
-	{line: "ls hierarchy/d", want: []string{
-		"ls hierarchy/d1/",
-		"ls hierarchy/d2/",
-	}},
-	{line: "ls hierarchy/f", want: []string{
-		"ls hierarchy/f1",
-		"ls hierarchy/f2",
-	}},
-	{line: "ls hierarchy/an", want: []string{
-		"ls hierarchy/and1",
-		"ls hierarchy/and2/",
-	}},
-	{line: "./hierarchy/f", want: nil},
-	{line: "./h", want: []string{"./hierarchy/"}},
-	{line: "./hierarchy/e", want: []string{
-		"./hierarchy/e1",
-		"./hierarchy/e2",
-	}},
-	{line: "hierarchy/f1 ", want: []string{
-		"hierarchy/f1 hierarchy/",
-		"hierarchy/f1 more_h/",
-	}},
+	{
+		line:       "ls h",
+		wantPrefix: "ls ",
+		want:       []string{"hierarchy/"},
+	},
+	{
+		line:       "ls more_",
+		wantPrefix: "ls ",
+		want:       []string{"more_h/"},
+	},
+	{
+		line:       "ls hierarchy",
+		wantPrefix: "ls ",
+		want:       []string{"hierarchy/"},
+	},
+	{
+		line:       "ls hierarchy/",
+		wantPrefix: "ls hierarchy/",
+		want: []string{
+			"and1",
+			"and2/",
+			"d1/",
+			"d2/",
+			"e1",
+			"e2",
+			"f1",
+			"f2",
+		},
+	},
+	{
+		line:       "ls hierarchy/d",
+		wantPrefix: "ls hierarchy/",
+		want: []string{
+			"d1/",
+			"d2/",
+		},
+	},
+	{
+		line:       "ls hierarchy/f",
+		wantPrefix: "ls hierarchy/",
+		want: []string{
+			"f1",
+			"f2",
+		},
+	},
+	{
+		line:       "ls hierarchy/an",
+		wantPrefix: "ls hierarchy/",
+		want: []string{
+			"and1",
+			"and2/",
+		},
+	},
+	{
+		line:       "./hierarchy/f",
+		wantPrefix: "./hierarchy/",
+	},
+	{
+		line:       "./h",
+		wantPrefix: "./",
+		want:       []string{"hierarchy/"},
+	},
+	{
+		line:       "./hierarchy/e",
+		wantPrefix: "./hierarchy/",
+		want: []string{
+			"e1",
+			"e2",
+		},
+	},
+	{
+		line:       "hierarchy/f1 ",
+		wantPrefix: "hierarchy/f1 ",
+		want: []string{
+			"hierarchy/",
+			"more_h/",
+		},
+	},
 }
 
 func testCompleteSh(t *testing.T, testName string, files []file, tests []completeTest) {
@@ -145,7 +206,10 @@ func testCompleteSh(t *testing.T, testName string, files []file, tests []complet
 	}
 
 	for _, test := range tests {
-		got := completerSh(test.line)
+		gotPrefix, got, _ := completerSh(test.line, len(test.line))
+		if gotPrefix != test.wantPrefix {
+			t.Errorf("%s: %q: gotPrefix=%v, wantPrefix=%v", testName, test.line, gotPrefix, test.wantPrefix)
+		}
 		if !reflect.DeepEqual(got, test.want) {
 			t.Errorf("%s: %q: got=%v, want=%v", testName, test.line, got, test.want)
 		}

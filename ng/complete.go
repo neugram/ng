@@ -54,21 +54,21 @@ func completerSh(line string, pos int) (prefix string, completions []string, suf
 		i = i2
 	}
 	if i == -1 {
-		return "", completePath(line, true), ""
+		prefix, completions = completePath(line, true)
+		return prefix, completions, ""
 	}
 	prefix, word := line[:i+1], line[i+1:]
-	if word == "" {
-		return prefix, completePath("", false), ""
+	if word != "" {
+		// TODO: word="dir/$V" and word="--flag=$V" should complete var
+		switch word[0] {
+		case '$':
+			return prefix, completeVar(word), ""
+		case '-':
+			return prefix, completeFlag(word, line), ""
+		}
 	}
-	// TODO: word="dir/$V" and word="--flag=$V" should complete var
-	switch word[0] {
-	case '$':
-		return prefix, completeVar(word), ""
-	case '-':
-		return prefix, completeFlag(word, line), ""
-	default:
-		return prefix, completePath(word, false), ""
-	}
+	resPrefix, completions := completePath(word, false)
+	return prefix + resPrefix, completions, ""
 }
 
 func completeVar(prefix string) (res []string) {
@@ -83,7 +83,7 @@ func completeFlag(prefix, line string) (res []string) {
 	return res // TODO
 }
 
-func completePath(prefix string, mustBeExec bool) (res []string) {
+func completePath(prefix string, mustBeExec bool) (resPrefix string, res []string) {
 	// TODO expand $ variables
 	dirPath, filePath := filepath.Split(prefix)
 	if dirPath == "" {
@@ -91,7 +91,7 @@ func completePath(prefix string, mustBeExec bool) (res []string) {
 	}
 	dir, err := os.Open(dirPath)
 	if err != nil {
-		return []string{}
+		return prefix, []string{}
 	}
 
 	var fi []os.FileInfo
@@ -102,7 +102,7 @@ func completePath(prefix string, mustBeExec bool) (res []string) {
 				break
 			}
 			fmt.Fprintf(os.Stderr, "ng: %v\n", err)
-			return []string{}
+			return prefix, []string{}
 		}
 		// TODO: can we use directory order to skip some calls?
 		for _, info := range potentials {
@@ -133,14 +133,14 @@ func completePath(prefix string, mustBeExec bool) (res []string) {
 	dirPrefix := prefix[:len(prefix)-len(filePath)]
 	for _, info := range fi {
 		if info.IsDir() {
-			res = append(res, dirPrefix+info.Name()+"/")
+			res = append(res, info.Name()+"/")
 		} else {
-			p := dirPrefix + info.Name()
+			p := info.Name()
 			if len(fi) == 1 {
 				p += " "
 			}
 			res = append(res, p)
 		}
 	}
-	return res
+	return dirPrefix, res
 }
