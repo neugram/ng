@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"neugram.io/eval/environ"
+	"neugram.io/eval/shell"
 )
 
 type file struct {
@@ -18,6 +21,7 @@ type file struct {
 }
 
 type completeTest struct {
+	env        map[string]string
 	line       string
 	wantPrefix string
 	want       []string
@@ -121,6 +125,15 @@ var hierarchyTests = []completeTest{
 		},
 	},
 	{
+		env:        map[string]string{"H": "hierarchy"},
+		line:       "ls $H/d",
+		wantPrefix: "ls $H/",
+		want: []string{
+			"d1/",
+			"d2/",
+		},
+	},
+	{
 		line:       "ls hierarchy/f",
 		wantPrefix: "ls hierarchy/",
 		want: []string{
@@ -206,6 +219,10 @@ func testCompleteSh(t *testing.T, testName string, files []file, tests []complet
 	}
 
 	for _, test := range tests {
+		shell.Env = environ.New()
+		for k, v := range test.env {
+			shell.Env.Set(k, v)
+		}
 		gotPrefix, got, _ := completerSh(test.line, len(test.line))
 		if gotPrefix != test.wantPrefix {
 			t.Errorf("%s: %q: gotPrefix=%v, wantPrefix=%v", testName, test.line, gotPrefix, test.wantPrefix)

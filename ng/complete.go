@@ -48,35 +48,25 @@ func completerSh(line string, pos int) (prefix string, completions []string, suf
 		return line, nil, ""
 	}
 
+	mustBeExec := false
 	i := strings.LastIndexByte(line, ' ')
 	i2 := strings.LastIndexByte(line, '=')
 	if i2 > i {
 		i = i2
 	}
 	if i == -1 {
-		prefix, completions = completePath(line, true)
-		return prefix, completions, ""
+		//i = 0
+		mustBeExec = true
+		//prefix, completions = completePath(line, true)
+		//return prefix, completions, ""
 	}
 	prefix, word := line[:i+1], line[i+1:]
-	if word != "" {
-		// TODO: word="dir/$V" and word="--flag=$V" should complete var
-		switch word[0] {
-		case '$':
-			return prefix, completeVar(word), ""
-		case '-':
-			return prefix, completeFlag(word, line), ""
-		}
+	if word != "" && word[0] == '-' {
+		// TODO: word="--flag=$V" should complete var
+		return prefix, completeFlag(word, line), ""
 	}
-	resPrefix, completions := completePath(word, false)
+	resPrefix, completions := completePath(word, mustBeExec)
 	return prefix + resPrefix, completions, ""
-}
-
-func completeVar(prefix string) (res []string) {
-	res = shell.Env.Keys(prefix[1:])
-	for i, s := range res {
-		res[i] = "$" + s + " "
-	}
-	return res
 }
 
 func completeFlag(prefix, line string) (res []string) {
@@ -84,10 +74,27 @@ func completeFlag(prefix, line string) (res []string) {
 }
 
 func completePath(prefix string, mustBeExec bool) (resPrefix string, res []string) {
-	// TODO expand $ variables
 	dirPath, filePath := filepath.Split(prefix)
+	dirPrefix := dirPath
 	if dirPath == "" {
 		dirPath = "."
+	} else {
+		var err error
+		dirPath, err = shell.ExpandTilde(dirPath)
+		if err != nil {
+			return prefix, []string{}
+		}
+		dirPath, err = shell.ExpandParams(dirPath, shell.Env)
+		if err != nil {
+			return prefix, []string{}
+		}
+	}
+	if len(filePath) > 0 && filePath[0] == '$' {
+		res = shell.Env.Keys(filePath[1:])
+		for i, s := range res {
+			res[i] = "$" + s + " "
+		}
+		return dirPrefix, res
 	}
 	dir, err := os.Open(dirPath)
 	if err != nil {
@@ -130,7 +137,6 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 		}
 	}
 
-	dirPrefix := prefix[:len(prefix)-len(filePath)]
 	for _, info := range fi {
 		if info.IsDir() {
 			res = append(res, info.Name()+"/")

@@ -61,11 +61,9 @@ func braceExpand(src []string, arg string, _ Params) (res []string, err error) {
 	return res, nil
 }
 
-// tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
-func tildeExpand(src []string, arg string, params Params) (res []string, err error) {
-	res = src
+func ExpandTilde(arg string) (res string, err error) {
 	if !strings.HasPrefix(arg, "~") {
-		return append(res, arg), nil
+		return arg, nil
 	}
 	name := arg[1:]
 	for i, r := range name {
@@ -82,17 +80,24 @@ func tildeExpand(src []string, arg string, params Params) (res []string, err err
 	}
 	if err != nil {
 		if _, ok := err.(user.UnknownUserError); ok {
-			return append(res, arg), nil
+			return arg, nil
 		}
-		return nil, fmt.Errorf("expanding %s: %v", arg, err)
+		return "", fmt.Errorf("expanding %s: %v", arg, err)
 	}
-	return append(src, u.HomeDir+arg[1+len(name):]), nil
+	return u.HomeDir + arg[1+len(name):], nil
 }
 
-// param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
-// TODO also expand env
-func paramExpand(src []string, arg string, params Params) (res []string, err error) {
-	res = src
+// tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
+func tildeExpand(src []string, arg string, params Params) (res []string, err error) {
+	expanded, err := ExpandTilde(arg)
+	if err != nil {
+		return nil, err
+	}
+	return append(src, expanded), nil
+}
+
+// ExpandParams expands $ variables.
+func ExpandParams(arg string, params Params) (string, error) {
 	for {
 		i1 := indexParam(arg)
 		if i1 == -1 {
@@ -107,14 +112,24 @@ func paramExpand(src []string, arg string, params Params) (res []string, err err
 			}
 		}
 		if i2 == -1 {
-			return nil, fmt.Errorf("invalid $ parameter: %q", arg)
+			return "", fmt.Errorf("invalid $ parameter: %q", arg)
 		}
 		end := i1 + 1 + i2 + 1
 		name := arg[i1+1 : end]
 		val := params.Get(name)
 		arg = arg[:i1] + val + arg[end:]
 	}
-	return append(res, arg), nil
+	return arg, nil
+}
+
+// param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
+func paramExpand(src []string, arg string, params Params) (res []string, err error) {
+	res = src
+	expanded, err := ExpandParams(arg, params)
+	if err != nil {
+		return nil, err
+	}
+	return append(src, expanded), nil
 }
 
 // paths expansion (*, ?, [)
