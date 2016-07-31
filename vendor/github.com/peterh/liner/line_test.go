@@ -9,8 +9,8 @@ import (
 
 func TestAppend(t *testing.T) {
 	var s State
-	s.AppendHistory("foo")
-	s.AppendHistory("bar")
+	s.AppendHistory("", "foo")
+	s.AppendHistory("", "bar")
 
 	var out bytes.Buffer
 	num, err := s.WriteHistory(&out)
@@ -21,7 +21,7 @@ func TestAppend(t *testing.T) {
 		t.Fatalf("Expected 2 history entries, got %d", num)
 	}
 
-	s.AppendHistory("baz")
+	s.AppendHistory("", "baz")
 	num, err = s.WriteHistory(&out)
 	if err != nil {
 		t.Fatal("Unexpected error writing history", err)
@@ -30,7 +30,7 @@ func TestAppend(t *testing.T) {
 		t.Fatalf("Expected 3 history entries, got %d", num)
 	}
 
-	s.AppendHistory("baz")
+	s.AppendHistory("", "baz")
 	num, err = s.WriteHistory(&out)
 	if err != nil {
 		t.Fatal("Unexpected error writing history", err)
@@ -39,7 +39,7 @@ func TestAppend(t *testing.T) {
 		t.Fatalf("Expected 3 history entries after duplicate append, got %d", num)
 	}
 
-	s.AppendHistory("baz")
+	s.AppendHistory("", "baz")
 
 }
 
@@ -120,8 +120,8 @@ func TestColumns(t *testing.T) {
 // history buffer without using a file.
 func ExampleState_WriteHistory() {
 	var s State
-	s.AppendHistory("foo")
-	s.AppendHistory("bar")
+	s.AppendHistory("", "foo")
+	s.AppendHistory("", "bar")
 
 	buf := new(bytes.Buffer)
 	_, err := s.WriteHistory(buf)
