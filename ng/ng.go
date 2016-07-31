@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -135,7 +136,7 @@ func loop() {
 	shell.Alias = prg.Alias()
 
 	// TODO this env setup could be done in neugram code
-	env := prg.Cur.Lookup("env").Value.(*environ.Environ)
+	env := prg.Environ()
 	for _, s := range os.Environ() {
 		i := strings.Index(s, "=")
 		env.Set(s[:i], s[i+1:])
@@ -229,7 +230,7 @@ func loop() {
 
 func handleResult(res parser.Result) {
 	for _, s := range res.Stmts {
-		v, t, err := prg.Eval(s)
+		v, err := prg.Eval(s)
 		if err != nil {
 			fmt.Printf("eval error: %v\n", err)
 			continue
@@ -237,8 +238,11 @@ func handleResult(res parser.Result) {
 		switch len(v) {
 		case 0:
 		case 1:
-			printValue(t, v[0])
-			fmt.Print("\n")
+			if v[0] == (reflect.Value{}) {
+				fmt.Println("<nil>")
+			} else {
+				fmt.Println(v[0].Interface())
+			}
 		default:
 			fmt.Println(v)
 		}
@@ -282,20 +286,20 @@ func printValue(t tipe.Type, v interface{}) {
 	//
 	// Still: avoid putting too much machinary in this. At some point soon
 	// it's not worth the effort.
-	switch t := tipe.Underlying(t).(type) {
+	/*switch t := tipe.Underlying(t).(type) {
 	case *tipe.Struct:
-		fmt.Print("{")
-		for i, name := range t.FieldNames {
-			fmt.Printf("%s: ", name)
-			printValue(t.Fields[i], v.(*eval.StructVal).Fields[i].Value)
-			if i < len(t.FieldNames)-1 {
-				fmt.Print(", ")
-			}
+	fmt.Print("{")
+	for i, name := range t.FieldNames {
+		fmt.Printf("%s: ", name)
+		printValue(t.Fields[i], v.(*eval.StructVal).Fields[i].Value)
+		if i < len(t.FieldNames)-1 {
+			fmt.Print(", ")
 		}
-		fmt.Print("}")
-	default:
-		fmt.Print(v)
 	}
+	fmt.Print("}")
+	default:
+	}*/
+	fmt.Print(v)
 }
 
 func init() {

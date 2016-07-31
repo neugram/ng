@@ -64,6 +64,11 @@ type MapLiteral struct {
 	Values []Expr
 }
 
+type SliceLiteral struct {
+	Type  *tipe.Slice
+	Elems []Expr
+}
+
 type TableLiteral struct {
 	Type     *tipe.Table
 	ColNames []Expr
@@ -140,6 +145,7 @@ var (
 	_ = Expr((*FuncLiteral)(nil))
 	_ = Expr((*CompLiteral)(nil))
 	_ = Expr((*MapLiteral)(nil))
+	_ = Expr((*SliceLiteral)(nil))
 	_ = Expr((*TableLiteral)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
@@ -157,6 +163,7 @@ func (e *BasicLiteral) expr() {}
 func (e *FuncLiteral) expr()  {}
 func (e *CompLiteral) expr()  {}
 func (e *MapLiteral) expr()   {}
+func (e *SliceLiteral) expr() {}
 func (e *TableLiteral) expr() {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
@@ -232,6 +239,9 @@ func (e *CompLiteral) Sexp() string {
 }
 func (e *MapLiteral) Sexp() string {
 	return fmt.Sprintf("(map %s %s %s)", tipeSexp(e.Type), exprsStr(e.Keys), exprsStr(e.Values))
+}
+func (e *SliceLiteral) Sexp() string {
+	return fmt.Sprintf("(slice %s %s%s)", tipeSexp(e.Type), exprsStr(e.Elems))
 }
 func (e *TableLiteral) Sexp() string {
 	rows := ""

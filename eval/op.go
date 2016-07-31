@@ -10,13 +10,8 @@ import (
 	"neugram.io/lang/token"
 )
 
+// TODO redo
 func valEq(x, y interface{}) bool {
-	if xvar, ok := x.(*Variable); ok {
-		x = xvar.Value
-	}
-	if yvar, ok := y.(*Variable); ok {
-		y = yvar.Value
-	}
 	if x == y {
 		return true
 	}
@@ -34,7 +29,7 @@ func valEq(x, y interface{}) bool {
 		case *big.Float:
 			return x.Cmp(y) == 0
 		}
-	case *StructVal:
+		/*case *StructVal:
 		switch y := y.(type) {
 		case *StructVal:
 			if len(x.Fields) != len(y.Fields) { // TODO compare tipe.Type
@@ -47,21 +42,20 @@ func valEq(x, y interface{}) bool {
 			}
 			return true
 		}
+		*/
 	}
 	return false
 }
 
 func binOp(op token.Token, x, y interface{}) (interface{}, error) {
-	if v, ok := x.(*Variable); ok {
-		x = v.Value
-	}
-	if v, ok := y.(*Variable); ok {
-		y = v.Value
-	}
-
 	switch op {
 	case token.Add:
 		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x + y, nil
+			}
 		case int64:
 			switch y := y.(type) {
 			case int64:
@@ -77,17 +71,23 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x + y, nil
 			}
-		case *big.Int:
+		case untypedInt:
 			switch y := y.(type) {
-			case *big.Int:
+			case untypedFloat:
+				z := big.NewFloat(float64(x.Int.Int64()))
+				return untypedFloat{z.Add(z, y.Float)}, nil
+			case untypedInt:
 				z := big.NewInt(0)
-				return z.Add(x, y), nil
+				return untypedInt{z.Add(x.Int, y.Int)}, nil
 			}
-		case *big.Float:
+		case untypedFloat:
+			z := big.NewFloat(0)
 			switch y := y.(type) {
-			case *big.Float:
-				z := big.NewFloat(0)
-				return z.Add(x, y), nil
+			case untypedInt:
+				z.SetInt(y.Int)
+				return untypedFloat{z.Add(z, x.Float)}, nil
+			case untypedFloat:
+				return untypedFloat{z.Add(x.Float, y.Float)}, nil
 			}
 		case string:
 			switch y := y.(type) {
@@ -97,6 +97,11 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	case token.Sub:
 		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x - y, nil
+			}
 		case int64:
 			switch y := y.(type) {
 			case int64:
@@ -112,17 +117,25 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x - y, nil
 			}
-		case *big.Int:
+		case untypedInt:
 			switch y := y.(type) {
-			case *big.Int:
-				z := big.NewInt(0)
-				return z.Sub(x, y), nil
-			}
-		case *big.Float:
-			switch y := y.(type) {
-			case *big.Float:
+			case untypedFloat:
 				z := big.NewFloat(0)
-				return z.Sub(x, y), nil
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				return untypedFloat{z.Sub(xf, y.Float)}, nil
+			case untypedInt:
+				z := big.NewInt(0)
+				return untypedInt{z.Sub(x.Int, y.Int)}, nil
+			}
+		case untypedFloat:
+			z := big.NewFloat(0)
+			switch y := y.(type) {
+			case untypedInt:
+				yf := big.NewFloat(0)
+				yf.SetInt(y.Int)
+				return untypedFloat{z.Sub(x.Float, yf)}, nil
+			case untypedFloat:
+				return untypedFloat{z.Sub(x.Float, y.Float)}, nil
 			}
 		}
 	case token.Mul:
@@ -177,5 +190,5 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	}
 	//return nil, fmt.Errorf("type mismatch Left: %T, Right: %T", x, y)
-	panic(fmt.Sprintf("binOp type mismatch Left: %+v, Right: %+v op: %v", x, y, op))
+	panic(fmt.Sprintf("binOp type mismatch Left: %+v (%T), Right: %+v (%T) op: %v", x, x, y, y, op))
 }

@@ -310,6 +310,8 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			x = &expr.Call{Func: x, Args: args}
 		case token.LeftBrace:
 			switch xpr := x.(type) {
+			case *expr.SliceLiteral:
+				p.parseSliceLiteral(xpr)
 			case *expr.TableLiteral:
 				p.parseTableLiteral(xpr)
 			case *expr.MapLiteral:
@@ -622,11 +624,18 @@ func (p *Parser) maybeParseType() tipe.Type {
 		}
 	case token.LeftBracket:
 		p.next()
-		p.expect(token.Pipe)
-		p.next()
+		table := false
+		if p.s.Token == token.Pipe {
+			table = true
+			p.next()
+		}
 		p.expect(token.RightBracket)
 		p.next()
-		return &tipe.Table{Type: p.parseType()}
+		if table {
+			return &tipe.Table{Type: p.parseType()}
+		} else {
+			return &tipe.Slice{Elem: p.parseType()}
+		}
 	case token.Mul:
 		p.next()
 		return &tipe.Pointer{Elem: p.parseType()}
@@ -1107,6 +1116,8 @@ func (p *Parser) parseOperand() expr.Expr {
 
 	if t := p.maybeParseType(); t != nil {
 		switch t := t.(type) {
+		case *tipe.Slice:
+			return &expr.SliceLiteral{Type: t}
 		case *tipe.Table:
 			return &expr.TableLiteral{Type: t}
 		case *tipe.Map:
@@ -1118,6 +1129,20 @@ func (p *Parser) parseOperand() expr.Expr {
 
 	p.next()
 	return &expr.Bad{p.errorf("expected operand, got %s", p.s.Token)}
+}
+
+func (p *Parser) parseSliceLiteral(x *expr.SliceLiteral) {
+	p.next()
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		e := p.parseExpr()
+		x.Elems = append(x.Elems, e)
+		if p.s.Token != token.Comma {
+			break
+		}
+		p.next()
+	}
+	p.expect(token.RightBrace)
+	p.next()
 }
 
 func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {

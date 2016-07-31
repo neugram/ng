@@ -43,6 +43,10 @@ type Methodik struct {
 	Methods     []*Func
 }
 
+type Slice struct {
+	Elem Type
+}
+
 type Table struct {
 	Type Type
 }
@@ -116,11 +120,20 @@ const (
 	Complex Basic = "complex"
 	String  Basic = "string"
 
-	Int64   Basic = "int64"
+	Int   Basic = "int"
+	Int8  Basic = "int8"
+	Int16 Basic = "int16"
+	Int32 Basic = "int32"
+	Int64 Basic = "int64"
+
+	Uint   Basic = "uint"
+	Uint8  Basic = "uint8"
+	Uint16 Basic = "uint16"
+	Uint32 Basic = "uint32"
+	Uint64 Basic = "uint64"
+
 	Float32 Basic = "float32"
 	Float64 Basic = "float64"
-
-	GoInt Basic = "goint"
 
 	UntypedNil     Basic = "untyped nil" // nil pointer or nil interface
 	UntypedBool    Basic = "untyped bool"
@@ -139,6 +152,7 @@ var (
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
 	_ = Type((*Methodik)(nil))
+	_ = Type((*Slice)(nil))
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
@@ -152,6 +166,7 @@ func (t Basic) tipe()       {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
 func (t *Methodik) tipe()   {}
+func (t *Slice) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
@@ -193,6 +208,13 @@ func (e *Methodik) Sexp() string {
 		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Methods[i].Sexp()))
 	}
 	return fmt.Sprintf("(methodiktype %s %s %s)", e.Spec.Sexp(), u, strings.Join(s, " "))
+}
+func (e *Slice) Sexp() string {
+	u := "nil"
+	if e.Elem != nil {
+		u = e.Elem.Sexp()
+	}
+	return fmt.Sprintf("(slicetype %s)", u)
 }
 func (e *Table) Sexp() string {
 	u := "nil"
@@ -264,8 +286,9 @@ func IsNumeric(t Type) bool {
 	}
 	switch b {
 	case Num, Integer, Float, Complex,
-		Int64, Float32, Float64,
-		GoInt,
+		Int8, Int16, Int32, Int64,
+		Uint8, Uint16, Uint32, Uint64,
+		Float32, Float64,
 		UntypedInteger, UntypedFloat, UntypedComplex:
 		return true
 	}
@@ -300,6 +323,10 @@ func UsesNum(t Type) bool {
 			if UsesNum(t) {
 				return true
 			}
+		}
+	case *Slice:
+		if UsesNum(t.Elem) {
+			return true
 		}
 	case *Table:
 		if UsesNum(t.Type) {
@@ -389,6 +416,15 @@ func Equal(x, y Type) bool {
 			}
 		}
 		return true
+	case *Slice:
+		y, ok := y.(*Slice)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		return Equal(x.Elem, y.Elem)
 	case *Table:
 		y, ok := y.(*Table)
 		if !ok {

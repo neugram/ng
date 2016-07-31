@@ -55,16 +55,24 @@ var universeObjs = map[string]*Obj{
 func init() {
 	var basic = []tipe.Basic{
 		tipe.Bool,
-		tipe.Byte,
+		tipe.Byte, // TODO: actually an alias for Int8
 		tipe.Rune,
 		tipe.Integer,
 		tipe.Float,
 		tipe.Complex,
 		tipe.String,
+		tipe.Int,
+		tipe.Int8,
+		tipe.Int16,
+		tipe.Int32,
 		tipe.Int64,
+		tipe.Uint,
+		tipe.Uint8,
+		tipe.Uint16,
+		tipe.Uint32,
+		tipe.Uint64,
 		tipe.Float32,
 		tipe.Float64,
-		tipe.GoInt,
 	}
 	for _, t := range basic {
 		Universe.Objs[string(t)] = &Obj{Kind: ObjType, Type: t}

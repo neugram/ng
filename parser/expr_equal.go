@@ -99,6 +99,21 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return true
+	case *expr.SliceLiteral:
+		y, ok := y.(*expr.SliceLiteral)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		if !equalExprs(x.Elems, y.Elems) {
+			return false
+		}
+		return true
 	case *expr.TableLiteral:
 		y, ok := y.(*expr.TableLiteral)
 		if !ok {
@@ -375,6 +390,17 @@ func equalType(t0, t1 tipe.Type) bool {
 			if !equalType(t0.Methods[i], t1.Methods[i]) {
 				return false
 			}
+		}
+	case *tipe.Slice:
+		t1, ok := t1.(*tipe.Slice)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if !equalType(t0.Elem, t1.Elem) {
+			return false
 		}
 	case *tipe.Table:
 		t1, ok := t1.(*tipe.Table)

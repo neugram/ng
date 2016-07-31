@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"neugram.io/eval/environ"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/stmt"
 	"neugram.io/parser"
@@ -189,34 +190,42 @@ func TestPrograms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	out, err := ioutil.TempFile("", "neugram.stdout.")
-	if err != nil {
-		t.Fatal(err)
+	if len(files) == 0 {
+		t.Fatal("cannot find testdata")
 	}
-	stdout := os.Stdout
+	origStdout := os.Stdout
+	origStderr := os.Stderr
 	defer func() {
-		out.Close()
-		os.Stdout = stdout
+		os.Stdout = origStdout
+		os.Stderr = origStderr
 	}()
-	os.Stdout = out
+
+	shell.Env = environ.New()
+	shell.Alias = environ.New()
 
 	for _, file := range files {
-		if !strings.Contains(file, "strings") {
-			continue
-		}
 		contents, err := ioutil.ReadFile(file)
 		if err != nil {
 			t.Fatalf("%s: %v", file, err)
 		}
-		if _, err := out.Seek(0, 0); err != nil {
-			t.Fatalf("%s: %v", file, err)
-		}
-		if err := out.Truncate(0); err != nil {
-			t.Fatalf("%s: %v", file, err)
+		if len(contents) == 0 {
+			t.Fatalf("%s: empty testdata", file)
 		}
 
+		out, err := ioutil.TempFile("", filepath.Base(file)+".stdout.")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		os.Stdout = out
+		os.Stderr = out
 		err = runProgram(contents)
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+		if err := out.Close(); err != nil {
+			t.Fatal(err)
+		}
+
 		if strings.HasSuffix(file, "_panic.ng") {
 			if _, isPanic := err.(Panic); !isPanic {
 				t.Errorf("%s: expect panic, got: %v", file, err)
@@ -227,10 +236,7 @@ func TestPrograms(t *testing.T) {
 			continue
 		}
 
-		if _, err := out.Seek(0, 0); err != nil {
-			t.Fatalf("%s: second seek: %v", file, err)
-		}
-		b, err := ioutil.ReadAll(out)
+		b, err := ioutil.ReadFile(out.Name())
 		if err != nil {
 			t.Fatalf("%s: %v", file, err)
 		}

@@ -74,7 +74,7 @@ type partial struct {
 	expr expr.Expr
 }
 
-func isError(t tipe.Type) bool {
+func IsError(t tipe.Type) bool {
 	return Universe.Objs["error"].Type == t
 }
 
@@ -102,7 +102,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			}
 			partials = append(partials, c.expr(rhs))
 		}
-		if len(s.Left) == len(partials)-1 && isError(partials[len(partials)-1].typ) {
+		if len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
 			// func f() (T, error) { ... )
 			// x := f()
 			partials = partials[:len(partials)-1]
@@ -317,20 +317,32 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		switch t.Kind() {
 		case gotypes.Bool:
 			return tipe.Bool
-		case gotypes.Byte:
-			return tipe.Byte
-		case gotypes.Rune:
-			return tipe.Rune
 		case gotypes.String:
 			return tipe.String
+		case gotypes.Int:
+			return tipe.Int
+		case gotypes.Int8:
+			return tipe.Int8
+		case gotypes.Int16:
+			return tipe.Int16
+		case gotypes.Int32:
+			return tipe.Int32
 		case gotypes.Int64:
 			return tipe.Int64
+		case gotypes.Uint:
+			return tipe.Uint
+		case gotypes.Uint8:
+			return tipe.Uint8
+		case gotypes.Uint16:
+			return tipe.Uint16
+		case gotypes.Uint32:
+			return tipe.Uint32
+		case gotypes.Uint64:
+			return tipe.Uint64
 		case gotypes.Float32:
 			return tipe.Float32
 		case gotypes.Float64:
 			return tipe.Float64
-		case gotypes.Int:
-			return tipe.GoInt
 		}
 	case *gotypes.Named:
 		if t.Obj().Id() == goErrorID {
@@ -350,7 +362,7 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		}
 		return mdik
 	case *gotypes.Slice:
-		return &tipe.Table{Type: c.fromGoType(t.Elem())}
+		return &tipe.Slice{Elem: c.fromGoType(t.Elem())}
 	case *gotypes.Struct:
 		res := new(tipe.Struct)
 		for i := 0; i < t.NumFields(); i++ {
@@ -450,6 +462,9 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 
 func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	switch t := t.(type) {
+	case *tipe.Slice:
+		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
 	case *tipe.Table:
 		t.Type, resolved = c.resolve(t.Type)
 		return t, resolved
@@ -555,7 +570,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				return p
 			}
 		}
-		vart := params[len(params)-1].(*tipe.Table).Type
+		vart := params[len(params)-1].(*tipe.Table).Type // TODO Slice
 		varargs := e.Args[len(params)-1:]
 		for _, arg := range varargs {
 			argp := c.expr(arg)
@@ -770,6 +785,39 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.expr = e
 		return p
 
+	case *expr.SliceLiteral:
+		p.mode = modeVar
+		var sliceType *tipe.Slice
+		if t, resolved := c.resolve(e.Type); resolved {
+			t, isSlice := t.(*tipe.Slice)
+			if !isSlice {
+				c.errorf("type %s is not a slice", t)
+				p.mode = modeInvalid
+				return p
+			}
+			e.Type = t
+			p.typ = t
+			sliceType = t
+		} else {
+			p.mode = modeInvalid
+			return p
+		}
+
+		for _, v := range e.Elems {
+			vp := c.expr(v)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			c.assign(&vp, sliceType.Elem)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		p.expr = e
+		return p
+
 	case *expr.TableLiteral:
 		p.mode = modeVar
 
@@ -828,7 +876,10 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.Unary:
 		switch e.Op {
 		case token.LeftParen, token.Not, token.Sub:
-			return c.expr(e.Expr)
+			sub := c.expr(e.Expr)
+			p.mode = modeVar
+			p.typ = sub.typ
+			return p
 		case token.Ref:
 			sub := c.expr(e.Expr)
 			if sub.mode == modeInvalid {
@@ -936,6 +987,14 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 
 			p.mode = modeVar // TODO not really? because not addressable
 			p.typ = lt.Value
+			return p
+		case *tipe.Slice:
+			c.assign(&ind, tipe.Int)
+			if ind.mode == modeInvalid {
+				return ind
+			}
+			p.mode = modeVar
+			p.typ = tipe.Int
 			return p
 		}
 
@@ -1153,6 +1212,15 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			return v
 		case tipe.Num:
 			return v
+		case tipe.Int:
+			if i, ok := constant.Int64Val(v); ok {
+				if int64(int(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
 		case tipe.Int64:
 			if _, ok := constant.Int64Val(v); ok {
 				return v
@@ -1306,9 +1374,9 @@ func defaultType(t tipe.Type) tipe.Type {
 	case tipe.UntypedBool:
 		return tipe.Bool
 	case tipe.UntypedInteger:
-		return tipe.Num
+		return tipe.Int // tipe.Num
 	case tipe.UntypedFloat:
-		return tipe.Num
+		return tipe.Float64 // tipe.Num
 	}
 	return t
 }
