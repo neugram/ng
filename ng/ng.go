@@ -235,16 +235,23 @@ func handleResult(res parser.Result) {
 			fmt.Printf("eval error: %v\n", err)
 			continue
 		}
-		switch len(v) {
-		case 0:
-		case 1:
-			if v[0] == (reflect.Value{}) {
-				fmt.Println("<nil>")
-			} else {
-				fmt.Println(v[0].Interface())
+		if len(v) > 1 {
+			fmt.Print("(")
+		}
+		for i, val := range v {
+			if i > 0 {
+				fmt.Print(", ")
 			}
-		default:
-			fmt.Println(v)
+			if val == (reflect.Value{}) {
+				fmt.Print("<nil>")
+			} else {
+				fmt.Print(val.Interface())
+			}
+		}
+		if len(v) > 1 {
+			fmt.Println(")")
+		} else {
+			fmt.Println("")
 		}
 	}
 	for _, err := range res.Errs {

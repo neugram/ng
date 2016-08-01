@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 
 	"neugram.io/eval/environ"
+	"neugram.io/eval/gowrap"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
@@ -260,6 +261,15 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			return p.evalStmt(s.Else)
 		}
 		return nil
+	case *stmt.Import:
+		//typ := p.Types.Lookup(s.Name).Type.(*tipe.Package)
+		p.Cur = &Scope{
+			Parent:   p.Cur,
+			VarName:  s.Name,
+			Var:      reflect.ValueOf(gowrap.Pkgs[s.Name]),
+			Implicit: true,
+		}
+		return nil
 	case *stmt.Range:
 		p.pushScope()
 		defer p.popScope()
@@ -350,12 +360,20 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			return reflect.ValueOf(res)
 		}
 		ret := reflect.New(t).Elem()
-		ret.SetInt(val.Int64())
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(int(val.Int64())))
+		} else {
+			ret.SetInt(val.Int64())
+		}
 		return ret
 	case untypedFloat:
 		ret := reflect.New(t).Elem()
 		f, _ := val.Float64()
-		ret.SetFloat(f)
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(float64(f)))
+		} else {
+			ret.SetFloat(f)
+		}
 		return ret
 	default:
 		panic(fmt.Sprintf("TODO convert(%s, %s)", v, t))
@@ -474,6 +492,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Ident:
 		if e.Name == "nil" { // TODO: make sure it's the Universe nil
 			t := p.reflector.ToRType(p.Types.Types[e])
+			fmt.Printf("nil has type %v (from %s)\n", t, p.Types.Types[e])
 			return []reflect.Value{reflect.New(t).Elem()}
 		}
 		if v := p.Cur.Lookup(e.Name); v != (reflect.Value{}) {
@@ -504,6 +523,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{m}
 	case *expr.Selector:
 		lhs := p.evalExprOne(e.Left)
+		if pkg, ok := lhs.Interface().(*gowrap.Pkg); ok {
+			return []reflect.Value{reflect.ValueOf(pkg.Exports[e.Right.Name])}
+		}
 		v := lhs.MethodByName(e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() == reflect.Struct {
 			v = lhs.FieldByName(e.Right.Name)
@@ -704,7 +726,8 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		if typecheck.IsError(t) {
 			rtype = reflect.TypeOf((*error)(nil)).Elem()
 		} else {
-			panic(fmt.Sprintf("cannot make rtype of %s", t.Sexp()))
+			rtype = reflect.TypeOf((*interface{})(nil)).Elem()
+			//panic(fmt.Sprintf("cannot make rtype of %s", t.Sexp()))
 		}
 	}
 	r.fwd[t] = rtype

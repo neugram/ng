@@ -611,7 +611,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				return p
 			}
 		}
-		vart := params[len(params)-1].(*tipe.Table).Type // TODO Slice
+		vart := params[len(params)-1].(*tipe.Slice).Elem
 		varargs := e.Args[len(params)-1:]
 		for _, arg := range varargs {
 			argp := c.expr(arg)
