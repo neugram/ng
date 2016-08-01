@@ -390,11 +390,11 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return Universe.Objs["error"].Type
 		}
 		base := c.fromGoType(t.Underlying())
-		if t.NumMethods() == 0 {
-			return base
-		}
 		mdik := &tipe.Methodik{
-			Type: base,
+			Type:    base,
+			Name:    t.Obj().Name(),
+			PkgName: t.Obj().Pkg().Name(),
+			PkgPath: t.Obj().Pkg().Path(),
 		}
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
@@ -1094,7 +1094,7 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 	if tipe.Equal(dst, src) {
 		return true
 	}
-	if idst, ok := dst.(*tipe.Interface); ok {
+	if idst, ok := tipe.Underlying(dst).(*tipe.Interface); ok {
 		// Everything can be assigned to interface{}.
 		if len(idst.Methods) == 0 {
 			return true

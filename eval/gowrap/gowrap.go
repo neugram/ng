@@ -3,13 +3,15 @@
 
 //go:generate go run genwrap.go fmt
 //go:generate go run genwrap.go os
+//go:generate go run genwrap.go io
 //go:generate go run genwrap.go sync
 
 package gowrap // import "neugram.io/eval/gowrap"
+import "reflect"
 
 var Pkgs = make(map[string]*Pkg)
 
 type Pkg struct {
 	// TODO: ExportData
-	Exports map[string]interface{}
+	Exports map[string]reflect.Value
 }

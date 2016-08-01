@@ -45,9 +45,13 @@ func genpkg(pkgName string) {
 		obj := scope.Lookup(name)
 		switch obj.(type) {
 		case *types.TypeName:
-			exports[name] = name + nilexpr(scope.Lookup(name).Type())
+			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
+				exports[name] = "reflect.ValueOf((*" + pkgName + "." + name + ")(nil))"
+			} else {
+				exports[name] = "reflect.ValueOf(" + pkgName + "." + name + nilexpr(obj.Type()) + ")"
+			}
 		case *types.Var, *types.Func, *types.Const:
-			exports[name] = name
+			exports[name] = "reflect.ValueOf(" + pkgName + "." + name + ")"
 		default:
 			fmt.Printf("unexpected obj: %T\n", obj)
 		}
@@ -95,13 +99,16 @@ var tmpl = template.Must(template.New("genwrap").Parse(`
 
 package gowrap
 
-import "{{.Name}}"
+import (
+	"reflect"
+	"{{.Name}}"
+)
 
 var wrap_{{.Name}} = &Pkg{
-	Exports: map[string]interface{}{
+	Exports: map[string]reflect.Value{
 		{{with $data := .}}
 		{{range $name, $export := $data.Exports}}
-		"{{$name}}": {{$data.Name}}.{{$export}},{{end}}
+		"{{$name}}": {{$export}},{{end}}
 		{{end}}
 	},
 }

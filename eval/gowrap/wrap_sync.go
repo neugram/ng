@@ -2,19 +2,22 @@
 
 package gowrap
 
-import "sync"
+import (
+	"reflect"
+	"sync"
+)
 
 var wrap_sync = &Pkg{
-	Exports: map[string]interface{}{
+	Exports: map[string]reflect.Value{
 
-		"Cond":      sync.Cond{},
-		"Locker":    sync.Locker(nil),
-		"Mutex":     sync.Mutex{},
-		"NewCond":   sync.NewCond,
-		"Once":      sync.Once{},
-		"Pool":      sync.Pool{},
-		"RWMutex":   sync.RWMutex{},
-		"WaitGroup": sync.WaitGroup{},
+		"Cond":      reflect.ValueOf(sync.Cond{}),
+		"Locker":    reflect.ValueOf((*sync.Locker)(nil)),
+		"Mutex":     reflect.ValueOf(sync.Mutex{}),
+		"NewCond":   reflect.ValueOf(sync.NewCond),
+		"Once":      reflect.ValueOf(sync.Once{}),
+		"Pool":      reflect.ValueOf(sync.Pool{}),
+		"RWMutex":   reflect.ValueOf(sync.RWMutex{}),
+		"WaitGroup": reflect.ValueOf(sync.WaitGroup{}),
 	},
 }
 

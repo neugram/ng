@@ -2,36 +2,39 @@
 
 package gowrap
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 var wrap_fmt = &Pkg{
-	Exports: map[string]interface{}{
+	Exports: map[string]reflect.Value{
 
-		"Errorf":     fmt.Errorf,
-		"Formatter":  fmt.Formatter(nil),
-		"Fprint":     fmt.Fprint,
-		"Fprintf":    fmt.Fprintf,
-		"Fprintln":   fmt.Fprintln,
-		"Fscan":      fmt.Fscan,
-		"Fscanf":     fmt.Fscanf,
-		"Fscanln":    fmt.Fscanln,
-		"GoStringer": fmt.GoStringer(nil),
-		"Print":      fmt.Print,
-		"Printf":     fmt.Printf,
-		"Println":    fmt.Println,
-		"Scan":       fmt.Scan,
-		"ScanState":  fmt.ScanState(nil),
-		"Scanf":      fmt.Scanf,
-		"Scanln":     fmt.Scanln,
-		"Scanner":    fmt.Scanner(nil),
-		"Sprint":     fmt.Sprint,
-		"Sprintf":    fmt.Sprintf,
-		"Sprintln":   fmt.Sprintln,
-		"Sscan":      fmt.Sscan,
-		"Sscanf":     fmt.Sscanf,
-		"Sscanln":    fmt.Sscanln,
-		"State":      fmt.State(nil),
-		"Stringer":   fmt.Stringer(nil),
+		"Errorf":     reflect.ValueOf(fmt.Errorf),
+		"Formatter":  reflect.ValueOf((*fmt.Formatter)(nil)),
+		"Fprint":     reflect.ValueOf(fmt.Fprint),
+		"Fprintf":    reflect.ValueOf(fmt.Fprintf),
+		"Fprintln":   reflect.ValueOf(fmt.Fprintln),
+		"Fscan":      reflect.ValueOf(fmt.Fscan),
+		"Fscanf":     reflect.ValueOf(fmt.Fscanf),
+		"Fscanln":    reflect.ValueOf(fmt.Fscanln),
+		"GoStringer": reflect.ValueOf((*fmt.GoStringer)(nil)),
+		"Print":      reflect.ValueOf(fmt.Print),
+		"Printf":     reflect.ValueOf(fmt.Printf),
+		"Println":    reflect.ValueOf(fmt.Println),
+		"Scan":       reflect.ValueOf(fmt.Scan),
+		"ScanState":  reflect.ValueOf((*fmt.ScanState)(nil)),
+		"Scanf":      reflect.ValueOf(fmt.Scanf),
+		"Scanln":     reflect.ValueOf(fmt.Scanln),
+		"Scanner":    reflect.ValueOf((*fmt.Scanner)(nil)),
+		"Sprint":     reflect.ValueOf(fmt.Sprint),
+		"Sprintf":    reflect.ValueOf(fmt.Sprintf),
+		"Sprintln":   reflect.ValueOf(fmt.Sprintln),
+		"Sscan":      reflect.ValueOf(fmt.Sscan),
+		"Sscanf":     reflect.ValueOf(fmt.Sscanf),
+		"Sscanln":    reflect.ValueOf(fmt.Sscanln),
+		"State":      reflect.ValueOf((*fmt.State)(nil)),
+		"Stringer":   reflect.ValueOf((*fmt.Stringer)(nil)),
 	},
 }
 

@@ -33,12 +33,18 @@ type Struct struct {
 	Fields     []Type
 }
 
+// TODO rename to Named
 type Methodik struct {
 	// TODO: need to track the definition package so the evaluator can
 	// extract the mscope from the right place. Is this the only
 	// instance of needing the source package? What about debug printing?
-	Spec        Specialization
-	Type        Type
+	Spec Specialization
+	Type Type
+
+	PkgName string
+	PkgPath string
+	Name    string
+
 	MethodNames []string
 	Methods     []*Func
 }

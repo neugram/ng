@@ -524,7 +524,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Selector:
 		lhs := p.evalExprOne(e.Left)
 		if pkg, ok := lhs.Interface().(*gowrap.Pkg); ok {
-			return []reflect.Value{reflect.ValueOf(pkg.Exports[e.Right.Name])}
+			return []reflect.Value{pkg.Exports[e.Right.Name]}
 		}
 		v := lhs.MethodByName(e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() == reflect.Struct {
@@ -709,8 +709,13 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		}
 		rtype = reflect.StructOf(fields)
 	case *tipe.Methodik:
-		// TODO need more reflect support
-		rtype = r.ToRType(t.Type)
+		if t.PkgPath != "" {
+			v := gowrap.Pkgs[t.PkgPath].Exports[t.Name]
+			fmt.Printf("got Methodik %s (%T)\n", t.Name, v)
+			rtype = v.Type().Elem()
+		} else {
+			panic("TODO unnamed Methodik")
+		}
 	case *tipe.Slice:
 		rtype = reflect.SliceOf(r.ToRType(t.Elem))
 	// TODO case *Table:
@@ -719,6 +724,7 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 	case *tipe.Map:
 		rtype = reflect.MapOf(r.ToRType(t.Key), r.ToRType(t.Value))
 	// TODO case *Interface:
+	// TODO need more reflect support, MakeInterface
 	// TODO needs reflect.InterfaceOf
 	//case *Tuple:
 	//case *Package:
