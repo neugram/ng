@@ -184,6 +184,47 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.stmt(s.Body, retType)
 		return nil
 
+	case *stmt.Range:
+		c.pushScope()
+		defer c.popScope()
+
+		p := c.expr(s.Expr)
+		var kt, vt tipe.Type
+		switch t := p.typ.(type) {
+		case *tipe.Slice:
+			kt = tipe.Int
+			vt = t.Elem
+		default:
+			c.errorf("TODO range over non-slice: %T", t)
+		}
+		if s.Decl {
+			if s.Key != nil {
+				obj := &Obj{Kind: ObjVar, Type: kt}
+				c.Defs[s.Key.(*expr.Ident)] = obj
+				c.cur.Objs[s.Key.(*expr.Ident).Name] = obj
+				c.Types[s.Key] = kt
+			}
+			if s.Val != nil {
+				obj := &Obj{Kind: ObjVar, Type: vt}
+				c.Defs[s.Val.(*expr.Ident)] = obj
+				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
+				c.Types[s.Val] = kt
+			}
+		} else {
+			if s.Key != nil {
+				p := c.expr(s.Key)
+				c.assign(&p, kt)
+				c.Types[s.Key] = kt
+			}
+			if s.Val != nil {
+				p := c.expr(s.Val)
+				c.assign(&p, vt)
+				c.Types[s.Val] = kt
+			}
+		}
+		c.stmt(s.Body, retType)
+		return nil
+
 	case *stmt.TypeDecl:
 		if t, ok := s.Type.(*tipe.Struct); ok {
 			var usesNum bool

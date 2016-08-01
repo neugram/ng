@@ -260,6 +260,55 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			return p.evalStmt(s.Else)
 		}
 		return nil
+	case *stmt.Range:
+		p.pushScope()
+		defer p.popScope()
+		var key, val reflect.Value
+		if s.Decl {
+			if s.Key != nil {
+				key = reflect.New(p.reflector.ToRType(p.Types.Types[s.Key])).Elem()
+				name := s.Key.(*expr.Ident).Name
+				p.Cur = &Scope{
+					Parent:   p.Cur,
+					VarName:  name,
+					Var:      key,
+					Implicit: true,
+				}
+			}
+			if s.Val != nil {
+				val = reflect.New(p.reflector.ToRType(p.Types.Types[s.Val])).Elem()
+				name := s.Val.(*expr.Ident).Name
+				p.Cur = &Scope{
+					Parent:   p.Cur,
+					VarName:  name,
+					Var:      val,
+					Implicit: true,
+				}
+			}
+		} else {
+			key = p.evalExprOne(s.Key)
+			val = p.evalExprOne(s.Val)
+		}
+		src := p.evalExprOne(s.Expr)
+		switch src.Kind() {
+		case reflect.Slice:
+			slen := src.Len()
+			for i := 0; i < slen; i++ {
+				key.SetInt(int64(i))
+				val.Set(src.Index(i))
+				p.evalStmt(s.Body)
+				if p.Returning {
+					break
+				}
+				if p.Breaking {
+					p.Breaking = false // TODO: break label
+					break
+				}
+			}
+		default:
+			panic(interpPanic{fmt.Errorf("unknown range type: %T", src)})
+		}
+		return nil
 	case *stmt.Return:
 		var res []reflect.Value
 		for _, expr := range s.Exprs {

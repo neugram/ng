@@ -68,6 +68,7 @@ type For struct {
 }
 
 type Range struct {
+	Decl bool
 	Key  expr.Expr
 	Val  expr.Expr
 	Expr expr.Expr

@@ -805,7 +805,7 @@ func extractRange(s stmt.Stmt) (res *stmt.Range) {
 	if len(a.Left) == 2 {
 		val = a.Left[1]
 	}
-	return &stmt.Range{Key: key, Val: val, Expr: r.Expr}
+	return &stmt.Range{Decl: a.Decl, Key: key, Val: val, Expr: r.Expr}
 }
 
 func (p *Parser) parseStmt() stmt.Stmt {
