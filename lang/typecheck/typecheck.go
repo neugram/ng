@@ -23,11 +23,12 @@ type Checker struct {
 	ImportGo func(path string) (*gotypes.Package, error)
 
 	// TODO: we could put these on our AST. Should we?
-	Types   map[expr.Expr]tipe.Type
-	Defs    map[*expr.Ident]*Obj
-	Values  map[expr.Expr]constant.Value
-	GoPkgs  map[*tipe.Package]*gotypes.Package
-	GoTypes map[gotypes.Type]tipe.Type
+	Types         map[expr.Expr]tipe.Type
+	Defs          map[*expr.Ident]*Obj
+	Values        map[expr.Expr]constant.Value
+	GoPkgs        map[string]*tipe.Package // path -> pkg
+	GoTypes       map[gotypes.Type]tipe.Type
+	GoTypesToFill map[gotypes.Type]tipe.Type
 	// TODO: GoEquiv is tricky and deserving of docs. Particular type instance is associated with a Go type. That means EqualType(t1, t2)==true but t1 could have GoEquiv and t2 not.
 	GoEquiv map[tipe.Type]gotypes.Type
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
@@ -40,13 +41,14 @@ type Checker struct {
 
 func New() *Checker {
 	return &Checker{
-		ImportGo: goimporter.Default().Import,
-		Types:    make(map[expr.Expr]tipe.Type),
-		Defs:     make(map[*expr.Ident]*Obj),
-		Values:   make(map[expr.Expr]constant.Value),
-		GoPkgs:   make(map[*tipe.Package]*gotypes.Package),
-		GoTypes:  make(map[gotypes.Type]tipe.Type),
-		GoEquiv:  make(map[tipe.Type]gotypes.Type),
+		ImportGo:      goimporter.Default().Import,
+		Types:         make(map[expr.Expr]tipe.Type),
+		Defs:          make(map[*expr.Ident]*Obj),
+		Values:        make(map[expr.Expr]constant.Value),
+		GoPkgs:        make(map[string]*tipe.Package),
+		GoTypes:       make(map[gotypes.Type]tipe.Type),
+		GoTypesToFill: make(map[gotypes.Type]tipe.Type),
+		GoEquiv:       make(map[tipe.Type]gotypes.Type), // TODO remove?
 		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
@@ -343,11 +345,15 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 var goErrorID = gotypes.Universe.Lookup("error").Id()
 
 func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
+	if res = c.GoTypes[t]; res != nil {
+		return res
+	}
 	defer func() {
 		if res == nil {
 			fmt.Printf("typecheck: unknown go type: %v\n", t)
 		} else {
 			c.GoTypes[t] = res
+			c.GoTypesToFill[t] = res
 			if _, isBasic := t.(*gotypes.Basic); !isBasic {
 				c.GoEquiv[res] = t
 			}
@@ -389,8 +395,31 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		if t.Obj().Id() == goErrorID {
 			return Universe.Objs["error"].Type
 		}
+		return new(tipe.Methodik)
+	case *gotypes.Slice:
+		return &tipe.Slice{}
+	case *gotypes.Struct:
+		return new(tipe.Struct)
+	case *gotypes.Pointer:
+		return new(tipe.Pointer)
+	case *gotypes.Interface:
+		return new(tipe.Interface)
+	case *gotypes.Signature:
+		return new(tipe.Func)
+	}
+	return nil
+}
+
+func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
+	switch t := t.(type) {
+	case *gotypes.Basic:
+	case *gotypes.Named:
+		if t.Obj().Id() == goErrorID {
+			return
+		}
 		base := c.fromGoType(t.Underlying())
-		mdik := &tipe.Methodik{
+		mdik := res.(*tipe.Methodik)
+		*mdik = tipe.Methodik{
 			Type:    base,
 			Name:    t.Obj().Name(),
 			PkgName: t.Obj().Pkg().Name(),
@@ -401,83 +430,85 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			mdik.MethodNames = append(mdik.MethodNames, m.Name())
 			mdik.Methods = append(mdik.Methods, c.fromGoType(m.Type()).(*tipe.Func))
 		}
-		return mdik
 	case *gotypes.Slice:
-		return &tipe.Slice{Elem: c.fromGoType(t.Elem())}
+		res.(*tipe.Slice).Elem = c.fromGoType(t.Elem())
 	case *gotypes.Struct:
-		res := new(tipe.Struct)
+		s := res.(*tipe.Struct)
 		for i := 0; i < t.NumFields(); i++ {
 			f := t.Field(i)
 			ft := c.fromGoType(f.Type())
 			if ft == nil {
 				continue
 			}
-			res.FieldNames = append(res.FieldNames, f.Name())
-			res.Fields = append(res.Fields, ft)
+			s.FieldNames = append(s.FieldNames, f.Name())
+			s.Fields = append(s.Fields, ft)
 		}
-		return res
 	case *gotypes.Pointer:
 		elem := c.fromGoType(t.Elem())
-		if elem == nil {
-			return nil
-		}
-		return &tipe.Pointer{Elem: elem}
+		res.(*tipe.Pointer).Elem = elem
 	case *gotypes.Interface:
-		res := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
+		mthds := make(map[string]*tipe.Func)
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
-			res.Methods[m.Name()] = c.fromGoType(m.Type()).(*tipe.Func)
+			mthds[m.Name()] = c.fromGoType(m.Type()).(*tipe.Func)
 		}
-		return res
+		res.(*tipe.Interface).Methods = mthds
 	case *gotypes.Signature:
 		p := t.Params()
 		r := t.Results()
-		res := &tipe.Func{
+		fn := tipe.Func{
 			Params:   &tipe.Tuple{Elems: make([]tipe.Type, p.Len())},
 			Results:  &tipe.Tuple{Elems: make([]tipe.Type, r.Len())},
 			Variadic: t.Variadic(),
 		}
 		for i := 0; i < p.Len(); i++ {
-			res.Params.Elems[i] = c.fromGoType(p.At(i).Type())
+			fn.Params.Elems[i] = c.fromGoType(p.At(i).Type())
 		}
 		for i := 0; i < r.Len(); i++ {
-			res.Results.Elems[i] = c.fromGoType(r.At(i).Type())
+			fn.Results.Elems[i] = c.fromGoType(r.At(i).Type())
 		}
-		return res
+		*res.(*tipe.Func) = fn
 	}
-	return nil
 }
 
-func (c *Checker) goPackage(gopkg *gotypes.Package) *tipe.Package {
-	names := gopkg.Scope().Names()
-
+func (c *Checker) goPkg(path string) *tipe.Package {
+	if pkg := c.GoPkgs[path]; pkg != nil {
+		return pkg
+	}
+	gopkg, err := c.ImportGo(path)
+	if err != nil {
+		c.errorf("importing go package: %v", err)
+		return nil
+	}
 	pkg := &tipe.Package{
-		IsGo:    true,
+		GoPkg:   gopkg,
 		Path:    gopkg.Path(),
 		Exports: make(map[string]tipe.Type),
 	}
-	for _, name := range names {
+	c.GoPkgs[path] = pkg
+
+	for _, name := range gopkg.Scope().Names() {
 		obj := gopkg.Scope().Lookup(name)
 		if !obj.Exported() {
 			continue
 		}
 		pkg.Exports[name] = c.fromGoType(obj.Type())
 	}
+	for len(c.GoTypesToFill) > 0 {
+		for gotyp, t := range c.GoTypesToFill {
+			c.fillGoType(t, gotyp)
+			delete(c.GoTypesToFill, gotyp)
+		}
+	}
 	return pkg
 }
 
 func (c *Checker) checkImport(s *stmt.Import) {
 	if s.FromGo {
-		gopkg, err := c.ImportGo(s.Path)
-		if err != nil {
-			c.errorf("importing go package: %v", err)
-			return
-		}
+		pkg := c.goPkg(s.Path)
 		if s.Name == "" {
-			s.Name = gopkg.Name()
+			s.Name = pkg.GoPkg.(*gotypes.Package).Name()
 		}
-		pkg := c.goPackage(gopkg)
-		c.GoPkgs[pkg] = gopkg
 		obj := &Obj{
 			Kind: ObjPkg,
 			Type: pkg,

@@ -711,8 +711,11 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 	case *tipe.Methodik:
 		if t.PkgPath != "" {
 			v := gowrap.Pkgs[t.PkgPath].Exports[t.Name]
-			fmt.Printf("got Methodik %s (%T)\n", t.Name, v)
-			rtype = v.Type().Elem()
+			if _, isIface := tipe.Underlying(t).(*tipe.Interface); isIface {
+				rtype = v.Type().Elem()
+			} else {
+				rtype = v.Type()
+			}
 		} else {
 			panic("TODO unnamed Methodik")
 		}

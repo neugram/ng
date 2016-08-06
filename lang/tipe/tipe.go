@@ -70,24 +70,8 @@ type Map struct {
 	Value Type
 }
 
-/*
-TODO remove, replace with side table.
-// Go is a type imported from Go.
-// It has an equivalent type in this system.
-//
-// Either GoType or GoPkg is set.
-//
-// Technically in go/types a *gotypes.Package is not a type, but we
-// model a package as a type for neugram, so we fake it.
-type Go struct {
-	GoType     gotypes.Type
-	GoPkg      *gotypes.Package
-	Equivalent Type
-}
-*/
-
 type Package struct {
-	IsGo    bool
+	GoPkg   interface{} // *gotypes.Package
 	Path    string
 	Exports map[string]Type
 }
