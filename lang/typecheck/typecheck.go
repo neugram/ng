@@ -534,11 +534,41 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 
 func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	switch t := t.(type) {
+	case *tipe.Func:
+		p, r1 := c.resolve(t.Params)
+		r, r2 := c.resolve(t.Results)
+		t.Params = p.(*tipe.Tuple)
+		t.Results = r.(*tipe.Tuple)
+		return t, r1 && r2
+	case *tipe.Map:
+		var r1, r2 bool
+		t.Key, r1 = c.resolve(t.Key)
+		t.Value, r2 = c.resolve(t.Value)
+		return t, r1 && r2
+	case *tipe.Methodik:
+		t.Type, resolved = c.resolve(t.Type)
+		for i, f := range t.Methods {
+			f, r1 := c.resolve(f)
+			t.Methods[i] = f.(*tipe.Func)
+			resolved = resolved && r1
+		}
+		return t, resolved
+	case *tipe.Pointer:
+		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
 	case *tipe.Slice:
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
 	case *tipe.Table:
 		t.Type, resolved = c.resolve(t.Type)
+		return t, resolved
+	case *tipe.Tuple:
+		resolved = true
+		for i, e := range t.Elems {
+			var r bool
+			t.Elems[i], r = c.resolve(e)
+			resolved = resolved && r
+		}
 		return t, resolved
 	case *tipe.Unresolved:
 		if t.Package != "" {

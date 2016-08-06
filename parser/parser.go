@@ -597,31 +597,11 @@ func (p *Parser) maybeParseType() tipe.Type {
 			}
 		}
 		// It is an error to declare a variable with the name of a
-		// basic type, so we can resolve these types immediately.
-		switch ident.Name {
-		case "bool":
-			return tipe.Bool
-		case "integer":
-			return tipe.Integer
-		case "float":
-			return tipe.Float
-		case "complex":
-			return tipe.Complex
-		case "string":
-			return tipe.String
-		case "rune":
-			return tipe.Rune
-		case "int64":
-			return tipe.Int64
-		case "float32":
-			return tipe.Float32
-		case "float64":
-			return tipe.Float64
-		case "num":
+		// type parameter, so we can resolve it immediately.
+		if ident.Name == "num" {
 			return tipe.Num
-		default:
-			return &tipe.Unresolved{Name: ident.Name}
 		}
+		return &tipe.Unresolved{Name: ident.Name}
 	case token.LeftBracket:
 		p.next()
 		table := false

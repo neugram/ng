@@ -178,16 +178,27 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			}
 		} else {
 			for i, lhs := range s.Left {
+				if e, isIndex := lhs.(*expr.Index); isIndex {
+					if _, isMap := tipe.Underlying(p.Types.Types[e.Expr]).(*tipe.Map); isMap {
+						container := p.evalExprOne(e.Expr)
+						k := p.evalExprOne(e.Index)
+						container.SetMapIndex(k, vals[i])
+						continue
+					}
+				}
 				v := p.evalExprOne(lhs)
 				vars[i] = v
 			}
 		}
 
 		for i := range vars {
-			vars[i].Set(vals[i])
+			if vars[i] != (reflect.Value{}) {
+				vars[i].Set(vals[i])
+			}
 		}
 
 		// Dynamic elision of final error.
+		// TODO: move into Call case
 		isLastError := false
 		if len(s.Right) == 1 {
 			isLastError = isError(types[len(types)-1])
@@ -510,7 +521,17 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			}
 			return []reflect.Value{container.Index(i)}
 		case reflect.Map:
-			return []reflect.Value{container.MapIndex(k)}
+			v := container.MapIndex(k)
+			exists := v != (reflect.Value{})
+			if !exists {
+				v = reflect.Zero(container.Type().Elem())
+			}
+			if t, returnExists := p.Types.Types[e].(*tipe.Tuple); returnExists {
+				// TODO: type checker is not generating this tuple yet.
+				fmt.Printf("index t=%v\n", t)
+				return []reflect.Value{v, reflect.ValueOf(exists)}
+			}
+			return []reflect.Value{v}
 		}
 	case *expr.MapLiteral:
 		t := p.reflector.ToRType(e.Type)
