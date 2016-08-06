@@ -18,6 +18,7 @@ import (
 	"neugram.io/lang/tipe"
 	"neugram.io/parser"
 
+	"github.com/kr/pretty"
 	"github.com/peterh/liner"
 )
 
@@ -245,7 +246,7 @@ func handleResult(res parser.Result) {
 			if val == (reflect.Value{}) {
 				fmt.Print("<nil>")
 			} else {
-				fmt.Print(val.Interface())
+				pretty.Print(val.Interface())
 			}
 		}
 		if len(v) > 1 {
