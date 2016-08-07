@@ -251,7 +251,7 @@ func handleResult(res parser.Result) {
 		}
 		if len(v) > 1 {
 			fmt.Println(")")
-		} else {
+		} else if len(v) == 1 {
 			fmt.Println("")
 		}
 	}
