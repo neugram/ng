@@ -82,6 +82,13 @@ func New() *Program {
 	addUniverse("copy", func(dst, src interface{}) int {
 		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
 	})
+	addUniverse("append", func(s interface{}, v ...interface{}) interface{} {
+		res := reflect.ValueOf(s)
+		for _, elem := range v {
+			res = reflect.Append(res, reflect.ValueOf(elem))
+		}
+		return res.Interface()
+	})
 
 	p := &Program{
 		Universe: universe,
@@ -457,8 +464,14 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		// TODO: have typecheck do the error elision for us
 		// so we can insert the dynamic panic check once, right here.
-		fmt.Printf("call expects end type: %s\n", t)
-		return fn.Call(args)
+		res := fn.Call(args)
+		for i, endval := range res {
+			// Necessary to turn the return type of append
+			// from an interface{} into a slice to it can
+			// be set.
+			res[i] = reflect.ValueOf(endval.Interface())
+		}
+		return res
 	case *expr.CompLiteral:
 		t := p.reflector.ToRType(e.Type)
 		switch t.Kind() {

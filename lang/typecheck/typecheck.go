@@ -606,20 +606,23 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	}
 }
 
-func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
+func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
+	p := c.expr(e.Func)
+	p.expr = e
+
 	switch p.typ.(tipe.Builtin) {
 	case tipe.Append:
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
 			c.errorf("too few arguments to append")
-			return
+			return p
 		}
 		arg0 := c.expr(e.Args[0])
 		slice, isSlice := tipe.Underlying(arg0.typ).(*tipe.Slice)
 		if !isSlice {
 			p.mode = modeInvalid
 			c.errorf("first argument to append must be a slice, got %s", arg0.typ)
-			return
+			return p
 		}
 		p.typ = arg0.typ
 		// TODO: append(x, y...)
@@ -629,10 +632,10 @@ func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
 			if argp.mode == modeInvalid {
 				p.mode = modeInvalid
 				c.errorf("cannot use %s as type %s in argument to append", arg, slice.Elem)
-				return
+				return p
 			}
 		}
-		return
+		return p
 	case tipe.Close:
 		p.typ = nil
 	case tipe.Copy:
@@ -640,7 +643,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
 			c.errorf("copy takes two arguments, got %d", len(e.Args))
-			return
+			return p
 		}
 		dst, src := c.expr(e.Args[0]), c.expr(e.Args[1])
 		var srcElem, dstElem tipe.Type
@@ -652,21 +655,21 @@ func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
 		} else {
 			p.mode = modeInvalid
 			c.errorf("copy source must be slice or string, have %s", src.typ)
-			return
+			return p
 		}
 		if t, isSlice := tipe.Underlying(dst.typ).(*tipe.Slice); isSlice {
 			dstElem = t.Elem
 		} else {
 			p.mode = modeInvalid
 			c.errorf("copy destination must be a slice, have %s", dst.typ)
-			return
+			return p
 		}
 		if !c.convertible(dstElem, srcElem) {
 			p.mode = modeInvalid
 			c.errorf("copy source type %s is not convertible to destination %s", dstElem, srcElem)
-			return
+			return p
 		}
-		return
+		return p
 	case tipe.Delete:
 		panic("TODO Delete")
 	case tipe.Len, tipe.Cap:
@@ -674,32 +677,32 @@ func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
 			c.errorf("%s takes exactly 1 argument, got %d", p.typ, len(e.Args))
-			return
+			return p
 		}
 		arg0 := c.expr(e.Args[0])
 		switch t := tipe.Underlying(arg0.typ).(type) {
 		case *tipe.Slice, *tipe.Map: // TODO Chan, Array
-			return
+			return p
 		case tipe.Basic:
 			if t == tipe.String {
-				return
+				return p
 			}
 		}
 		p.mode = modeInvalid
 		c.errorf("invalid argument %s (%s) for %s ", e.Args[0], arg0.typ, p.typ)
-		return
+		return p
 	case tipe.Make:
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
 			c.errorf("too few arguments to make")
-			return
+			return p
 		}
 		// TODO p.typ = first arg
 	case tipe.New:
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
 			c.errorf("too few arguments to append")
-			return
+			return p
 		}
 		// TODO p.typ = *(first arg)
 	case tipe.Panic:
@@ -707,13 +710,13 @@ func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
 			c.errorf("panic takes exactly 1 argument, got %d", len(e.Args))
-			return
+			return p
 		}
 		if arg0 := c.expr(e.Args[0]); arg0.mode == modeInvalid {
 			p.mode = modeInvalid
-			return
+			return p
 		}
-		return
+		return p
 	case tipe.Recover:
 	default:
 		panic(fmt.Sprintf("unknown builtin: %s", p.typ))
@@ -751,14 +754,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		// function call, below
 	}
 
-	p.mode = modeVar
-	p.expr = e
-
 	if _, ok := p.typ.(tipe.Builtin); ok {
-		c.exprBuiltinCall(e, &p)
-		return p
+		return c.exprBuiltinCall(e)
 	}
 
+	p.mode = modeVar
+	p.expr = e
 	funct := p.typ.(*tipe.Func)
 	var params, results []tipe.Type
 	if funct.Params != nil {
@@ -1250,7 +1251,6 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 	_, tIsConst := t.(tipe.Basic)
 	if p.mode == modeConst && tIsConst {
 		// TODO or integer -> string conversion
-		fmt.Printf("convert round p.typ=%s, p.val=%s, t=%s\n", p.typ, p.val, t)
 		if round(p.val, t.(tipe.Basic)) == nil {
 			// p.val does not fit in t
 			c.errorf("constant %s does not fit in %s", p.val, t)
