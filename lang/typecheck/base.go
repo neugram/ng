@@ -44,12 +44,16 @@ var universeObjs = map[string]*Obj{
 			Variadic: true,
 		},
 	},
-	"panic": &Obj{
-		Kind: ObjVar,
-		Type: &tipe.Func{
-			Params: &tipe.Tuple{Elems: []tipe.Type{tipe.String}},
-		},
-	},
+	"append":  &Obj{Kind: ObjVar, Type: tipe.Append},
+	"cap":     &Obj{Kind: ObjVar, Type: tipe.Cap},
+	"close":   &Obj{Kind: ObjVar, Type: tipe.Close},
+	"copy":    &Obj{Kind: ObjVar, Type: tipe.Copy},
+	"delete":  &Obj{Kind: ObjVar, Type: tipe.Delete},
+	"len":     &Obj{Kind: ObjVar, Type: tipe.Len},
+	"make":    &Obj{Kind: ObjVar, Type: tipe.Make},
+	"new":     &Obj{Kind: ObjVar, Type: tipe.New},
+	"panic":   &Obj{Kind: ObjVar, Type: tipe.Panic},
+	"recover": &Obj{Kind: ObjVar, Type: tipe.Recover},
 }
 
 func init() {

@@ -132,6 +132,22 @@ const (
 	UntypedComplex Basic = "untyped complex"
 )
 
+type Builtin string
+
+const (
+	Append  Builtin = "builtin append"
+	Cap     Builtin = "builtin cap"
+	Close   Builtin = "builtin close"
+	Copy    Builtin = "builtin copy"
+	Delete  Builtin = "builtin delete"
+	Len     Builtin = "builtin len"
+	Make    Builtin = "builtin make"
+	New     Builtin = "builtin new"
+	Panic   Builtin = "builtin panic"
+	Recover Builtin = "builtin recover"
+	// TODO Real Complex, Imaginary, Print
+)
+
 type Unresolved struct {
 	Package string
 	Name    string
@@ -139,6 +155,7 @@ type Unresolved struct {
 
 var (
 	_ = Type(Basic(""))
+	_ = Type(Builtin(""))
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
 	_ = Type((*Methodik)(nil))
@@ -153,6 +170,7 @@ var (
 )
 
 func (t Basic) tipe()       {}
+func (t Builtin) tipe()     {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
 func (t *Methodik) tipe()   {}
@@ -169,7 +187,8 @@ func (e Specialization) Sexp() string {
 	return fmt.Sprintf("(spec num=%s)", e.Num.Sexp())
 }
 
-func (e Basic) Sexp() string { return fmt.Sprintf("(basictype %s)", string(e)) }
+func (e Basic) Sexp() string   { return fmt.Sprintf("(basictype %s)", string(e)) }
+func (e Builtin) Sexp() string { return fmt.Sprintf("(%s)", string(e)) }
 func (e *Func) Sexp() string {
 	p := "nilparams"
 	if e.Params != nil {
@@ -276,7 +295,7 @@ func IsNumeric(t Type) bool {
 	}
 	switch b {
 	case Num, Integer, Float, Complex,
-		Int8, Int16, Int32, Int64,
+		Int, Int8, Int16, Int32, Int64,
 		Uint8, Uint16, Uint32, Uint64,
 		Float32, Float64,
 		UntypedInteger, UntypedFloat, UntypedComplex:
@@ -324,6 +343,8 @@ func UsesNum(t Type) bool {
 		}
 	case Basic:
 		return t == Num
+	case Builtin:
+		return false
 	}
 	return false
 }
@@ -335,6 +356,12 @@ func Equal(x, y Type) bool {
 	switch x := x.(type) {
 	case Basic:
 		y, ok := y.(Basic)
+		if !ok {
+			return false
+		}
+		return x == y
+	case Builtin:
+		y, ok := y.(Builtin)
 		if !ok {
 			return false
 		}

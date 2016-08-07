@@ -318,6 +318,10 @@ func equalType(t0, t1 tipe.Type) bool {
 		if t0 != t1 {
 			return false
 		}
+	case tipe.Builtin:
+		if t0 != t1 {
+			return false
+		}
 	case *tipe.Func:
 		t1, ok := t1.(*tipe.Func)
 		if !ok {

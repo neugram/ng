@@ -275,6 +275,7 @@ func (p *Parser) parseArgs() []expr.Expr {
 	p.next()
 	var args []expr.Expr
 	for p.s.Token != token.RightParen && p.s.r > 0 {
+		// TODO: if this might be a builtin, accept a type name
 		args = append(args, p.parseExpr())
 		if !p.expectCommaOr(token.RightParen, "arguments") {
 			break

@@ -606,6 +606,121 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	}
 }
 
+func (c *Checker) exprBuiltinCall(e *expr.Call, p *partial) {
+	switch p.typ.(tipe.Builtin) {
+	case tipe.Append:
+		if len(e.Args) == 0 {
+			p.mode = modeInvalid
+			c.errorf("too few arguments to append")
+			return
+		}
+		arg0 := c.expr(e.Args[0])
+		slice, isSlice := tipe.Underlying(arg0.typ).(*tipe.Slice)
+		if !isSlice {
+			p.mode = modeInvalid
+			c.errorf("first argument to append must be a slice, got %s", arg0.typ)
+			return
+		}
+		p.typ = arg0.typ
+		// TODO: append(x, y...)
+		for _, arg := range e.Args[1:] {
+			argp := c.expr(arg)
+			c.convert(&argp, slice.Elem)
+			if argp.mode == modeInvalid {
+				p.mode = modeInvalid
+				c.errorf("cannot use %s as type %s in argument to append", arg, slice.Elem)
+				return
+			}
+		}
+		return
+	case tipe.Close:
+		p.typ = nil
+	case tipe.Copy:
+		p.typ = tipe.Int
+		if len(e.Args) != 2 {
+			p.mode = modeInvalid
+			c.errorf("copy takes two arguments, got %d", len(e.Args))
+			return
+		}
+		dst, src := c.expr(e.Args[0]), c.expr(e.Args[1])
+		var srcElem, dstElem tipe.Type
+		srcTyp := tipe.Underlying(src.typ)
+		if t, isSlice := srcTyp.(*tipe.Slice); isSlice {
+			srcElem = t.Elem
+		} else if srcTyp == tipe.String {
+			srcElem = tipe.Byte
+		} else {
+			p.mode = modeInvalid
+			c.errorf("copy source must be slice or string, have %s", src.typ)
+			return
+		}
+		if t, isSlice := tipe.Underlying(dst.typ).(*tipe.Slice); isSlice {
+			dstElem = t.Elem
+		} else {
+			p.mode = modeInvalid
+			c.errorf("copy destination must be a slice, have %s", dst.typ)
+			return
+		}
+		if !c.convertible(dstElem, srcElem) {
+			p.mode = modeInvalid
+			c.errorf("copy source type %s is not convertible to destination %s", dstElem, srcElem)
+			return
+		}
+		return
+	case tipe.Delete:
+		panic("TODO Delete")
+	case tipe.Len, tipe.Cap:
+		p.typ = tipe.Int
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("%s takes exactly 1 argument, got %d", p.typ, len(e.Args))
+			return
+		}
+		arg0 := c.expr(e.Args[0])
+		switch t := tipe.Underlying(arg0.typ).(type) {
+		case *tipe.Slice, *tipe.Map: // TODO Chan, Array
+			return
+		case tipe.Basic:
+			if t == tipe.String {
+				return
+			}
+		}
+		p.mode = modeInvalid
+		c.errorf("invalid argument %s (%s) for %s ", e.Args[0], arg0.typ, p.typ)
+		return
+	case tipe.Make:
+		if len(e.Args) == 0 {
+			p.mode = modeInvalid
+			c.errorf("too few arguments to make")
+			return
+		}
+		// TODO p.typ = first arg
+	case tipe.New:
+		if len(e.Args) == 0 {
+			p.mode = modeInvalid
+			c.errorf("too few arguments to append")
+			return
+		}
+		// TODO p.typ = *(first arg)
+	case tipe.Panic:
+		p.typ = nil
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("panic takes exactly 1 argument, got %d", len(e.Args))
+			return
+		}
+		if arg0 := c.expr(e.Args[0]); arg0.mode == modeInvalid {
+			p.mode = modeInvalid
+			return
+		}
+		return
+	case tipe.Recover:
+	default:
+		panic(fmt.Sprintf("unknown builtin: %s", p.typ))
+	}
+	panic("TODO builtin")
+}
+
 func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	p := c.expr(e.Func)
 	switch p.mode {
@@ -636,6 +751,14 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		// function call, below
 	}
 
+	p.mode = modeVar
+	p.expr = e
+
+	if _, ok := p.typ.(tipe.Builtin); ok {
+		c.exprBuiltinCall(e, &p)
+		return p
+	}
+
 	funct := p.typ.(*tipe.Func)
 	var params, results []tipe.Type
 	if funct.Params != nil {
@@ -653,8 +776,6 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	default:
 		p.typ = funct.Results
 	}
-	p.mode = modeVar
-	p.expr = e
 
 	if funct.Variadic {
 		if len(e.Args) < len(params)-1 {

@@ -66,7 +66,22 @@ func New() *Program {
 	addUniverse("nil", nil)
 	addUniverse("print", fmt.Println)
 	addUniverse("printf", fmt.Printf)
-	// TODO addUniverse("panic", ...)
+	addUniverse("len", func(c interface{}) int {
+		if c == nil {
+			return 0
+		}
+		return reflect.ValueOf(c).Len()
+	})
+	addUniverse("cap", func(c interface{}) int {
+		if c == nil {
+			return 0
+		}
+		return reflect.ValueOf(c).Cap()
+	})
+	addUniverse("panic", func(c interface{}) { panic(c) })
+	addUniverse("copy", func(dst, src interface{}) int {
+		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
+	})
 
 	p := &Program{
 		Universe: universe,
@@ -574,17 +589,12 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		return nil
 	case *expr.SliceLiteral:
-		fmt.Printf("SliceLiteral start\n")
 		t := p.reflector.ToRType(e.Type)
-		fmt.Printf("SliceLiteral tag 1\n")
 		slice := reflect.MakeSlice(t, len(e.Elems), len(e.Elems))
-		fmt.Printf("SliceLiteral tag 2\n")
 		for i, elem := range e.Elems {
 			v := p.evalExprOne(elem)
 			slice.Index(i).Set(v)
-			fmt.Printf("SliceLiteral tag 3\n")
 		}
-		fmt.Printf("SliceLiteral end\n")
 		return []reflect.Value{slice}
 	case *expr.Unary:
 		var v reflect.Value
