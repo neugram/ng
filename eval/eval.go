@@ -89,6 +89,9 @@ func New() *Program {
 		}
 		return res.Interface()
 	})
+	addUniverse("delete", func(m, k interface{}) {
+		reflect.ValueOf(m).SetMapIndex(reflect.ValueOf(k), reflect.Value{})
+	})
 
 	p := &Program{
 		Universe: universe,

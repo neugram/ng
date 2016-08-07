@@ -671,7 +671,27 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		return p
 	case tipe.Delete:
-		panic("TODO Delete")
+		p.typ = nil
+		if len(e.Args) != 2 {
+			p.mode = modeInvalid
+			c.errorf("delete takes exactly two arguments, got %d", len(e.Args))
+			return p
+		}
+		arg0, arg1 := c.expr(e.Args[0]), c.expr(e.Args[1])
+		var keyType tipe.Type
+		if t, isMap := tipe.Underlying(arg0.typ).(*tipe.Map); isMap {
+			keyType = t.Key
+		} else {
+			p.mode = modeInvalid
+			c.errorf("first argument to delete must be a map, got %s (type %s)", e.Args[0], arg0.typ)
+			return p
+		}
+		if !c.convertible(keyType, arg1.typ) {
+			p.mode = modeInvalid
+			c.errorf("second argument to delete must match the key type %s, got type %s", keyType, arg1.typ)
+			return p
+		}
+		return p
 	case tipe.Len, tipe.Cap:
 		p.typ = tipe.Int
 		if len(e.Args) != 1 {
