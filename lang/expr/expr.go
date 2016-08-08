@@ -75,6 +75,12 @@ type TableLiteral struct {
 	Rows     [][]Expr
 }
 
+// Type is not a typical Neugram expression. It is used only for when
+// types are passed as arguments to the builtin functions new and make.
+type Type struct {
+	Type tipe.Type
+}
+
 type Ident struct {
 	Name string
 	// Type tipe.Type
@@ -147,6 +153,7 @@ var (
 	_ = Expr((*MapLiteral)(nil))
 	_ = Expr((*SliceLiteral)(nil))
 	_ = Expr((*TableLiteral)(nil))
+	_ = Expr((*Type)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
 	_ = Expr((*TableIndex)(nil))
@@ -165,6 +172,7 @@ func (e *CompLiteral) expr()  {}
 func (e *MapLiteral) expr()   {}
 func (e *SliceLiteral) expr() {}
 func (e *TableLiteral) expr() {}
+func (e *Type) expr()         {}
 func (e *Ident) expr()        {}
 func (e *Call) expr()         {}
 func (e *Index) expr()        {}
@@ -252,6 +260,9 @@ func (e *TableLiteral) Sexp() string {
 		rows = " (" + rows[1:] + ")"
 	}
 	return fmt.Sprintf("(table %s %s%s)", tipeSexp(e.Type), exprsStr(e.ColNames), rows)
+}
+func (e *Type) Sexp() string {
+	return fmt.Sprintf("(typeexpr %s)", tipeSexp(e.Type))
 }
 func (e *Index) Sexp() string {
 	return fmt.Sprintf("(index %s %s", exprSexp(e.Expr), exprSexp(e.Index))

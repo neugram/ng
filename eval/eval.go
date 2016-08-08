@@ -92,6 +92,28 @@ func New() *Program {
 	addUniverse("delete", func(m, k interface{}) {
 		reflect.ValueOf(m).SetMapIndex(reflect.ValueOf(k), reflect.Value{})
 	})
+	addUniverse("make", func(p ...interface{}) interface{} {
+		t := p[0].(reflect.Type)
+		switch t.Kind() {
+		case reflect.Chan:
+			panic("TODO make Chan")
+		case reflect.Slice:
+			var slen, scap int
+			if len(p) > 1 {
+				slen = p[1].(int)
+			}
+			if len(p) > 2 {
+				scap = p[2].(int)
+			} else {
+				scap = slen
+			}
+			return reflect.MakeSlice(t, slen, scap).Interface()
+		case reflect.Map:
+			return reflect.MakeMap(t).Interface()
+		}
+		fmt.Println("make: ", p)
+		return nil
+	})
 
 	p := &Program{
 		Universe: universe,
@@ -612,6 +634,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			slice.Index(i).Set(v)
 		}
 		return []reflect.Value{slice}
+	case *expr.Type:
+		t := p.reflector.ToRType(e.Type)
+		return []reflect.Value{reflect.ValueOf(t)}
 	case *expr.Unary:
 		var v reflect.Value
 		switch e.Op {

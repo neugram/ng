@@ -310,15 +310,17 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			args := p.parseArgs()
 			x = &expr.Call{Func: x, Args: args}
 		case token.LeftBrace:
-			switch xpr := x.(type) {
-			case *expr.SliceLiteral:
-				p.parseSliceLiteral(xpr)
-			case *expr.TableLiteral:
-				p.parseTableLiteral(xpr)
-			case *expr.MapLiteral:
-				p.parseMapLiteral(xpr)
-			case *expr.CompLiteral:
-				p.parseCompLiteral(xpr)
+			if tExpr, isType := x.(*expr.Type); isType {
+				switch t := tExpr.Type.(type) {
+				case *tipe.Slice:
+					x = p.parseSliceLiteral(t)
+				case *tipe.Table:
+					x = p.parseTableLiteral(t)
+				case *tipe.Map:
+					x = p.parseMapLiteral(t)
+				default:
+					x = p.parseCompLiteral(t)
+				}
 			}
 
 			// The problem is that in expressions like
@@ -334,9 +336,9 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			}
 
 			if xpr, isIdent := x.(*expr.Ident); isIdent {
-				x = &expr.CompLiteral{Type: &tipe.Unresolved{Name: xpr.Name}}
+				x = &expr.Type{Type: &tipe.Unresolved{Name: xpr.Name}}
 			} else if t := maybePackageType(x); t != nil {
-				x = &expr.CompLiteral{Type: t}
+				x = &expr.Type{Type: t}
 			} else {
 				return x // end of statement
 			}
@@ -1096,23 +1098,15 @@ func (p *Parser) parseOperand() expr.Expr {
 	}
 
 	if t := p.maybeParseType(); t != nil {
-		switch t := t.(type) {
-		case *tipe.Slice:
-			return &expr.SliceLiteral{Type: t}
-		case *tipe.Table:
-			return &expr.TableLiteral{Type: t}
-		case *tipe.Map:
-			return &expr.MapLiteral{Type: t}
-		default:
-			return &expr.CompLiteral{Type: t}
-		}
+		return &expr.Type{Type: t}
 	}
 
 	p.next()
 	return &expr.Bad{p.errorf("expected operand, got %s", p.s.Token)}
 }
 
-func (p *Parser) parseSliceLiteral(x *expr.SliceLiteral) {
+func (p *Parser) parseSliceLiteral(t tipe.Type) *expr.SliceLiteral {
+	x := &expr.SliceLiteral{Type: t.(*tipe.Slice)}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		e := p.parseExpr()
@@ -1124,9 +1118,11 @@ func (p *Parser) parseSliceLiteral(x *expr.SliceLiteral) {
 	}
 	p.expect(token.RightBrace)
 	p.next()
+	return x
 }
 
-func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
+func (p *Parser) parseTableLiteral(t tipe.Type) *expr.TableLiteral {
+	x := &expr.TableLiteral{Type: t.(*tipe.Table)}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		p.expect(token.LeftBrace)
@@ -1165,9 +1161,11 @@ func (p *Parser) parseTableLiteral(x *expr.TableLiteral) {
 		p.next()
 	}
 	p.next()
+	return x
 }
 
-func (p *Parser) parseMapLiteral(x *expr.MapLiteral) {
+func (p *Parser) parseMapLiteral(t tipe.Type) *expr.MapLiteral {
+	x := &expr.MapLiteral{Type: t}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		k := p.parseExpr()
@@ -1183,9 +1181,11 @@ func (p *Parser) parseMapLiteral(x *expr.MapLiteral) {
 	}
 	p.expect(token.RightBrace)
 	p.next()
+	return x
 }
 
-func (p *Parser) parseCompLiteral(x *expr.CompLiteral) {
+func (p *Parser) parseCompLiteral(t tipe.Type) *expr.CompLiteral {
+	x := &expr.CompLiteral{Type: t}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		e := p.parseExpr()
@@ -1214,6 +1214,7 @@ func (p *Parser) parseCompLiteral(x *expr.CompLiteral) {
 	}
 	p.expect(token.RightBrace)
 	p.next()
+	return x
 }
 
 type Errors []Error

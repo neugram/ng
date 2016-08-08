@@ -137,6 +137,18 @@ func EqualExpr(x, y expr.Expr) bool {
 			}
 		}
 		return true
+	case *expr.Type:
+		y, ok := y.(*expr.Type)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !equalType(x.Type, y.Type) {
+			return false
+		}
+		return true
 	case *expr.Ident:
 		y, ok := y.(*expr.Ident)
 		if !ok {

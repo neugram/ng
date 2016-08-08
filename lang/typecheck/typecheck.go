@@ -712,12 +712,42 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		c.errorf("invalid argument %s (%s) for %s ", e.Args[0], arg0.typ, p.typ)
 		return p
 	case tipe.Make:
-		if len(e.Args) == 0 {
+		switch len(e.Args) {
+		case 3:
+			arg := c.expr(e.Args[2])
+			c.convert(&arg, tipe.Int)
+			if arg.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			fallthrough
+		case 2:
+			arg := c.expr(e.Args[1])
+			c.convert(&arg, tipe.Int)
+			if arg.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			fallthrough
+		case 1:
+		default:
 			p.mode = modeInvalid
-			c.errorf("too few arguments to make")
+			c.errorf("make requires 1-3 arguments")
 			return p
 		}
-		// TODO p.typ = first arg
+
+		arg0 := c.expr(e.Args[0])
+		if arg0.mode == modeTypeExpr {
+			switch t := arg0.typ.(type) {
+			case *tipe.Slice, *tipe.Map: // TODO Chan:
+				p.typ = t
+			}
+		}
+		if p.typ == nil {
+			p.mode = modeInvalid
+			c.errorf("make argument must be a slice, map, or channel")
+		}
+		return p
 	case tipe.New:
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
@@ -1114,6 +1144,16 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 					return p
 				}
 			}
+		}
+		return p
+
+	case *expr.Type:
+		if t, resolved := c.resolve(e.Type); resolved {
+			e.Type = t
+			p.mode = modeTypeExpr
+			p.typ = e.Type
+		} else {
+			p.mode = modeInvalid
 		}
 		return p
 
