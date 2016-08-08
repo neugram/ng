@@ -114,6 +114,10 @@ func New() *Program {
 		fmt.Println("make: ", p)
 		return nil
 	})
+	addUniverse("new", func(p interface{}) interface{} {
+		t := p.(reflect.Type)
+		return reflect.New(t).Interface()
+	})
 
 	p := &Program{
 		Universe: universe,

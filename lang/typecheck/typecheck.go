@@ -523,13 +523,20 @@ func (c *Checker) checkImport(s *stmt.Import) {
 func (c *Checker) expr(e expr.Expr) (p partial) {
 	// TODO more mode adjustment
 	p = c.exprPartial(e)
-	if p.mode == modeConst {
-		c.Values[p.expr] = p.val
-	}
-	if p.mode != modeInvalid {
-		c.Types[p.expr] = p.typ
+	if p.mode == modeTypeExpr {
+		p.mode = modeInvalid
+		c.errorf("type %s is not an expression", p.typ)
 	}
 	return p
+}
+
+func (c *Checker) exprType(e expr.Expr) tipe.Type {
+	p := c.exprPartial(e)
+	if p.mode == modeTypeExpr {
+		return p.typ
+	}
+	c.errorf("argument %s is not a type", e)
+	return nil
 }
 
 func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
@@ -736,9 +743,9 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			return p
 		}
 
-		arg0 := c.expr(e.Args[0])
-		if arg0.mode == modeTypeExpr {
-			switch t := arg0.typ.(type) {
+		arg0 := c.exprType(e.Args[0])
+		if arg0 != nil {
+			switch t := arg0.(type) {
 			case *tipe.Slice, *tipe.Map: // TODO Chan:
 				p.typ = t
 			}
@@ -749,12 +756,20 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		return p
 	case tipe.New:
-		if len(e.Args) == 0 {
+		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("too few arguments to append")
+			c.errorf("new takes exactly one argument, got %d", len(e.Args))
 			return p
 		}
-		// TODO p.typ = *(first arg)
+		arg0 := c.exprType(e.Args[0])
+		if arg0 == nil {
+			p.mode = modeInvalid
+			c.errorf("argument to new must be a type")
+			return p
+		}
+		e.Args[0] = &expr.Type{Type: arg0}
+		p.typ = &tipe.Pointer{Elem: arg0}
+		return p
 	case tipe.Panic:
 		p.typ = nil
 		if len(e.Args) != 1 {
@@ -775,7 +790,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 }
 
 func (c *Checker) exprPartialCall(e *expr.Call) partial {
-	p := c.expr(e.Func)
+	p := c.exprPartial(e.Func)
 	switch p.mode {
 	default:
 		panic(fmt.Sprintf("unreachable, unknown call mode: %v", p.mode))
@@ -866,6 +881,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	for i, arg := range e.Args {
 		t := params[i]
 		argp := c.expr(arg)
+		fmt.Printf("argp i=%d: %#+v (arg=%#+v)\n", i, argp, arg)
 		c.convert(&argp, t)
 		if argp.mode == modeInvalid {
 			p.mode = modeInvalid
@@ -879,6 +895,14 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 
 func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	//fmt.Printf("exprPartial(%s)\n", e.Sexp())
+	defer func() {
+		if p.mode == modeConst {
+			c.Values[p.expr] = p.val
+		}
+		if p.mode != modeInvalid {
+			c.Types[p.expr] = p.typ
+		}
+	}()
 	p.expr = e
 	switch e := e.(type) {
 	case *expr.Ident:
@@ -1152,9 +1176,9 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			e.Type = t
 			p.mode = modeTypeExpr
 			p.typ = e.Type
-		} else {
-			p.mode = modeInvalid
+			return p
 		}
+		p.mode = modeInvalid
 		return p
 
 	case *expr.Unary:
