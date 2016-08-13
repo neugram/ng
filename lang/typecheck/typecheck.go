@@ -1280,6 +1280,40 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.mode = modeInvalid
 		c.errorf("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
+	case *expr.Slice:
+		left := c.expr(e.Left)
+		if left.mode == modeInvalid {
+			return left
+		}
+		if _, isSlice := tipe.Underlying(left.typ).(*tipe.Slice); !isSlice {
+			p.mode = modeInvalid
+			c.errorf("cannot slice %s (type %s)", e.Left, left.typ)
+			return p
+		}
+		p.mode = modeVar
+		p.typ = left.typ
+
+		ints := func(exprs ...expr.Expr) (p partial) {
+			for _, e := range exprs {
+				if e == nil {
+					continue
+				}
+				p := c.expr(e)
+				if p.mode == modeInvalid {
+					return p
+				}
+				c.convert(&p, tipe.Int)
+				if p.mode == modeInvalid {
+					return p
+				}
+			}
+			p.mode = modeVar
+			return p
+		}
+		if p := ints(e.Low, e.High, e.Max); p.mode == modeInvalid {
+			return p
+		}
+		return p
 	case *expr.Index:
 		left := c.expr(e.Expr)
 		if left.mode == modeInvalid {

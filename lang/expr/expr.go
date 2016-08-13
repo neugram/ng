@@ -38,6 +38,13 @@ type Selector struct {
 	Right *Ident
 }
 
+type Slice struct {
+	Left Expr
+	Low  Expr
+	High Expr
+	Max  Expr
+}
+
 type BasicLiteral struct {
 	Value interface{} // string, *big.Int, *big.Float
 }
@@ -147,6 +154,7 @@ var (
 	_ = Expr((*Unary)(nil))
 	_ = Expr((*Bad)(nil))
 	_ = Expr((*Selector)(nil))
+	_ = Expr((*Slice)(nil))
 	_ = Expr((*BasicLiteral)(nil))
 	_ = Expr((*FuncLiteral)(nil))
 	_ = Expr((*CompLiteral)(nil))
@@ -166,6 +174,7 @@ func (e *Binary) expr()       {}
 func (e *Unary) expr()        {}
 func (e *Bad) expr()          {}
 func (e *Selector) expr()     {}
+func (e *Slice) expr()        {}
 func (e *BasicLiteral) expr() {}
 func (e *FuncLiteral) expr()  {}
 func (e *CompLiteral) expr()  {}
@@ -199,6 +208,12 @@ func (e *Selector) Sexp() string {
 		return "nilsel"
 	}
 	return fmt.Sprintf("(sel %s %s)", exprSexp(e.Left), exprSexp(e.Right))
+}
+func (e *Slice) Sexp() string {
+	if e == nil {
+		return "nilsel"
+	}
+	return fmt.Sprintf("(slice %s %s %s %s)", exprSexp(e.Left), exprSexp(e.Low), exprSexp(e.High), exprSexp(e.Max))
 }
 func (e *BasicLiteral) Sexp() string {
 	if e == nil {

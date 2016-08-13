@@ -200,6 +200,27 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return true
+	case *expr.Slice:
+		y, ok := y.(*expr.Slice)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !EqualExpr(x.Left, y.Left) {
+			return false
+		}
+		if !EqualExpr(x.Low, y.Low) {
+			return false
+		}
+		if !EqualExpr(x.High, y.High) {
+			return false
+		}
+		if !EqualExpr(x.Max, y.Max) {
+			return false
+		}
+		return true
 	case *expr.Index:
 		y, ok := y.(*expr.Index)
 		if !ok {

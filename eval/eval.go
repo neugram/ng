@@ -609,6 +609,22 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			v = lhs.FieldByName(e.Right.Name)
 		}
 		return []reflect.Value{v}
+	case *expr.Slice:
+		lhs := p.evalExprOne(e.Left)
+		var i, j int
+		if e.Low != nil {
+			i = int(p.evalExprOne(e.Low).Int())
+		}
+		if e.High != nil {
+			j = int(p.evalExprOne(e.High).Int())
+		} else {
+			j = lhs.Len()
+		}
+		if e.Max != nil {
+			k := int(p.evalExprOne(e.Max).Int())
+			return []reflect.Value{lhs.Slice3(i, j, k)}
+		}
+		return []reflect.Value{lhs.Slice(i, j)}
 	case *expr.Shell:
 		for _, cmd := range e.Cmds {
 			j := &shell.Job{

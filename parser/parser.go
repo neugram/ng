@@ -370,9 +370,15 @@ func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
 	p.next()
 
 	if p.s.Token == token.Colon {
-		// [:
-		panic(fmt.Sprintf("parseIndex TODO initial colon"))
-		//return parseTableIndex(lhs, nil)
+		// [:expr]
+		p.next()
+		high := p.parseExpr()
+		p.expect(token.RightBracket)
+		p.next()
+		return &expr.Slice{
+			Left: lhs,
+			High: high,
+		}
 	}
 
 	e := p.parseExpr()
@@ -384,11 +390,38 @@ func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
 			Index: e,
 		}
 	}
-
-	panic(fmt.Sprintf("parseIndex TODO, token=%s", p.s.Token))
-	//if lit, ok := expr.(*expr.BasicLiteral); ok && (p.s.Token == token.Pipe || p.s.Token == token.Comma) {
-	//return parseTableIndex(lhs, lit)
-	//}
+	p.expect(token.Colon)
+	p.next()
+	if p.s.Token == token.RightBracket {
+		// [expr:]
+		p.next()
+		return &expr.Slice{
+			Left: lhs,
+			Low:  e,
+		}
+	}
+	high := p.parseExpr()
+	if p.s.Token == token.RightBracket {
+		// [expr:high]
+		p.next()
+		return &expr.Slice{
+			Left: lhs,
+			Low:  e,
+			High: high,
+		}
+	}
+	p.expect(token.Colon)
+	p.next()
+	max := p.parseExpr()
+	p.expect(token.RightBracket)
+	p.next()
+	// [expr:high:max]
+	return &expr.Slice{
+		Left: lhs,
+		Low:  e,
+		High: high,
+		Max:  max,
+	}
 }
 
 /*
