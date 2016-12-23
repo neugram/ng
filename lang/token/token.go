@@ -44,6 +44,10 @@ const (
 	Shell        // $$
 	ShellWord    // [^\s|&;<>()]+
 	ShellPipe    // |
+	ShellNewline // \n
+	GreaterAnd   // >&
+	AndGreater   // &>
+	TwoGreater   // >>
 
 	// Statement Operators
 
@@ -132,6 +136,10 @@ var tokens = map[string]Token{
 	"$$":           Shell,
 	"shellword":    ShellWord,
 	"|":            ShellPipe,
+	"shellnewline": ShellNewline,
+	">&":           GreaterAnd,
+	"&>":           AndGreater,
+	">>":           TwoGreater,
 	"++":           Inc,
 	"--":           Dec,
 	"AddAssign":    AddAssign,

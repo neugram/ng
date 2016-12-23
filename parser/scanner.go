@@ -338,16 +338,29 @@ func (s *Scanner) nextInShell(r rune) {
 		s.Literal = str[1 : len(str)-1]
 		s.Token = token.ShellWord
 	case '\n':
+		s.next()
+		s.Token = token.ShellNewline
+	case ';':
+		s.next()
 		s.Token = token.Semicolon
 	case '|':
 		s.next()
-		s.Token = token.ShellPipe
+		switch s.r {
+		case '|':
+			s.next()
+			s.Token = token.LogicalOr
+		default:
+			s.Token = token.ShellPipe
+		}
 	case '&':
 		s.next()
 		switch s.r {
 		case '&':
 			s.next()
 			s.Token = token.LogicalAnd
+		case '>':
+			s.next()
+			s.Token = token.AndGreater
 		default:
 			s.Token = token.Ref
 		}
@@ -356,7 +369,16 @@ func (s *Scanner) nextInShell(r rune) {
 		s.Token = token.Less
 	case '>':
 		s.next()
-		s.Token = token.Greater
+		switch s.r {
+		case '&':
+			s.next()
+			s.Token = token.GreaterAnd
+		case '>':
+			s.next()
+			s.Token = token.TwoGreater
+		default:
+			s.Token = token.Greater
+		}
 	case '(':
 		s.next()
 		s.Token = token.LeftParen

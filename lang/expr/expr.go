@@ -7,6 +7,7 @@ package expr
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"neugram.io/lang/tipe"
@@ -116,32 +117,41 @@ type TableIndex struct {
 	Rows     Range
 }
 
-type ShellSeg int
-
-const (
-	SegmentSemi ShellSeg = iota // ;
-	SegmentPipe                 // |
-	SegmentAnd                  // &&
-	SegmentOut                  // >
-	SegmentIn                   // <
-	// TODO SegmentOr for ||?
-	// TODO must we support the awful monster 2>&1, or leave outside $$?
-	// TODO what about the less painful &>?
-)
-
-// x ; y; z   -- sequential execution
-// x && z     -- sequential execution conditional on success
-// x | y | z  -- pipeline
-// x < f      -- f (denoted by Redirect) isstdin to x
-// x > f      -- run x, stdout to Redirect
 type ShellList struct {
-	Segment  ShellSeg
-	Redirect string
-	List     []Expr // ShellList or ShellCmd
+	AndOr []*ShellAndOr
+}
+
+type ShellAndOr struct {
+	Pipeline   []*ShellPipeline
+	Sep        []token.Token // '&&' or '||'. len(Sep) == len(Pipeline)-1
+	Background bool
+}
+
+type ShellPipeline struct {
+	Bang bool
+	Cmd  []*ShellCmd // Cmd[0] | Cmd[1] | ...
 }
 
 type ShellCmd struct {
-	Argv []string
+	SimpleCmd *ShellSimpleCmd // or:
+	Subshell  *ShellList
+}
+
+type ShellSimpleCmd struct {
+	Redirect []*ShellRedirect
+	Assign   []ShellAssign
+	Args     []string
+}
+
+type ShellRedirect struct {
+	Number   *int
+	Token    token.Token // '<', '<&', '>', '>&', '>>'
+	Filename string
+}
+
+type ShellAssign struct {
+	Key   string
+	Value string
 }
 
 type Shell struct {
@@ -166,29 +176,39 @@ var (
 	_ = Expr((*Call)(nil))
 	_ = Expr((*TableIndex)(nil))
 	_ = Expr((*ShellList)(nil))
+	_ = Expr((*ShellAndOr)(nil))
+	_ = Expr((*ShellPipeline)(nil))
+	_ = Expr((*ShellSimpleCmd)(nil))
+	_ = Expr((*ShellRedirect)(nil))
+	_ = Expr((*ShellAssign)(nil))
 	_ = Expr((*ShellCmd)(nil))
 	_ = Expr((*Shell)(nil))
 )
 
-func (e *Binary) expr()       {}
-func (e *Unary) expr()        {}
-func (e *Bad) expr()          {}
-func (e *Selector) expr()     {}
-func (e *Slice) expr()        {}
-func (e *BasicLiteral) expr() {}
-func (e *FuncLiteral) expr()  {}
-func (e *CompLiteral) expr()  {}
-func (e *MapLiteral) expr()   {}
-func (e *SliceLiteral) expr() {}
-func (e *TableLiteral) expr() {}
-func (e *Type) expr()         {}
-func (e *Ident) expr()        {}
-func (e *Call) expr()         {}
-func (e *Index) expr()        {}
-func (e *TableIndex) expr()   {}
-func (e *ShellList) expr()    {}
-func (e *ShellCmd) expr()     {}
-func (e *Shell) expr()        {}
+func (e *Binary) expr()         {}
+func (e *Unary) expr()          {}
+func (e *Bad) expr()            {}
+func (e *Selector) expr()       {}
+func (e *Slice) expr()          {}
+func (e *BasicLiteral) expr()   {}
+func (e *FuncLiteral) expr()    {}
+func (e *CompLiteral) expr()    {}
+func (e *MapLiteral) expr()     {}
+func (e *SliceLiteral) expr()   {}
+func (e *TableLiteral) expr()   {}
+func (e *Type) expr()           {}
+func (e *Ident) expr()          {}
+func (e *Call) expr()           {}
+func (e *Index) expr()          {}
+func (e *TableIndex) expr()     {}
+func (e *ShellList) expr()      {}
+func (e *ShellAndOr) expr()     {}
+func (e *ShellPipeline) expr()  {}
+func (e *ShellSimpleCmd) expr() {}
+func (e *ShellRedirect) expr()  {}
+func (e *ShellAssign) expr()    {}
+func (e *ShellCmd) expr()       {}
+func (e *Shell) expr()          {}
 
 func (e *Binary) Sexp() string {
 	if e == nil {
@@ -314,28 +334,88 @@ func (e *ShellList) Sexp() string {
 	if e == nil {
 		return "(nilshelllist)"
 	}
-	seg := "unknownsegment"
-	switch e.Segment {
-	case SegmentPipe:
-		seg = "|"
-	case SegmentAnd:
-		seg = "&&"
-	case SegmentSemi:
-		seg = ";"
-	case SegmentOut:
-		seg = ">"
-	case SegmentIn:
-		seg = "<"
+	r := "(shelllist"
+	for _, andor := range e.AndOr {
+		r += " " + exprSexp(andor)
 	}
-	r := ""
-	if e.Redirect != "" {
-		r = "(redirect " + e.Redirect + ")"
+	return r + ")"
+}
+
+func (e *ShellAndOr) Sexp() string {
+	if e == nil {
+		return "(nilshellandor)"
 	}
-	return fmt.Sprintf("(shelllist %q %s%s)", seg, exprsStr(e.List), r)
+	r := "(shellandor "
+	for i := 0; i < len(e.Pipeline); i++ {
+		if i > 0 {
+			sep := "BADSEP"
+			if i-1 < len(e.Sep) {
+				sep = e.Sep[i-1].String()
+			}
+			r += " " + sep + " "
+		}
+		r += exprSexp(e.Pipeline[i])
+	}
+	if e.Background {
+		r += " &"
+	}
+	return r + ")"
+}
+
+func (e *ShellPipeline) Sexp() string {
+	r := "(shellpipeline"
+	if e.Bang {
+		r += "!"
+	}
+	for _, cmd := range e.Cmd {
+		r += exprSexp(cmd)
+	}
+	return r + ")"
+}
+
+func (e *ShellSimpleCmd) Sexp() string {
+	r := "(shellsimplecmd"
+	if len(e.Assign) > 0 {
+		r += " (env"
+		for _, assign := range e.Assign {
+			r += " " + exprSexp(&assign)
+		}
+		r += ")"
+	}
+	for _, arg := range e.Args {
+		r += " " + arg
+	}
+	if len(e.Redirect) > 0 {
+		r += " (redirect"
+		for _, redir := range e.Redirect {
+			r += " " + exprSexp(redir)
+		}
+		r += ")"
+	}
+	return r + ")"
+}
+
+func (e *ShellRedirect) Sexp() string {
+	num := ""
+	if e.Number != nil {
+		num = strconv.Itoa(*e.Number)
+	}
+	return fmt.Sprintf("(shellredirect %s%s%s)", num, e.Token, e.Filename)
+}
+
+func (e *ShellAssign) Sexp() string {
+	return "(shellassign " + e.Key + "=" + e.Value + ")"
 }
 
 func (e *ShellCmd) Sexp() string {
-	return fmt.Sprintf("(shellcmd %s)", strings.Join(e.Argv, " "))
+	r := "(shellcmd "
+	if e.SimpleCmd != nil {
+		r += "simple " + e.SimpleCmd.Sexp()
+	}
+	if e.Subshell != nil {
+		r += "simple " + e.Subshell.Sexp()
+	}
+	return r + ")"
 }
 
 func (e *Shell) Sexp() string {

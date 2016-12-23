@@ -47,8 +47,9 @@ func (p *Parser) ParseLine(line []byte) Result {
 type Parser struct {
 	res Result
 
-	noCompLit bool // to resolve composite literal parsing
-	s         *Scanner
+	interactive bool
+	noCompLit   bool // to resolve composite literal parsing
+	s           *Scanner
 }
 
 // Result is the result of parsing a line of input.
@@ -95,7 +96,9 @@ func (p *Parser) work() {
 		if p.res.State != StateCmd && p.s.Token == token.Shell {
 			p.res.State = StateCmd
 		} else if p.res.State == StateCmd {
-			cmd := p.parseShellList(true)
+			p.interactive = true
+			cmd := p.parseShellList()
+			p.interactive = false
 			p.res.Cmds = append(p.res.Cmds, cmd)
 			// TODO StateCmdPartial, lines ending with '\'
 			if p.s.Token == token.Shell {
@@ -134,7 +137,7 @@ func (p *Parser) next() {
 	}
 }
 
-func (p *Parser) parseShellCmd() *expr.ShellCmd {
+/*func (p *Parser) parseShellCmd() *expr.ShellCmd {
 	res := &expr.ShellCmd{}
 	for p.s.Token == token.ShellWord {
 		res.Argv = append(res.Argv, p.s.Literal.(string))
@@ -210,7 +213,7 @@ func segOp(t token.Token) expr.ShellSeg {
 	default:
 		panic(fmt.Sprintf("unknown segment op: %v", t))
 	}
-}
+}*/
 
 func (p *Parser) parseExpr() expr.Expr {
 	return p.parseBinaryExpr(1)
@@ -1121,12 +1124,14 @@ func (p *Parser) parseOperand() expr.Expr {
 		p.next()
 		x := &expr.Shell{}
 		for p.s.Token > 0 && p.s.Token != token.Shell {
-			cmd := p.parseShellList(false)
+			restore := p.interactive
+			p.interactive = false
+			cmd := p.parseShellList()
+			p.interactive = restore
 			x.Cmds = append(x.Cmds, cmd)
 		}
 		p.expect(token.Shell)
 		p.next()
-		fmt.Printf("returning Shell: %s\n", x.Sexp())
 		return x
 	}
 

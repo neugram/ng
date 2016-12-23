@@ -268,11 +268,61 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if x.Segment != y.Segment {
+		if len(x.AndOr) != len(y.AndOr) {
 			return false
 		}
-		if !equalExprs(x.List, y.List) {
+		for i := 0; i < len(x.AndOr); i++ {
+			if !EqualExpr(x.AndOr[i], y.AndOr[i]) {
+				return false
+			}
+		}
+		return true
+	case *expr.ShellAndOr:
+		y, ok := y.(*expr.ShellAndOr)
+		if !ok {
 			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if len(x.Pipeline) != len(y.Pipeline) {
+			return false
+		}
+		if x.Background != y.Background {
+			return false
+		}
+		for i := 0; i < len(x.Pipeline); i++ {
+			if !EqualExpr(x.Pipeline[i], y.Pipeline[i]) {
+				return false
+			}
+		}
+		if len(x.Sep) != len(y.Sep) {
+			return false
+		}
+		for i := 0; i < len(x.Sep); i++ {
+			if x.Sep[i] != y.Sep[i] {
+				return false
+			}
+		}
+		return true
+	case *expr.ShellPipeline:
+		y, ok := y.(*expr.ShellPipeline)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if x.Bang != y.Bang {
+			return false
+		}
+		if len(x.Cmd) != len(y.Cmd) {
+			return false
+		}
+		for i := 0; i < len(x.Cmd); i++ {
+			if !EqualExpr(x.Cmd[i], y.Cmd[i]) {
+				return false
+			}
 		}
 		return true
 	case *expr.ShellCmd:
@@ -283,7 +333,82 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !reflect.DeepEqual(x.Argv, y.Argv) {
+		if !EqualExpr(x.SimpleCmd, y.SimpleCmd) {
+			return false
+		}
+		if !EqualExpr(x.Subshell, y.Subshell) {
+			return false
+		}
+		return true
+	case *expr.ShellSimpleCmd:
+		y, ok := y.(*expr.ShellSimpleCmd)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if len(x.Redirect) != len(y.Redirect) {
+			return false
+		}
+		for i, e := range x.Redirect {
+			if !EqualExpr(e, y.Redirect[i]) {
+				return false
+			}
+		}
+		if len(x.Assign) != len(y.Assign) {
+			return false
+		}
+		for i, e := range x.Assign {
+			if e != y.Assign[i] {
+				return false
+			}
+		}
+		if len(x.Args) != len(y.Args) {
+			return false
+		}
+		for i, e := range x.Args {
+			if e != y.Args[i] {
+				return false
+			}
+		}
+		return true
+	case *expr.ShellRedirect:
+		y, ok := y.(*expr.ShellRedirect)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if xn, yn := x.Number, y.Number; xn == nil || yn == nil {
+			if xn != nil || yn != nil {
+				return false
+			}
+		} else {
+			if *xn != *yn {
+				return false
+			}
+		}
+		if x.Token != y.Token {
+			return false
+		}
+		if x.Filename != y.Filename {
+			return false
+		}
+		return true
+	case *expr.ShellAssign:
+		y, ok := y.(*expr.ShellAssign)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if x.Key != y.Key {
+			return false
+		}
+		if x.Value != y.Value {
 			return false
 		}
 		return true

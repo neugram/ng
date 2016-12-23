@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/kr/pretty"
+
 	"neugram.io/lang/expr"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
@@ -235,74 +237,6 @@ var parserTests = []parserTest{
 		Rows:     [][]expr.Expr{{basic(1)}, {basic(2)}},
 	}},
 	*/
-
-	{`($$ ls -l $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			Segment: expr.SegmentSemi,
-			List:    []expr.Expr{&expr.ShellCmd{Argv: []string{"ls", "-l"}}},
-		}},
-	}}},
-	{`($$ ls | head $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			Segment: expr.SegmentPipe,
-			List: []expr.Expr{
-				&expr.ShellCmd{Argv: []string{"ls"}},
-				&expr.ShellCmd{Argv: []string{"head"}},
-			},
-		}},
-	}}},
-	{`($$ ls > flist $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			List: []expr.Expr{&expr.ShellList{
-				Segment:  expr.SegmentOut,
-				Redirect: "flist",
-				List:     []expr.Expr{&expr.ShellCmd{Argv: []string{"ls"}}},
-			}},
-		}},
-	}}},
-	// TODO: (echo one; echo two > f)
-	// TODO echo hi | cat && true
-	// TODO true && echo hi | cat
-	{`($$
-	echo one
-	echo two > f
-	echo 3
-	echo -n 4
-	echo 5 | wc
-	$$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			Segment: expr.SegmentSemi,
-			List: []expr.Expr{
-				&expr.ShellCmd{Argv: []string{"echo", "one"}},
-				&expr.ShellList{
-					Segment:  expr.SegmentOut,
-					Redirect: "f",
-					List:     []expr.Expr{&expr.ShellCmd{Argv: []string{"echo", "two"}}},
-				},
-				&expr.ShellCmd{Argv: []string{"echo", "3"}},
-				&expr.ShellCmd{Argv: []string{"echo", "-n", "4"}},
-				&expr.ShellList{
-					Segment: expr.SegmentPipe,
-					List: []expr.Expr{
-						&expr.ShellCmd{Argv: []string{"echo", "5"}},
-						&expr.ShellCmd{Argv: []string{"wc"}},
-					},
-				},
-			},
-		}},
-	}}},
-	{`($$ echo "a b \"" 'c \' \d "e f'g" $$)`, &expr.Unary{Op: token.LeftParen, Expr: &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			Segment: expr.SegmentSemi,
-			List: []expr.Expr{&expr.ShellCmd{Argv: []string{
-				`echo`,
-				`a b \"`,
-				`c \`,
-				`\d`,
-				`e f'g`,
-			}}},
-		}},
-	}}},
 }
 
 func TestParseExpr(t *testing.T) {
@@ -320,6 +254,266 @@ func TestParseExpr(t *testing.T) {
 		got := s.(*stmt.Simple).Expr
 		if !EqualExpr(got, test.want) {
 			t.Errorf("ParseExpr(%q):\n%v", test.input, DiffExpr(test.want, got))
+		}
+	}
+}
+
+var shellTests = []parserTest{
+	{`ls -l`, &expr.Shell{
+		Cmds: []*expr.ShellList{{
+			AndOr: []*expr.ShellAndOr{{
+				Pipeline: []*expr.ShellPipeline{{
+					Bang: false,
+					Cmd: []*expr.ShellCmd{{
+						SimpleCmd: &expr.ShellSimpleCmd{
+							Redirect: nil,
+							Assign:   nil,
+							Args:     []string{"ls", "-l"},
+						},
+					}},
+				}},
+			}},
+		}},
+	}},
+	{`ls | head`, &expr.Shell{
+		Cmds: []*expr.ShellList{{
+			AndOr: []*expr.ShellAndOr{{
+				Pipeline: []*expr.ShellPipeline{{
+					Bang: false,
+					Cmd: []*expr.ShellCmd{
+						{SimpleCmd: &expr.ShellSimpleCmd{Args: []string{"ls"}}},
+						{SimpleCmd: &expr.ShellSimpleCmd{Args: []string{"head"}}},
+					},
+				}},
+			}},
+		}},
+	}},
+	{`ls > flist`, &expr.Shell{
+		Cmds: []*expr.ShellList{{
+			AndOr: []*expr.ShellAndOr{{
+				Pipeline: []*expr.ShellPipeline{{
+					Bang: false,
+					Cmd: []*expr.ShellCmd{{
+						SimpleCmd: &expr.ShellSimpleCmd{
+							Redirect: []*expr.ShellRedirect{{Token: token.Greater, Filename: "flist"}},
+							Args:     []string{"ls"},
+						},
+					}},
+				}},
+			}},
+		}},
+	}},
+	{`echo hi | cat && true || false`, &expr.Shell{
+		Cmds: []*expr.ShellList{{
+			AndOr: []*expr.ShellAndOr{{
+				Pipeline: []*expr.ShellPipeline{
+					{
+						Cmd: []*expr.ShellCmd{
+							{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "hi"},
+								},
+							},
+							{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"cat"},
+								},
+							},
+						},
+					},
+					{
+						Cmd: []*expr.ShellCmd{{
+							SimpleCmd: &expr.ShellSimpleCmd{
+								Args: []string{"true"},
+							},
+						}},
+					},
+					{
+						Cmd: []*expr.ShellCmd{{
+							SimpleCmd: &expr.ShellSimpleCmd{
+								Args: []string{"false"},
+							},
+						}},
+					},
+				},
+				Sep: []token.Token{token.LogicalAnd, token.LogicalOr},
+			}},
+		}},
+	}},
+	{`echo one && echo two > f || echo 3
+	echo -n 4;
+	echo 5 | wc; echo 6 & echo 7; echo 8 &`, &expr.Shell{
+		Cmds: []*expr.ShellList{
+			{
+				AndOr: []*expr.ShellAndOr{{
+					Pipeline: []*expr.ShellPipeline{
+						{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "one"},
+								},
+							}},
+						},
+						{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Redirect: []*expr.ShellRedirect{{
+										Token:    token.Greater,
+										Filename: "f",
+									}},
+									Args: []string{"echo", "two"},
+								},
+							}},
+						},
+						{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "3"},
+								},
+							}},
+						},
+					},
+					Sep: []token.Token{token.LogicalAnd, token.LogicalOr},
+				}},
+			},
+			{
+				AndOr: []*expr.ShellAndOr{
+					{
+						Pipeline: []*expr.ShellPipeline{{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "-n", "4"},
+								},
+							}},
+						}},
+					},
+					{
+						Pipeline: []*expr.ShellPipeline{{
+							Cmd: []*expr.ShellCmd{
+								{
+									SimpleCmd: &expr.ShellSimpleCmd{
+										Args: []string{"echo", "5"},
+									},
+								},
+								{
+									SimpleCmd: &expr.ShellSimpleCmd{
+										Args: []string{"wc"},
+									},
+								},
+							},
+						}},
+					},
+					{
+						Pipeline: []*expr.ShellPipeline{{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "6"},
+								},
+							}},
+						}},
+						Background: true,
+					},
+					{
+						Pipeline: []*expr.ShellPipeline{{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "7"},
+								},
+							}},
+						}},
+					},
+					{
+						Pipeline: []*expr.ShellPipeline{{
+							Cmd: []*expr.ShellCmd{{
+								SimpleCmd: &expr.ShellSimpleCmd{
+									Args: []string{"echo", "8"},
+								},
+							}},
+						}},
+						Background: true,
+					},
+				},
+			},
+		},
+	}},
+	{`echo start; (echo a; echo b 2>&1); echo end`, &expr.Shell{Cmds: []*expr.ShellList{{
+		AndOr: []*expr.ShellAndOr{
+			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+				Bang: false,
+				Cmd: []*expr.ShellCmd{{
+					SimpleCmd: &expr.ShellSimpleCmd{
+						Args: []string{"echo", "start"},
+					},
+				}},
+			}}},
+			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+				Cmd: []*expr.ShellCmd{{
+					SimpleCmd: (*expr.ShellSimpleCmd)(nil),
+					Subshell: &expr.ShellList{
+						AndOr: []*expr.ShellAndOr{
+							&expr.ShellAndOr{
+								Pipeline: []*expr.ShellPipeline{{
+									Cmd: []*expr.ShellCmd{{
+										SimpleCmd: &expr.ShellSimpleCmd{
+											Args: []string{"echo", "a"},
+										},
+									}},
+								}},
+							},
+							&expr.ShellAndOr{
+								Pipeline: []*expr.ShellPipeline{{
+									Cmd: []*expr.ShellCmd{{
+										SimpleCmd: &expr.ShellSimpleCmd{
+											Redirect: []*expr.ShellRedirect{{
+												Number:   intp(2),
+												Token:    token.GreaterAnd,
+												Filename: "1",
+											}},
+											Args: []string{"echo", "b"},
+										},
+									}},
+								}},
+							},
+						},
+					},
+				}},
+			}}},
+			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+				Cmd: []*expr.ShellCmd{{
+					SimpleCmd: &expr.ShellSimpleCmd{
+						Args: []string{"echo", "end"},
+					},
+				}},
+			}}},
+		},
+	}}}},
+	/*{`($$ echo "a b \"" 'c \' \d "e f'g" $$)`, nil},
+	  {`($$ find . -name \*.c $$)`, nil},
+	  {`($$ grep -R "*foo" . $$)`, nil},
+	  {`($$ go build "-ldflags=-v -extldflags=-v" pkg $$)`, nil},
+	*/
+	// TODO: find . -name \*.h -exec grep -H {} \;
+	// TODO: `ls \
+	// -l`
+	// TODO: test unbalanced paren errors
+}
+
+func TestParseShell(t *testing.T) {
+	for _, test := range shellTests {
+		fmt.Printf("Parsing %q\n", test.input)
+		s, err := ParseStmt([]byte("($$ " + test.input + " $$)"))
+		if err != nil {
+			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
+			continue
+		}
+		if s == nil {
+			t.Errorf("ParseExpr(%q): nil stmt", test.input)
+			continue
+		}
+		got := s.(*stmt.Simple).Expr.(*expr.Unary).Expr.(*expr.Shell)
+		if !EqualExpr(got, test.want) {
+			t.Errorf("ParseExpr(%q) = %v", test.input, pretty.Sprint(got))
+			pretty.Ldiff(t, test.want, got)
 		}
 	}
 }
@@ -556,4 +750,8 @@ func basic(x interface{}) *expr.BasicLiteral {
 	default:
 		panic(fmt.Sprintf("unknown basic %v (%T)", x, x))
 	}
+}
+
+func intp(x int) *int {
+	return &x
 }
