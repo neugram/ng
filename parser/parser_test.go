@@ -259,6 +259,7 @@ func TestParseExpr(t *testing.T) {
 }
 
 var shellTests = []parserTest{
+	{``, &expr.Shell{}},
 	{`ls -l`, &expr.Shell{
 		Cmds: []*expr.ShellList{{
 			AndOr: []*expr.ShellAndOr{{

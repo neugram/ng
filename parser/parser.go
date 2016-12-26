@@ -99,7 +99,9 @@ func (p *Parser) work() {
 			p.interactive = true
 			cmd := p.parseShellList()
 			p.interactive = false
-			p.res.Cmds = append(p.res.Cmds, cmd)
+			if cmd != nil {
+				p.res.Cmds = append(p.res.Cmds, cmd)
+			}
 			// TODO StateCmdPartial, lines ending with '\'
 			if p.s.Token == token.Shell {
 				p.next()

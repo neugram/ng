@@ -12,8 +12,13 @@ import (
 )
 
 func (p *Parser) parseShellList() *expr.ShellList {
-	l := &expr.ShellList{}
-	l.AndOr = append(l.AndOr, p.parseShellAndOr())
+	andor := p.parseShellAndOr()
+	if andor == nil {
+		return nil
+	}
+	l := &expr.ShellList{
+		AndOr: []*expr.ShellAndOr{andor},
+	}
 	for p.s.Token == token.Ref || p.s.Token == token.Semicolon {
 		if p.s.Token == token.Ref {
 			l.AndOr[len(l.AndOr)-1].Background = true
@@ -25,14 +30,21 @@ func (p *Parser) parseShellList() *expr.ShellList {
 		l.AndOr = append(l.AndOr, p.parseShellAndOr())
 	}
 	if p.s.Token == token.ShellNewline {
-		p.next()
+		if !p.interactive {
+			p.next()
+		}
 	}
 	return l
 }
 
 func (p *Parser) parseShellAndOr() *expr.ShellAndOr {
-	l := &expr.ShellAndOr{}
-	l.Pipeline = append(l.Pipeline, p.parseShellPipeline())
+	pl := p.parseShellPipeline()
+	if pl == nil {
+		return nil
+	}
+	l := &expr.ShellAndOr{
+		Pipeline: []*expr.ShellPipeline{pl},
+	}
 	for p.s.Token == token.LogicalAnd || p.s.Token == token.LogicalOr {
 		l.Sep = append(l.Sep, p.s.Token)
 		p.next()
@@ -42,13 +54,19 @@ func (p *Parser) parseShellAndOr() *expr.ShellAndOr {
 }
 
 func (p *Parser) parseShellPipeline() *expr.ShellPipeline {
-	l := &expr.ShellPipeline{}
+	bang := false
 	if p.s.Token == token.Not {
-		l.Bang = true
+		bang = true
 		p.next()
 	}
-	l.Cmd = append(l.Cmd, p.parseShellCmd())
-	//fmt.Printf("parseShellPipeline, after first parseShellCmd, p.s.Token=%s\n", p.s.Token)
+	cmd := p.parseShellCmd()
+	if cmd == nil {
+		return nil
+	}
+	l := &expr.ShellPipeline{
+		Bang: bang,
+		Cmd:  []*expr.ShellCmd{cmd},
+	}
 	for p.s.Token == token.ShellPipe {
 		p.next()
 		l.Cmd = append(l.Cmd, p.parseShellCmd())
@@ -56,16 +74,21 @@ func (p *Parser) parseShellPipeline() *expr.ShellPipeline {
 	return l
 }
 
-func (p *Parser) parseShellCmd() *expr.ShellCmd {
-	//fmt.Printf("parseShellCmd, p.s.Token=%s\n", p.s.Token)
-	l := &expr.ShellCmd{}
+func (p *Parser) parseShellCmd() (l *expr.ShellCmd) {
 	if p.s.Token == token.LeftParen {
 		p.next()
-		l.Subshell = p.parseShellList()
+		l = &expr.ShellCmd{
+			Subshell: p.parseShellList(),
+		}
 		p.expect(token.RightParen)
 		p.next()
 	} else {
-		l.SimpleCmd = p.parseShellSimpleCmd()
+		simplecmd := p.parseShellSimpleCmd()
+		if simplecmd != nil {
+			l = &expr.ShellCmd{
+				SimpleCmd: simplecmd,
+			}
+		}
 	}
 	return l
 }
@@ -82,34 +105,33 @@ func isAssignment(word string) (k, v string) {
 	return "", ""
 }
 
-func (p *Parser) parseShellSimpleCmd() *expr.ShellSimpleCmd {
-	l := &expr.ShellSimpleCmd{}
+func (p *Parser) parseShellSimpleCmd() (l *expr.ShellSimpleCmd) {
 	for {
 		w, r := p.maybeParseShellRedirect()
-		if r != nil {
-			//fmt.Printf("Redirect: %v\n", r)
-			l.Redirect = append(l.Redirect, r)
-			continue
-		} else if w == "" {
-			switch p.s.Token {
-			case token.ShellWord:
-				w = p.s.Literal.(string)
-				p.next()
-			//case token.ShellNewline:
-			//p.next()
-			//return l
-			default:
-				return l
+		if r == nil {
+			if w == "" {
+				if p.s.Token == token.ShellWord {
+					w = p.s.Literal.(string)
+					p.next()
+				} else {
+					return l
+				}
 			}
 		}
-
-		if k, v := isAssignment(w); k != "" {
-			l.Assign = append(l.Assign, expr.ShellAssign{
-				Key:   k,
-				Value: v,
-			})
+		if l == nil {
+			l = &expr.ShellSimpleCmd{}
+		}
+		if r != nil {
+			l.Redirect = append(l.Redirect, r)
 		} else {
-			l.Args = append(l.Args, w)
+			if k, v := isAssignment(w); k != "" {
+				l.Assign = append(l.Assign, expr.ShellAssign{
+					Key:   k,
+					Value: v,
+				})
+			} else {
+				l.Args = append(l.Args, w)
+			}
 		}
 	}
 	return l

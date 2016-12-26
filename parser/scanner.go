@@ -338,7 +338,6 @@ func (s *Scanner) nextInShell(r rune) {
 		s.Literal = str[1 : len(str)-1]
 		s.Token = token.ShellWord
 	case '\n':
-		s.next()
 		s.Token = token.ShellNewline
 	case ';':
 		s.next()

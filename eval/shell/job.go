@@ -28,6 +28,10 @@ type Params interface {
 	Set(name, value string)
 }
 
+type paramset interface {
+	Get(name string) string
+}
+
 type Job struct {
 	Cmd    *expr.ShellList
 	Stdin  *os.File
@@ -101,7 +105,8 @@ func (j *Job) Continue() error {
 }
 
 func shellListString(cmd *expr.ShellList) string {
-	var s []string
+	return "TODO shellListString"
+	/*var s []string
 	for _, c := range cmd.List {
 		switch c := c.(type) {
 		case *expr.ShellList:
@@ -123,7 +128,7 @@ func shellListString(cmd *expr.ShellList) string {
 	case expr.SegmentIn:
 		sep = " < "
 	}
-	return strings.Join(s, sep)
+	return strings.Join(s, sep)*/
 }
 
 // Wait waits until the job is stopped or complete.
@@ -163,13 +168,7 @@ func (j *Job) Wait() (done bool, err error) {
 // Some of the traversal blocks until certain procs are running or
 // complete, meaning exec lives until the job is complete.
 func (j *Job) exec() {
-	procs, err := j.execShellList(j.Cmd, stdio{j.Stdin, j.Stdout, j.Stderr})
-
-	for _, p := range procs {
-		if err := p.waitUntilDone(); err != nil {
-			// TODO: set $?
-		}
-	}
+	err := j.execShellList(j.Cmd, stdio{j.Stdin, j.Stdout, j.Stderr})
 
 	j.mu.Lock()
 	j.err = err
@@ -185,54 +184,123 @@ type stdio struct {
 	err *os.File
 }
 
-func (j *Job) execShellList(cmd interface{}, sio stdio) (procs []*proc, err error) {
-	switch cmd := cmd.(type) {
-	case *expr.ShellList:
-		switch cmd.Segment {
-		case expr.SegmentSemi:
-			for _, s := range cmd.List {
-				for _, p := range procs {
-					err = p.waitUntilDone()
-				}
-				procs, err = j.execShellList(s, sio)
+func (j *Job) execShellList(cmd *expr.ShellList, sio stdio) error {
+	for _, andor := range cmd.AndOr {
+		for _, p := range andor.Pipeline {
+			// TODO: Sep, &&, ||
+			if err := j.execPipeline(p, sio); err != nil {
+				return err
 			}
-			if len(procs) > 0 {
-				err = nil
-			}
-			return procs, err
-		case expr.SegmentAnd:
-			for _, s := range cmd.List {
-				for _, p := range procs {
-					if err = p.waitUntilDone(); err != nil {
-						return nil, err
-					}
-				}
-				procs, err = j.execShellList(s, sio)
-			}
-			return procs, err
-		case expr.SegmentPipe:
-			return j.execPipeline(cmd, sio)
-		default:
-			panic(fmt.Sprintf("unknown segment type %s", cmd.Segment))
 		}
-		// TODO SegmentOut
-		// TODO SegmentIn
-	case *expr.ShellCmd:
-		p, err := j.execCmd(cmd, sio)
-		if err != nil {
-			return nil, err
-		}
-		if p != nil {
-			return []*proc{p}, nil
-		}
-		return nil, nil
-	default:
-		panic(fmt.Sprintf("impossible shell command type: %T", cmd))
 	}
+	return nil
 }
 
-func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
-	argv, err := expansion(cmd.Argv, j.Params)
+func (j *Job) execPipeline(plcmd *expr.ShellPipeline, sio stdio) (err error) {
+	if interactive && j.pgid == 0 && len(plcmd.Cmd) > 1 {
+		// All the processes of a pipeline run with the same
+		// process group ID. To do this, a shell will typically
+		// use the pid of the first process as the pgid for the
+		// entire pipeline.
+		//
+		// This technique has an edge case. If the first process
+		// exits before the second gets a chance to start, then
+		// the pgid is invalid and the pipeline will fail to start.
+		// An easy way to run into this is if the first process is
+		// a short echo, that can fit its entire output into the
+		// kernel pipe buffer. For example:
+		//
+		//	echo hello | cat
+		//
+		// The solution adopted by typical shells is pipe
+		// communication between the fork and exec calls of the
+		// first process. The first process waits for the pipe to
+		// close, and the shell closes it after the whole pipeline
+		// is started, effectively pausing the first process
+		// before it starts.
+		//
+		// That's not an option for us if we use the syscall
+		// package's implementation of ForkExec. Rather than
+		// reinvent the wheel, we try a different trick: we start
+		// a well-behaved placeholder process, the pgidLeader, to
+		// pin a pgid for the duration of pipeline creation.
+		//
+		// What an unusual contraption.
+		pgidLeader, err := startPgidLeader()
+		if err != nil {
+			return err
+		}
+		j.pgid = pgidLeader.Pid
+		defer func() {
+			pgidLeader.Kill()
+			j.pgid = 0
+		}()
+	}
+
+	sios := make([]stdio, len(plcmd.Cmd))
+	sios[0].in = sio.in
+	sios[len(sios)-1].out = sio.out
+	for i := range sios {
+		sios[i].err = sio.err
+	}
+	defer func() {
+		if err != nil {
+			for i := 0; i < len(sios)-1; i++ {
+				if sios[i].out != nil {
+					sios[i].out.Close()
+				}
+				if sios[i+1].in != nil {
+					sios[i+1].in.Close()
+				}
+			}
+		}
+	}()
+	for i := 0; i < len(sios)-1; i++ {
+		r, w, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		sios[i].out = w
+		sios[i+1].in = r
+	}
+	pl := &pipeline{
+		job: j,
+	}
+	for i, cmd := range plcmd.Cmd {
+		if cmd.Subshell != nil {
+			return fmt.Errorf("missing subshell support") // TODO
+		}
+		p, err := j.setupSimpleCmd(cmd.SimpleCmd, sios[i])
+		if err != nil {
+			return err
+		}
+		pl.proc = append(pl.proc, p)
+	}
+	if err := pl.start(); err != nil {
+		return err
+	}
+	if err := pl.waitUntilDone(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type cmdParams struct {
+	kv []expr.ShellAssign
+	p  paramset
+}
+
+func (p *cmdParams) Get(name string) string {
+	for _, v := range p.kv {
+		if v.Key == name {
+			return v.Value
+		}
+	}
+	return p.Get(name)
+}
+
+func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error) {
+	argv, err := expansion(cmd.Args, &cmdParams{cmd.Assign, j.Params})
 	if err != nil {
 		return nil, err
 	}
@@ -277,82 +345,8 @@ func (j *Job) execCmd(cmd *expr.ShellCmd, sio stdio) (*proc, error) {
 			argv: argv,
 			sio:  sio,
 		}
-		if err := p.start(); err != nil {
-			return nil, err
-		}
 		return p, nil
 	}
-}
-
-func (j *Job) execPipeline(cmd *expr.ShellList, sio stdio) (procs []*proc, err error) {
-	origSio := sio
-
-	if interactive && j.pgid == 0 {
-		// All the processes of a pipeline run with the same
-		// process group ID. To do this, a shell will typically
-		// use the pid of the first process as the pgid for the
-		// entire pipeline.
-		//
-		// This technique has an edge case. If the first process
-		// exits before the second gets a chance to start, then
-		// the pgid is invalid and the pipeline will fail to start.
-		// An easy way to run into this is if the first process is
-		// a short echo, that can fit its entire output into the
-		// kernel pipe buffer. For example:
-		//
-		//	echo hello | cat
-		//
-		// The solution adopted by typical shells is pipe
-		// communication between the fork and exec calls of the
-		// first process. The first process waits for the pipe to
-		// close, and the shell closes it after the whole pipeline
-		// is started, effectively pausing the first process
-		// before it starts.
-		//
-		// That's not an option for us if we use the syscall
-		// package's implementation of ForkExec. Rather than
-		// reinvent the wheel, we try a different trick: we start
-		// a well-behaved placeholder process, the pgidLeader, to
-		// pin a pgid for the duration of pipeline creation.
-		//
-		// What an unusual contraption.
-		pgidLeader, err := startPgidLeader()
-		if err != nil {
-			return nil, err
-		}
-		j.pgid = pgidLeader.Pid
-		defer func() {
-			pgidLeader.Kill()
-			j.pgid = 0
-		}()
-	}
-
-	for i, c := range cmd.List {
-		var r1, w1 *os.File
-		if i == len(cmd.List)-1 {
-			sio.out = origSio.out
-		} else {
-			r1, w1, err = os.Pipe()
-			if err != nil {
-				// TODO kill already running procs in pipeline job
-				return nil, err
-			}
-			sio.out = w1
-		}
-		ps, err := j.execShellList(c, sio)
-		if err != nil {
-			return nil, err // TODO kill already running
-		}
-		procs = append(procs, ps...)
-		if sio.in != origSio.in {
-			sio.in.Close()
-		}
-		if sio.out != origSio.out {
-			sio.out.Close()
-		}
-		sio.in = r1
-	}
-	return procs, nil
 }
 
 func startPgidLeader() (*os.Process, error) {
@@ -360,7 +354,6 @@ func startPgidLeader() (*os.Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pgidleader init: %v", err)
 	}
-	//path := "/Users/crawshaw/bin/ng"
 	argv := []string{os.Args[0], "-pgidleader"}
 
 	p, err := os.StartProcess(path, argv, &os.ProcAttr{
@@ -375,69 +368,92 @@ func startPgidLeader() (*os.Process, error) {
 	return p, nil
 }
 
-type proc struct {
-	job     *Job
-	argv    []string
-	path    string
-	process *os.Process
-	sio     stdio
+type pipeline struct {
+	job  *Job
+	proc []*proc
+	//pgid int
 }
 
-// start starts an OS process.
-func (p *proc) start() error {
-	p.job.mu.Lock()
-	defer p.job.mu.Unlock()
+func (pl *pipeline) start() (err error) {
+	pl.job.mu.Lock()
+	defer pl.job.mu.Unlock()
 
-	var err error
-	p.path, err = findExecInPath(p.argv[0], Env)
-	if err != nil {
-		return err
+	for _, p := range pl.proc {
+		p.path, err = findExecInPath(p.argv[0], Env)
+		if err != nil {
+			return err
+		}
 	}
 
-	attr := &os.ProcAttr{
-		Env:   Env.List(),
-		Files: []*os.File{p.sio.in, p.sio.out, p.sio.err},
-	}
-	if interactive {
+	defer func() {
+		if err != nil {
+			for _, p := range pl.proc {
+				if p.process != nil {
+					p.process.Kill()
+					p.process = nil
+				}
+			}
+		}
+	}()
+	for i, p := range pl.proc {
+		attr := &os.ProcAttr{
+			Env:   Env.List(),
+			Files: []*os.File{p.sio.in, p.sio.out, p.sio.err},
+		}
 		attr.Sys = &syscall.SysProcAttr{
 			Setpgid:    true, // job gets new pgid
 			Foreground: interactive,
-			Pgid:       p.job.pgid,
+			Pgid:       pl.job.pgid,
 		}
-	}
-
-	p.process, err = os.StartProcess(p.path, p.argv, attr)
-	if p.sio.in != p.job.Stdin {
-		p.sio.in.Close()
-	}
-	if p.sio.out != p.job.Stdout {
-		p.sio.out.Close()
-	}
-	if err != nil {
-		return err
-	}
-
-	if p.job.pgid == 0 {
-		p.job.pgid, err = syscall.Getpgid(p.process.Pid)
+		p.process, err = os.StartProcess(p.path, p.argv, attr)
+		if i == 0 && p.sio.in != p.job.Stdin {
+			p.sio.in.Close()
+		}
+		if i == len(pl.proc)-1 && p.sio.out != p.job.Stdout {
+			p.sio.out.Close()
+		}
 		if err != nil {
-			return fmt.Errorf("cannot get pgid of new process: %v", err)
+			return err
 		}
-		if interactive {
-			return tcsetpgrp(os.Stdin.Fd(), p.job.pgid)
+
+		if pl.job.pgid == 0 {
+			pl.job.pgid, err = syscall.Getpgid(p.process.Pid)
+			if err != nil {
+				return fmt.Errorf("cannot get pgid of new process: %v", err)
+			}
+			if interactive {
+				if err := tcsetpgrp(os.Stdin.Fd(), pl.job.pgid); err != nil {
+					return err
+				}
+			}
 		}
 	}
-
 	return nil
 }
 
-// waitUntilDone waits until the process is done.
+func (pl *pipeline) waitUntilDone() error {
+	var err error
+	for _, p := range pl.proc {
+		err = p.waitUntilDone()
+	}
+	return err
+}
+
 func (p *proc) waitUntilDone() error {
 	pid := p.process.Pid
+	//pid := pl.job.pgid
 	for {
 		wstatus := new(syscall.WaitStatus)
 		_, err := syscall.Wait4(pid, wstatus, syscall.WUNTRACED|syscall.WCONTINUED, nil)
 		switch {
 		case err != nil || wstatus.Exited():
+			// TODO: should we close these right after the process forks?
+			if p.sio.in != p.job.Stdin {
+				p.sio.in.Close()
+			}
+			if p.sio.out != p.job.Stdout {
+				p.sio.out.Close()
+			}
 			//fmt.Fprintf(os.Stderr, "process exited with %v\n", err)
 			if c := wstatus.ExitStatus(); c != 0 {
 				return fmt.Errorf("failed on exit: %d", c)
@@ -456,6 +472,14 @@ func (p *proc) waitUntilDone() error {
 			panic(fmt.Sprintf("unexpected wstatus: %#+v", wstatus))
 		}
 	}
+}
+
+type proc struct {
+	job     *Job
+	argv    []string
+	path    string
+	process *os.Process
+	sio     stdio
 }
 
 var (

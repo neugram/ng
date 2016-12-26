@@ -11,7 +11,7 @@ import (
 	"unicode"
 )
 
-func expansion(argv1 []string, params Params) ([]string, error) {
+func expansion(argv1 []string, params paramset) ([]string, error) {
 	var err error
 	var argv2 []string
 	for _, expander := range expanders {
@@ -28,7 +28,7 @@ func expansion(argv1 []string, params Params) ([]string, error) {
 	return argv1, nil
 }
 
-var expanders = []func([]string, string, Params) ([]string, error){
+var expanders = []func([]string, string, paramset) ([]string, error){
 	braceExpand,
 	tildeExpand,
 	paramExpand,
@@ -36,7 +36,7 @@ var expanders = []func([]string, string, Params) ([]string, error){
 }
 
 // brace expansion (for example: "c{d,e}" becomes "cd ce")
-func braceExpand(src []string, arg string, _ Params) (res []string, err error) {
+func braceExpand(src []string, arg string, _ paramset) (res []string, err error) {
 	res = src
 	i1 := indexUnquoted(arg, '{')
 	if i1 == -1 {
@@ -88,7 +88,7 @@ func ExpandTilde(arg string) (res string, err error) {
 }
 
 // tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
-func tildeExpand(src []string, arg string, params Params) (res []string, err error) {
+func tildeExpand(src []string, arg string, params paramset) (res []string, err error) {
 	expanded, err := ExpandTilde(arg)
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func tildeExpand(src []string, arg string, params Params) (res []string, err err
 }
 
 // ExpandParams expands $ variables.
-func ExpandParams(arg string, params Params) (string, error) {
+func ExpandParams(arg string, params paramset) (string, error) {
 	for {
 		i1 := indexParam(arg)
 		if i1 == -1 {
@@ -123,7 +123,7 @@ func ExpandParams(arg string, params Params) (string, error) {
 }
 
 // param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
-func paramExpand(src []string, arg string, params Params) (res []string, err error) {
+func paramExpand(src []string, arg string, params paramset) (res []string, err error) {
 	res = src
 	expanded, err := ExpandParams(arg, params)
 	if err != nil {
@@ -133,7 +133,7 @@ func paramExpand(src []string, arg string, params Params) (res []string, err err
 }
 
 // paths expansion (*, ?, [)
-func pathsExpand(src []string, arg string, params Params) (res []string, err error) {
+func pathsExpand(src []string, arg string, params paramset) (res []string, err error) {
 	res = src
 	if !strings.ContainsAny(arg, "*?[") {
 		return append(res, arg), nil
