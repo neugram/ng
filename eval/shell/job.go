@@ -16,6 +16,7 @@ import (
 
 	"neugram.io/eval/environ"
 	"neugram.io/lang/expr"
+	"neugram.io/lang/token"
 )
 
 var (
@@ -186,10 +187,29 @@ type stdio struct {
 
 func (j *Job) execShellList(cmd *expr.ShellList, sio stdio) error {
 	for _, andor := range cmd.AndOr {
-		for _, p := range andor.Pipeline {
-			// TODO: Sep, &&, ||
-			if err := j.execPipeline(p, sio); err != nil {
-				return err
+		if err := j.execShellAndOr(andor, sio); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (j *Job) execShellAndOr(andor *expr.ShellAndOr, sio stdio) error {
+	for i, p := range andor.Pipeline {
+		// TODO: Sep, &&, ||
+		err := j.execPipeline(p, sio)
+		if i < len(andor.Pipeline)-1 {
+			switch andor.Sep[i] {
+			case token.LogicalAnd:
+				if err != nil {
+					return err
+				}
+			case token.LogicalOr:
+				if err == nil {
+					return nil
+				}
+			default:
+				panic("unknown AndOr separator: " + andor.Sep[i].String())
 			}
 		}
 	}
@@ -236,6 +256,9 @@ func (j *Job) execPipeline(plcmd *expr.ShellPipeline, sio stdio) (err error) {
 			j.pgid = 0
 		}()
 	}
+	defer func() {
+		j.pgid = 0
+	}()
 
 	sios := make([]stdio, len(plcmd.Cmd))
 	sios[0].in = sio.in
@@ -439,6 +462,12 @@ func (pl *pipeline) waitUntilDone() error {
 	return err
 }
 
+type exitError struct {
+	code int
+}
+
+func (err exitError) Error() string { return fmt.Sprintf("exit code: %d", err.code) }
+
 func (p *proc) waitUntilDone() error {
 	pid := p.process.Pid
 	//pid := pl.job.pgid
@@ -456,7 +485,7 @@ func (p *proc) waitUntilDone() error {
 			}
 			//fmt.Fprintf(os.Stderr, "process exited with %v\n", err)
 			if c := wstatus.ExitStatus(); c != 0 {
-				return fmt.Errorf("failed on exit: %d", c)
+				return exitError{code: c}
 			}
 			return nil
 		case wstatus.Stopped():
