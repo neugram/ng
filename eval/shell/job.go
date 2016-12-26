@@ -297,13 +297,17 @@ func (j *Job) execPipeline(plcmd *expr.ShellPipeline, sio stdio) (err error) {
 		if err != nil {
 			return err
 		}
-		pl.proc = append(pl.proc, p)
+		if p != nil {
+			pl.proc = append(pl.proc, p)
+		}
 	}
-	if err := pl.start(); err != nil {
-		return err
-	}
-	if err := pl.waitUntilDone(); err != nil {
-		return err
+	if len(pl.proc) > 0 {
+		if err := pl.start(); err != nil {
+			return err
+		}
+		if err := pl.waitUntilDone(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
