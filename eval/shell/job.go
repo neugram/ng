@@ -366,14 +366,58 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 		return nil, nil
 	case "exit", "logout":
 		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
-	default:
-		p := &proc{
-			job:  j,
-			argv: argv,
-			sio:  sio,
-		}
-		return p, nil
 	}
+	p := &proc{
+		job:  j,
+		argv: argv,
+		sio:  sio,
+	}
+	for _, r := range cmd.Redirect {
+		switch r.Token {
+		case token.Greater, token.TwoGreater, token.AndGreater:
+			flag := os.O_RDWR | os.O_CREATE
+			if r.Token == token.Greater || r.Token == token.AndGreater {
+				flag |= os.O_TRUNC
+			} else {
+				flag |= os.O_APPEND
+			}
+			f, err := os.OpenFile(r.Filename, flag, 0666)
+			if err != nil {
+				return nil, err
+			}
+			if r.Token == token.AndGreater {
+				p.sio.out = f
+				p.sio.err = f
+			} else if r.Number == nil || *r.Number == 1 {
+				p.sio.out = f
+			} else if *r.Number == 2 {
+				p.sio.err = f
+			}
+		case token.GreaterAnd:
+			dstnum, err := strconv.Atoi(r.Filename)
+			if err != nil {
+				return nil, fmt.Errorf("bad redirect target: %q", r.Filename)
+			}
+			var dst *os.File
+			switch dstnum {
+			case 1:
+				dst = p.sio.out
+			case 2:
+				dst = p.sio.err
+			}
+			switch *r.Number {
+			case 1:
+				p.sio.out = dst
+			case 2:
+				p.sio.err = dst
+			}
+		case token.Less:
+			return nil, fmt.Errorf("TODO: %s", r.Token)
+		default:
+			return nil, fmt.Errorf("unknown shell redirect %s", r.Token)
+		}
+	}
+	return p, nil
 }
 
 func startPgidLeader() (*os.Process, error) {
