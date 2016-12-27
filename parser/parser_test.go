@@ -79,7 +79,7 @@ var parserTests = []parserTest{
 	{
 		"func() integer { return 7 }",
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}}},
+			Type: &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}}},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
 			}},
@@ -114,7 +114,7 @@ var parserTests = []parserTest{
 			return x
 		}`,
 		&expr.FuncLiteral{
-			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}},
+			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tint64}}},
 			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Assign{
@@ -134,7 +134,7 @@ var parserTests = []parserTest{
 			}
 		}`,
 		&expr.FuncLiteral{
-			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}},
+			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tint64}}},
 			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
 				Init: &stmt.Assign{
@@ -238,6 +238,9 @@ var parserTests = []parserTest{
 	}},
 	*/
 }
+
+var tint64 = &tipe.Unresolved{Name: "int64"}
+var tinteger = &tipe.Unresolved{Name: "integer"}
 
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
@@ -576,13 +579,13 @@ var stmtTests = []stmtTest{
 		"const x int64 = 4",
 		&stmt.Const{
 			Name:  "x",
-			Type:  tipe.Int64,
+			Type:  tint64,
 			Value: &expr.BasicLiteral{big.NewInt(4)},
 		},
 	},
 	{
 		`type A integer`,
-		&stmt.TypeDecl{Name: "A", Type: tipe.Integer},
+		&stmt.TypeDecl{Name: "A", Type: tinteger},
 	},
 	{
 		`type S struct { x integer }`,
@@ -590,7 +593,7 @@ var stmtTests = []stmtTest{
 			Name: "S",
 			Type: &tipe.Struct{
 				FieldNames: []string{"x"},
-				Fields:     []tipe.Type{tipe.Integer},
+				Fields:     []tipe.Type{tinteger},
 			},
 		},
 	},
@@ -602,17 +605,17 @@ var stmtTests = []stmtTest{
 		&stmt.MethodikDecl{
 			Name: "AnInt",
 			Type: &tipe.Methodik{
-				Type:        tipe.Integer,
+				Type:        tinteger,
 				MethodNames: []string{"f"},
 				Methods: []*tipe.Func{
-					{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}}},
+					{Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}}},
 				},
 			},
 			Methods: []*expr.FuncLiteral{{
 				Name:         "f",
 				ReceiverName: "a",
 				Type: &tipe.Func{
-					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 				},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"a"}}},
@@ -635,12 +638,12 @@ var stmtTests = []stmtTest{
 			Type: &tipe.Methodik{
 				Type: &tipe.Struct{
 					FieldNames: []string{"x", "y"},
-					Fields:     []tipe.Type{tipe.Integer, &tipe.Table{tipe.Int64}},
+					Fields:     []tipe.Type{tinteger, &tipe.Table{tint64}},
 				},
 				MethodNames: []string{"f"},
 				Methods: []*tipe.Func{{
-					Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
-					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					Params:  &tipe.Tuple{Elems: []tipe.Type{tinteger}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 				}},
 			},
 			Methods: []*expr.FuncLiteral{{
@@ -648,8 +651,8 @@ var stmtTests = []stmtTest{
 				ReceiverName:    "a",
 				PointerReceiver: true,
 				Type: &tipe.Func{
-					Params:  &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
-					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Integer}},
+					Params:  &tipe.Tuple{Elems: []tipe.Type{tinteger}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 				},
 				ParamNames: []string{"x"},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
@@ -667,7 +670,7 @@ var stmtTests = []stmtTest{
 		Elements: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
 	}}},
 	{`map[string]string{ "foo": "bar" }`, &stmt.Simple{&expr.MapLiteral{
-		Type:   &tipe.Map{Key: tipe.String, Value: tipe.String},
+		Type:   &tipe.Map{Key: &tipe.Unresolved{Name: "string"}, Value: &tipe.Unresolved{Name: "string"}},
 		Keys:   []expr.Expr{basic("foo")},
 		Values: []expr.Expr{basic("bar")},
 	}}},
