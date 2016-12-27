@@ -50,6 +50,11 @@ type Program struct {
 	Breaking  bool
 }
 
+type evalMap interface {
+	GetVal(key interface{}) interface{}
+	SetVal(key, val interface{})
+}
+
 func New() *Program {
 	universe := new(Scope)
 	addUniverse := func(name string, val interface{}) {
@@ -61,8 +66,8 @@ func New() *Program {
 	}
 	addUniverse("true", true)
 	addUniverse("false", false)
-	addUniverse("env", environ.New())
-	addUniverse("alias", environ.New())
+	addUniverse("env", (evalMap)(environ.New()))
+	addUniverse("alias", (evalMap)(environ.New()))
 	addUniverse("nil", nil)
 	addUniverse("print", fmt.Println)
 	addUniverse("printf", fmt.Printf)
@@ -233,7 +238,11 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 					if _, isMap := tipe.Underlying(p.Types.Types[e.Expr]).(*tipe.Map); isMap {
 						container := p.evalExprOne(e.Expr)
 						k := p.evalExprOne(e.Index)
-						container.SetMapIndex(k, vals[i])
+						if env, ok := container.Interface().(evalMap); ok {
+							env.SetVal(k.String(), vals[i].String())
+						} else {
+							container.SetMapIndex(k, vals[i])
+						}
 						continue
 					}
 				}
@@ -494,12 +503,13 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		// TODO: have typecheck do the error elision for us
 		// so we can insert the dynamic panic check once, right here.
 		res := fn.Call(args)
-		for i, endval := range res {
+		for i := range t {
 			// Necessary to turn the return type of append
 			// from an interface{} into a slice to it can
 			// be set.
-			res[i] = reflect.ValueOf(endval.Interface())
+			res[i] = reflect.ValueOf(res[i].Interface())
 		}
+		res = res[:len(t)]
 		return res
 	case *expr.CompLiteral:
 		t := p.reflector.ToRType(e.Type)
@@ -570,6 +580,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Index:
 		container := p.evalExprOne(e.Expr)
 		k := p.evalExprOne(e.Index)
+		if env, ok := container.Interface().(evalMap); ok {
+			return []reflect.Value{reflect.ValueOf(env.GetVal(k.String()))}
+		}
 		switch container.Kind() {
 		case reflect.Slice, reflect.String:
 			i := int(k.Int())
@@ -589,6 +602,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				return []reflect.Value{v, reflect.ValueOf(exists)}
 			}
 			return []reflect.Value{v}
+		case reflect.Ptr:
+			panic(interpPanic{fmt.Errorf("eval: *expr.Index unsupported ptr kind: %v", container.Elem().Kind())})
+		default:
+			panic(interpPanic{fmt.Errorf("eval: *expr.Index unsupported kind: %v", container.Kind())})
 		}
 	case *expr.MapLiteral:
 		t := p.reflector.ToRType(e.Type)
