@@ -1059,6 +1059,8 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 	p.next()
 	if p.s.Token != token.RightParen {
 		f.ParamNames, f.Type.Params = p.parseIn()
+	} else {
+		f.Type.Params = new(tipe.Tuple)
 	}
 	p.expect(token.RightParen)
 	p.next()

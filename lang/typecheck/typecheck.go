@@ -253,6 +253,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.MethodikDecl:
 		var usesNum bool
+		t, _ := c.resolve(s.Type)
+		s.Type = t.(*tipe.Methodik)
 		for _, f := range s.Type.Methods {
 			usesNum = usesNum || tipe.UsesNum(f)
 		}
@@ -565,6 +567,14 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		return t, resolved
 	case *tipe.Slice:
 		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
+	case *tipe.Struct:
+		resolved := true
+		for i, f := range t.Fields {
+			f, r1 := c.resolve(f)
+			t.Fields[i] = f
+			resolved = resolved && r1
+		}
 		return t, resolved
 	case *tipe.Table:
 		t.Type, resolved = c.resolve(t.Type)
@@ -949,7 +959,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		c.cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
-				e.Type.Params.Elems[i], _ = c.resolve(t)
+				t, _ = c.resolve(t)
+				e.Type.Params.Elems[i] = t
 				obj := &Obj{
 					Kind: ObjVar,
 					Type: t,
@@ -1452,7 +1463,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 		case t == tipe.Num && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
 			// promote untyped int or float to num type parameter
 		case t != p.typ:
-			c.errorf("cannot convert %s to %s", p.typ, t)
+			c.errorf("cannot convert %s to untyped %s", p.typ, t)
 		}
 	} else {
 		switch t := t.(type) {
@@ -1565,12 +1576,82 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			} else {
 				return nil
 			}
+		case tipe.Int8:
+			if i, ok := constant.Int64Val(v); ok {
+				if int64(int8(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Int16:
+			if i, ok := constant.Int64Val(v); ok {
+				if int64(int16(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Int32:
+			if i, ok := constant.Int64Val(v); ok {
+				if int64(int32(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
 		case tipe.Int64:
 			if _, ok := constant.Int64Val(v); ok {
 				return v
 			} else {
 				return nil
 			}
+		case tipe.Uint:
+			if i, ok := constant.Uint64Val(v); ok {
+				if uint64(uint(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Uint8:
+			if i, ok := constant.Uint64Val(v); ok {
+				if uint64(uint8(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Uint16:
+			if i, ok := constant.Uint64Val(v); ok {
+				if uint64(uint16(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Uint32:
+			if i, ok := constant.Uint64Val(v); ok {
+				if uint64(uint32(i)) != i {
+					return nil
+				}
+				return v
+			} else {
+				return nil
+			}
+		case tipe.Uint64:
+			if _, ok := constant.Uint64Val(v); ok {
+				return v
+			} else {
+				return nil
+			}
+
 		case tipe.Float32:
 			r, _ := constant.Float32Val(v)
 			return constant.MakeFloat64(float64(r))

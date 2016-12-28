@@ -6,6 +6,7 @@ package eval
 import (
 	"fmt"
 	"math/big"
+	"reflect"
 
 	"neugram.io/lang/token"
 )
@@ -56,9 +57,49 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case int:
 				return x + y, nil
 			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x + y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x + y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x + y, nil
+			}
 		case int64:
 			switch y := y.(type) {
 			case int64:
+				return x + y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x + y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x + y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x + y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x + y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
 				return x + y, nil
 			}
 		case float32:
@@ -102,9 +143,49 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case int:
 				return x - y, nil
 			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x - y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x - y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x - y, nil
+			}
 		case int64:
 			switch y := y.(type) {
 			case int64:
+				return x - y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x - y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x - y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x - y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x - y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
 				return x - y, nil
 			}
 		case float32:
@@ -145,6 +226,61 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case int:
 				return x * y, nil
 			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x * y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x * y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x * y, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x * y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x * y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x * y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x * y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x * y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
+				return x * y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x * y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x * y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -176,6 +312,66 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		return !valEq(x, y), nil
 	case token.Less:
 		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x < y, nil
+			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x < y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x < y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x < y, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x < y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x < y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x < y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x < y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x < y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
+				return x < y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x < y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x < y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -189,6 +385,66 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	case token.Greater:
 		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x > y, nil
+			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x > y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x > y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x > y, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x > y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x > y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x > y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x > y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x > y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
+				return x > y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x > y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x > y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -203,4 +459,102 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 	}
 	//return nil, fmt.Errorf("type mismatch Left: %T, Right: %T", x, y)
 	panic(fmt.Sprintf("binOp type mismatch Left: %+v (%T), Right: %+v (%T) op: %v", x, x, y, y, op))
+}
+
+func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
+	switch t.Kind() {
+	case reflect.Int:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(int(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(int(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(int(v.Float()))
+		}
+	case reflect.Int8:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(int8(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(int8(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(int8(v.Float()))
+		}
+	case reflect.Int16:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(int16(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(int16(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(int16(v.Float()))
+		}
+	case reflect.Int32:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(int32(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(int32(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(int32(v.Float()))
+		}
+	case reflect.Int64:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(int64(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(int64(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(int64(v.Float()))
+		}
+	case reflect.Uint:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(uint(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(uint(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(uint(v.Float()))
+		}
+	case reflect.Uint8:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(uint8(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(uint8(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(uint8(v.Float()))
+		}
+	case reflect.Uint16:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(uint16(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(uint16(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(uint16(v.Float()))
+		}
+	case reflect.Uint32:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(uint32(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(uint32(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(uint32(v.Float()))
+		}
+	case reflect.Uint64:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(uint64(v.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.ValueOf(uint64(v.Uint()))
+		case reflect.Float32, reflect.Float64:
+			return reflect.ValueOf(uint64(v.Float()))
+		}
+	case reflect.Float64:
+		return reflect.ValueOf(float64(v.Int()))
+	}
+	panic(interpPanic{fmt.Errorf("unknown type conv: %v <- %v", t, v.Type())})
 }

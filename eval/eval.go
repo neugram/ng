@@ -913,18 +913,3 @@ type Panic struct {
 func (p Panic) Error() string {
 	return fmt.Sprintf("neugram panic: %v", p.val)
 }
-
-func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
-	switch t.Kind() {
-	case reflect.Int64:
-		switch v.Kind() {
-		case reflect.Int, reflect.Int32, reflect.Int64: // TODO more
-			return reflect.ValueOf(int64(v.Int()))
-		case reflect.Float64:
-			return reflect.ValueOf(int64(v.Float()))
-		}
-	case reflect.Float64:
-		return reflect.ValueOf(float64(v.Int()))
-	}
-	panic(interpPanic{fmt.Errorf("unknown type conv: %v <- %v", t, v.Type())})
-}

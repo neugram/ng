@@ -32,7 +32,7 @@ var typeTests = []typeTest{
 	},
 	{
 		[]string{"x := 4"},
-		[]identType{{"x", tipe.Num}},
+		[]identType{{"x", tipe.Int}},
 	},
 	{
 		[]string{
@@ -41,7 +41,7 @@ var typeTests = []typeTest{
 			"z := int64(x) + 2",
 		},
 		[]identType{
-			{"y", tipe.Num},
+			{"y", tipe.Int},
 			{"z", tipe.Int64},
 		},
 	},
@@ -66,14 +66,14 @@ var typeTests = []typeTest{
 			"func g() int64 { return 7 }",
 		},
 		[]identType{
-			{"f", &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
-			{"g", &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
+			{"f", &tipe.Func{Params: &tipe.Tuple{}, Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
+			{"g", &tipe.Func{Params: &tipe.Tuple{}, Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
 		},
 	},
 
 	{
 		[]string{
-			"add := func(x, y integer) int64 { return int64(x) + int64(y) }",
+			"add := func(x, y int64) int64 { return int64(x) + int64(y) }",
 			"x := add(3, 4)",
 		},
 		[]identType{
@@ -117,6 +117,10 @@ var typeTests = []typeTest{
 			`err = nil`,
 		},
 		[]identType{{"err", Universe.Objs["error"].Type}},
+	},
+	{
+		[]string{"x := int32(int64(16))"},
+		[]identType{{"x", tipe.Int32}},
 	},
 }
 
