@@ -1,14 +1,10 @@
-func f() (integer, error) { return 4, nil }
+func f() (int, error) { return 4, nil }
 x := f()
-if x == 4 {
-	print("OK")
+if x != 4 {
+	panic("f should return 4")
 }
 
-methodik anError struct {} {
-	func (a) Error() string { return "anError" }
-}
-
-func g() (integer, error) { return 5, anError{} }
+func g() (int, error) { return 4, errorf("anError") }
 
 x, _ := g()
 x, err := g()
@@ -18,6 +14,6 @@ if err == nil {
 
 y, err := f()
 z, _ := f()
-if x == y && y == z && err == nil {
+if false || (x == y && y == z && err == nil) {
 	print("OK")
 }

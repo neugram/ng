@@ -7,6 +7,16 @@ import "neugram.io/lang/tipe"
 
 var Universe = &Scope{Objs: universeObjs}
 
+var errorType = &tipe.Interface{
+	Methods: map[string]*tipe.Func{
+		"Error": &tipe.Func{
+			Results: &tipe.Tuple{
+				Elems: []tipe.Type{tipe.String},
+			},
+		},
+	},
+}
+
 var universeObjs = map[string]*Obj{
 	"true":  &Obj{Kind: ObjVar, Type: tipe.Bool}, // TODO UntypedBool?
 	"false": &Obj{Kind: ObjVar, Type: tipe.Bool},
@@ -15,15 +25,7 @@ var universeObjs = map[string]*Obj{
 	"alias": &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
 	"error": &Obj{
 		Kind: ObjType,
-		Type: &tipe.Interface{
-			Methods: map[string]*tipe.Func{
-				"Error": &tipe.Func{
-					Results: &tipe.Tuple{
-						Elems: []tipe.Type{tipe.String},
-					},
-				},
-			},
-		},
+		Type: errorType,
 	},
 	"print": &Obj{
 		Kind: ObjVar,
@@ -41,6 +43,17 @@ var universeObjs = map[string]*Obj{
 				tipe.String,
 				&tipe.Slice{Elem: &tipe.Interface{}},
 			}},
+			Variadic: true,
+		},
+	},
+	"errorf": &Obj{
+		Kind: ObjVar,
+		Type: &tipe.Func{
+			Params: &tipe.Tuple{Elems: []tipe.Type{
+				tipe.String,
+				&tipe.Slice{Elem: &tipe.Interface{}},
+			}},
+			Results:  &tipe.Tuple{Elems: []tipe.Type{errorType}},
 			Variadic: true,
 		},
 	},

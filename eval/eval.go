@@ -71,6 +71,7 @@ func New() *Program {
 	addUniverse("nil", nil)
 	addUniverse("print", fmt.Println)
 	addUniverse("printf", fmt.Printf)
+	addUniverse("errorf", fmt.Errorf)
 	addUniverse("len", func(c interface{}) int {
 		if c == nil {
 			return 0
@@ -83,7 +84,7 @@ func New() *Program {
 		}
 		return reflect.ValueOf(c).Cap()
 	})
-	addUniverse("panic", func(c interface{}) { panic(c) })
+	addUniverse("panic", func(c interface{}) { panic(Panic{c}) })
 	addUniverse("copy", func(dst, src interface{}) int {
 		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
 	})
@@ -169,14 +170,19 @@ func (p *Program) Eval(s stmt.Stmt) (res []reflect.Value, err error) {
 		if x == nil {
 			return
 		}
-		if p, ok := x.(interpPanic); ok {
+		switch p := x.(type) {
+		case interpPanic:
 			err = p.reason
 			return
+		case Panic:
+			err = p
+			return
+		default:
+			err = fmt.Errorf("ng eval panic: %v", x)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			debug.PrintStack()
+			res = nil
 		}
-		err = fmt.Errorf("ng eval panic: %v", x)
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		debug.PrintStack()
-		res = nil
 	}()
 
 	p.Types.Errs = p.Types.Errs[:0]
@@ -266,8 +272,8 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		if isLastError && len(vars) == len(vals)-1 {
 			// last error is ignored, panic if non-nil
 			errVal := vals[len(vals)-1]
-			if !errVal.IsNil() {
-				panic(Panic{str: fmt.Sprintf("TODO uncaught error: %v", nil)})
+			if errVal != (reflect.Value{}) && !errVal.IsNil() {
+				panic(Panic{val: fmt.Sprintf("TODO uncaught error: %v", nil)})
 				// TODO: Go object
 				/*errFn := errVal.(*MethodikVal).Methods["Error"]
 				res, err := p.callClosure(errFn, nil)
@@ -398,8 +404,20 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		p.Returning = true
 		return res
 	case *stmt.Simple:
-		return p.evalExpr(s.Expr)
+		res := p.evalExpr(s.Expr)
+		if fn, isFunc := s.Expr.(*expr.FuncLiteral); isFunc && fn.Name != "" {
+			s := &Scope{
+				Parent:   p.Cur,
+				VarName:  fn.Name,
+				Var:      res[0],
+				Implicit: true,
+			}
+			p.Cur = s
+		}
+		return res
 	case *stmt.TypeDecl:
+		return nil
+	case *stmt.MethodikDecl:
 		return nil
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
@@ -447,7 +465,7 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 		}
 		return ret
 	default:
-		panic(fmt.Sprintf("TODO convert(%s, %s)", v, t))
+		panic(fmt.Sprintf("TODO convert(%v, %s)", v, t))
 	}
 }
 
@@ -472,8 +490,22 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Binary:
 		lhs := p.evalExpr(e.Left)
 		switch e.Op {
-		case token.LogicalAnd, token.LogicalOr:
-			panic("TODO LogicalAnd/LogicalOr")
+		case token.LogicalAnd:
+			v := lhs[0].Interface()
+			if !v.(bool) {
+				return []reflect.Value{reflect.ValueOf(false)}
+			}
+			rhs := p.evalExpr(e.Right)
+			v = rhs[0].Interface()
+			return []reflect.Value{reflect.ValueOf(v)}
+		case token.LogicalOr:
+			v := lhs[0].Interface()
+			if v.(bool) {
+				return []reflect.Value{reflect.ValueOf(true)}
+			}
+			rhs := p.evalExpr(e.Right)
+			v = rhs[0].Interface()
+			return []reflect.Value{reflect.ValueOf(v)}
 		}
 		rhs := p.evalExpr(e.Right)
 		x := lhs[0].Interface()
@@ -503,13 +535,12 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		// TODO: have typecheck do the error elision for us
 		// so we can insert the dynamic panic check once, right here.
 		res := fn.Call(args)
-		for i := range t {
+		/*for i := range res {
 			// Necessary to turn the return type of append
-			// from an interface{} into a slice to it can
+			// from an interface{} into a slice so it can
 			// be set.
 			res[i] = reflect.ValueOf(res[i].Interface())
-		}
-		res = res[:len(t)]
+		}*/
 		return res
 	case *expr.CompLiteral:
 		t := p.reflector.ToRType(e.Type)
@@ -866,9 +897,9 @@ func isError(t tipe.Type) bool {
 }
 
 type Panic struct {
-	str string
+	val interface{}
 }
 
 func (p Panic) Error() string {
-	return fmt.Sprintf("neugram panic: %s", p.str)
+	return fmt.Sprintf("neugram panic: %v", p.val)
 }

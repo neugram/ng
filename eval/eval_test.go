@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kr/pretty"
+
 	"neugram.io/eval/environ"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/stmt"
@@ -21,40 +23,33 @@ import (
 
 var exprTests = []struct {
 	stmt string
-	want *big.Int
+	want interface{}
 }{
-	{"2+3*(x+y-2)", big.NewInt(23)},
-	{"func() num { return 7 }()", big.NewInt(7)},
+	{"2+3*(x+y-2)", 23},
+	{"func() int { return 7 }()", 7},
 	{
-		// TODO: I believe our typechecking of this is woefully incomplete.
-		// When the closure func() num is declared, it delcares a new num
-		// parameter. But it closes over z, which inherits the num
-		// parameter from the outer scope. For z to be silently used as a
-		// num here, we are tying the two type parameters together. That's
-		// kind-of a big deal.
-		//
-		`func() num {
+		`func() int {
 			if x > 2 && x < 500 {
 				return z+1
 			} else {
 				return z-1
 			}
 		}()`,
-		big.NewInt(8),
+		8,
 	},
-	{
-		`func() num {
+	/*{
+		`func() int64 {
 			x := 9
 			x++
 			if x > 5 {
 				x = -x
 			}
-			return x
+			return int64(x)
 		}()`,
-		big.NewInt(-10),
+		int64(-10),
 	},
-	/* TODO: true {
-		`func() num {
+	{
+		`func() int {
 			f := func() bool {
 				x++
 				return true
@@ -67,41 +62,29 @@ var exprTests = []struct {
 			}
 			return x
 		}()`,
-		big.NewInt(8),
-	},*/
+		8,
+	},
 	{
-		`func() num {
+		`func() int {
 			v := 2
 			for i := 1; i < 4; i++ {
 				v *= i
 			}
 			return v
 		}()`,
-		big.NewInt(12),
-	},
-	/*{
-		`func() val {
-			v := 2
-			for {
-				v++
-				break
-				v++
-			}
-			return v
-		}()`,
-		big.NewInt(3),
+		12,
 	},*/
 }
 
 func mkBasicProgram() (*Program, error) {
 	p := New()
-	if _, _, err := p.Eval(mustParse("x := 4")); err != nil {
+	if _, err := p.Eval(mustParse("x := 4")); err != nil {
 		return nil, err
 	}
-	if _, _, err := p.Eval(mustParse("y := 5")); err != nil {
+	if _, err := p.Eval(mustParse("y := 5")); err != nil {
 		return nil, err
 	}
-	if _, _, err := p.Eval(mustParse("z := 7")); err != nil {
+	if _, err := p.Eval(mustParse("z := 7")); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -114,22 +97,39 @@ func TestExprs(t *testing.T) {
 			t.Fatalf("mkBasicProgram: %v", err)
 		}
 		s := mustParse(test.stmt)
-		res, _, err := p.Eval(s)
+		res, err := p.Eval(s)
 		if err != nil {
-			t.Errorf("Eval(%s) error: %v", s.Sexp(), err)
+			t.Errorf("Eval(%s) error: %v", pretty.Sprint(s), err)
 		}
 		if len(res) != 1 {
-			t.Errorf("Eval(%s) want *big.Int, got multi-valued (%d) result: %v", s.Sexp(), len(res), res)
+			t.Errorf("Eval(%s) want *big.Int, got multi-valued (%d) result: %v", pretty.Sprint(s), len(res), res)
 			continue
 		}
 		fmt.Printf("Returning Eval: %#+v\n", res)
-		got, ok := res[0].(*big.Int)
-		if !ok {
-			t.Errorf("Eval(%s) want *big.Int, got: %s (%T)", s.Sexp(), got, got)
-			continue
-		}
-		if test.want.Cmp(got) != 0 {
-			t.Errorf("Eval(%s)=%s, want %s", s.Sexp(), got, test.want)
+		switch want := test.want.(type) {
+		case *big.Int:
+			got, ok := res[0].Interface().(*big.Int)
+			if !ok {
+				t.Errorf("Eval(%s) want *big.Int, got: %s (%T)", pretty.Sprint(s), got, res[0].Interface())
+				continue
+			}
+			if want.Cmp(got) != 0 {
+				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+			}
+		case *big.Float:
+			got, ok := res[0].Interface().(*big.Float)
+			if !ok {
+				t.Errorf("Eval(%s) want *big.Float, got: %s (%T)", pretty.Sprint(s), got, res[0].Interface())
+				continue
+			}
+			if want.Cmp(got) != 0 {
+				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+			}
+		default:
+			got := res[0].Interface()
+			if got != want {
+				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+			}
 		}
 	}
 }
@@ -156,7 +156,7 @@ func runProgram(b []byte) error {
 			return fmt.Errorf("%d: %v", i+1, res.Errs[0])
 		}
 		for _, s := range res.Stmts {
-			if _, _, err := prg.Eval(s); err != nil {
+			if _, err := prg.Eval(s); err != nil {
 				if _, isPanic := err.(Panic); isPanic {
 					return err
 				}

@@ -1228,12 +1228,15 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		left.expr = e
 		// TODO check for division by zero
-		// TODO check for comparison
 		if left.mode == modeConst && right.mode == modeConst {
 			left.val = constant.BinaryOp(left.val, convGoOp(e.Op), right.val)
 			// TODO check rounding
+			// TODO check for comparison, result is untyped bool
 		}
-
+		switch e.Op {
+		case token.Equal, token.NotEqual, token.Less, token.Greater:
+			left.typ = tipe.Bool
+		}
 		return left
 	case *expr.Call:
 		return c.exprPartialCall(e)

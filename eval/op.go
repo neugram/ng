@@ -140,6 +140,11 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		}
 	case token.Mul:
 		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x * y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -154,6 +159,13 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			}
 		}
 	case token.Div:
+		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x / y, nil
+			}
+		}
 	case token.Rem:
 	case token.Pow:
 	case token.LogicalAnd, token.LogicalOr:
