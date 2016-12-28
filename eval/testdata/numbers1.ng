@@ -1,11 +1,11 @@
 type t struct {
-	x int64
-	y float64
+	X int64
+	Y float64
 }
 
 v := t{3, 1.2}
 
-r := int64(float64(v.x) - v.y)
+r := int64(float64(v.X) - v.Y)
 
 /*
 func min(x, y num) {
@@ -25,6 +25,6 @@ func max(x, y num) {
 r = max(min(r, 4), 1)
 */
 
-if r == 2 {
+if r == 1 {
 	print("OK")
 }

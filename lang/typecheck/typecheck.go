@@ -210,7 +210,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				obj := &Obj{Kind: ObjVar, Type: vt}
 				c.Defs[s.Val.(*expr.Ident)] = obj
 				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
-				c.Types[s.Val] = kt
+				c.Types[s.Val] = vt
 			}
 		} else {
 			if s.Key != nil {
@@ -221,7 +221,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if s.Val != nil {
 				p := c.expr(s.Val)
 				c.assign(&p, vt)
-				c.Types[s.Val] = kt
+				c.Types[s.Val] = vt
 			}
 		}
 		c.stmt(s.Body, retType)

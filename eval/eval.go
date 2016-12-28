@@ -178,6 +178,7 @@ func (p *Program) Eval(s stmt.Stmt) (res []reflect.Value, err error) {
 			err = p
 			return
 		default:
+			//panic(x)
 			err = fmt.Errorf("ng eval panic: %v", x)
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			debug.PrintStack()
@@ -382,7 +383,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			slen := src.Len()
 			for i := 0; i < slen; i++ {
 				key.SetInt(int64(i))
-				val.Set(src.Index(i))
+				if val != (reflect.Value{}) {
+					val.Set(src.Index(i))
+				}
 				p.evalStmt(s.Body)
 				if p.Returning {
 					break
@@ -522,6 +525,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		for i, arg := range e.Args {
 			args[i] = p.evalExprOne(arg)
 		}
+		if t, isTypeConv := fn.Interface().(reflect.Type); isTypeConv {
+			return []reflect.Value{typeConv(t, args[0])}
+		}
 		var t []reflect.Type
 		switch resTyp := p.Types.Types[e].(type) {
 		case *tipe.Tuple:
@@ -581,7 +587,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			p := &Program{
 				Universe:  p.Universe,
 				Types:     p.Types, // TODO race cond, clone type list
-				Cur:       &Scope{Parent: p.Universe},
+				Cur:       s,
 				reflector: p.reflector,
 			}
 			p.pushScope()
@@ -606,6 +612,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		if v := p.Cur.Lookup(e.Name); v != (reflect.Value{}) {
 			return []reflect.Value{v}
+		}
+		t := p.Types.Types[e]
+		if t != nil {
+			return []reflect.Value{reflect.ValueOf(p.reflector.ToRType(p.Types.Types[e]))}
 		}
 		panic(interpPanic{fmt.Errorf("eval: undefined identifier: %q", e.Name)})
 	case *expr.Index:
@@ -902,4 +912,19 @@ type Panic struct {
 
 func (p Panic) Error() string {
 	return fmt.Sprintf("neugram panic: %v", p.val)
+}
+
+func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
+	switch t.Kind() {
+	case reflect.Int64:
+		switch v.Kind() {
+		case reflect.Int, reflect.Int32, reflect.Int64: // TODO more
+			return reflect.ValueOf(int64(v.Int()))
+		case reflect.Float64:
+			return reflect.ValueOf(int64(v.Float()))
+		}
+	case reflect.Float64:
+		return reflect.ValueOf(float64(v.Int()))
+	}
+	panic(interpPanic{fmt.Errorf("unknown type conv: %v <- %v", t, v.Type())})
 }
