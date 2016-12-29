@@ -473,14 +473,13 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 	}
 }
 
-func (c *Checker) goPkg(path string) *tipe.Package {
+func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 	if pkg := c.GoPkgs[path]; pkg != nil {
-		return pkg
+		return pkg, nil
 	}
 	gopkg, err := c.ImportGo(path)
 	if err != nil {
-		c.errorf("importing go package: %v", err)
-		return nil
+		return nil, err
 	}
 	pkg := &tipe.Package{
 		GoPkg:   gopkg,
@@ -502,24 +501,31 @@ func (c *Checker) goPkg(path string) *tipe.Package {
 			delete(c.GoTypesToFill, gotyp)
 		}
 	}
-	return pkg
+	return pkg, nil
+}
+
+func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
+	return nil, fmt.Errorf("ng package TODO")
 }
 
 func (c *Checker) checkImport(s *stmt.Import) {
-	if s.FromGo {
-		pkg := c.goPkg(s.Path)
-		if s.Name == "" {
-			s.Name = pkg.GoPkg.(*gotypes.Package).Name()
+	pkg, err := c.goPkg(s.Path)
+	if err != nil {
+		pkg, err = c.ngPkg(s.Path)
+		if err != nil {
+			c.errorf("importing of go/ng package failed: %v", err)
+			return
 		}
-		obj := &Obj{
-			Kind: ObjPkg,
-			Type: pkg,
-			// TODO Decl?
-		}
-		c.cur.Objs[s.Name] = obj
-	} else {
-		c.errorf("TODO import of non-Go package")
 	}
+	if s.Name == "" {
+		s.Name = pkg.GoPkg.(*gotypes.Package).Name()
+	}
+	obj := &Obj{
+		Kind: ObjPkg,
+		Type: pkg,
+		// TODO Decl?
+	}
+	c.cur.Objs[s.Name] = obj
 }
 
 func (c *Checker) expr(e expr.Expr) (p partial) {

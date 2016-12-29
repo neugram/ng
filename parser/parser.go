@@ -914,7 +914,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		p.expectSemi()
 		return s
-	case token.Importgo:
+	case token.Import:
 		p.next()
 		name := ""
 		if p.s.Token == token.Ident {
@@ -925,9 +925,8 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		p.expect(token.String)
 		path := p.s.Literal.(string)
 		s := &stmt.Import{
-			Name:   name,
-			Path:   path[1 : len(path)-1],
-			FromGo: true,
+			Name: name,
+			Path: path[1 : len(path)-1],
 		}
 		p.next()
 		p.expectSemi()

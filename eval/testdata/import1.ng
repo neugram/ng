@@ -1,0 +1,10 @@
+import "sync"
+
+wg := sync.WaitGroup{}
+wg.Add(1)
+wg.Done()
+wg.Wait()
+
+import "fmt"
+
+fmt.Println("\n", "OK")

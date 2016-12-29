@@ -19,9 +19,8 @@ type Stmt interface {
 }
 
 type Import struct {
-	Name   string
-	Path   string
-	FromGo bool
+	Name string
+	Path string
 }
 
 type TypeDecl struct {
