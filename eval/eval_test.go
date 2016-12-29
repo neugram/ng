@@ -201,6 +201,10 @@ func TestPrograms(t *testing.T) {
 	}()
 
 	shell.Env = environ.New()
+	for _, s := range os.Environ() {
+		i := strings.Index(s, "=")
+		shell.Env.Set(s[:i], s[i+1:])
+	}
 	shell.Alias = environ.New()
 
 	for _, file := range files {

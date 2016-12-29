@@ -1358,7 +1358,10 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.TableIndex:
 		panic(fmt.Sprintf("typecheck.expr TODO TableIndex: %+v", e))
 	case *expr.Shell:
-		p.mode = modeVoid
+		p.mode = modeVar
+		p.typ = &tipe.Tuple{Elems: []tipe.Type{
+			tipe.String, Universe.Objs["error"].Type,
+		}}
 		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %T", e))

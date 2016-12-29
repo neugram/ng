@@ -196,7 +196,6 @@ func (j *Job) execShellList(cmd *expr.ShellList, sio stdio) error {
 
 func (j *Job) execShellAndOr(andor *expr.ShellAndOr, sio stdio) error {
 	for i, p := range andor.Pipeline {
-		// TODO: Sep, &&, ||
 		err := j.execPipeline(p, sio)
 		if i < len(andor.Pipeline)-1 {
 			switch andor.Sep[i] {
@@ -211,6 +210,8 @@ func (j *Job) execShellAndOr(andor *expr.ShellAndOr, sio stdio) error {
 			default:
 				panic("unknown AndOr separator: " + andor.Sep[i].String())
 			}
+		} else if err != nil {
+			return err
 		}
 	}
 	return nil

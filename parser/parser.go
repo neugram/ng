@@ -773,6 +773,13 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 				}
 			}
 		}
+		if e, isShell := right[0].(*expr.Shell); isShell {
+			if lhs, isIdent := exprs[0].(*expr.Ident); isIdent {
+				if lhs.Name == "_" {
+					e.DropOut = true
+				}
+			}
+		}
 		return &stmt.Assign{
 			Decl:  tok == token.Define,
 			Left:  exprs,
@@ -796,8 +803,10 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	}
 
 	// TODO len==1
+	if e, isShell := exprs[0].(*expr.Shell); isShell {
+		e.TrapOut = false
+	}
 	return &stmt.Simple{exprs[0]}
-	//panic(fmt.Sprintf("TODO parseSimpleStmt, Token=%s", p.s.Token))
 }
 
 func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
@@ -1126,7 +1135,9 @@ func (p *Parser) parseOperand() expr.Expr {
 		return p.parseFunc(false)
 	case token.Shell:
 		p.next()
-		x := &expr.Shell{}
+		x := &expr.Shell{
+			TrapOut: true,
+		}
 		for p.s.Token > 0 && p.s.Token != token.Shell {
 			restore := p.interactive
 			p.interactive = false

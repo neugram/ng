@@ -155,7 +155,9 @@ type ShellAssign struct {
 }
 
 type Shell struct {
-	Cmds []*ShellList
+	Cmds    []*ShellList
+	TrapOut bool // override os.Stdout, outer language collect it
+	DropOut bool // send stdout to /dev/null (just an optimization)
 	// TODO: Shell object for err := $$(stdin, stdout, stderr) cmd $$
 }
 

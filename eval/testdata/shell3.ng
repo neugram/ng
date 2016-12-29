@@ -1,0 +1,7 @@
+x := $$ echo -n ex $$
+_, err := $$ false $$
+z, err2 := $$ false || true && echo -n zed $$
+
+if x == "ex" && err != nil && z == "zed" && err2 == nil {
+	$$ echo OK $$
+}

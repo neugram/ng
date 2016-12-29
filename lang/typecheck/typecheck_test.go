@@ -70,7 +70,6 @@ var typeTests = []typeTest{
 			{"g", &tipe.Func{Params: &tipe.Tuple{}, Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}}}},
 		},
 	},
-
 	{
 		[]string{
 			"add := func(x, y int64) int64 { return int64(x) + int64(y) }",
@@ -121,6 +120,17 @@ var typeTests = []typeTest{
 	{
 		[]string{"x := int32(int64(16))"},
 		[]identType{{"x", tipe.Int32}},
+	},
+	{
+		[]string{
+			`x, err := $$ echo hi $$`,
+			`y := $$ echo hi $$`,
+		},
+		[]identType{
+			{"x", tipe.String},
+			{"err", Universe.Objs["error"].Type},
+			{"y", tipe.String},
+		},
 	},
 }
 

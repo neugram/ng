@@ -5,6 +5,7 @@ package eval
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"os"
 	"reflect"
@@ -259,13 +260,14 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 
 		for i := range vars {
-			if vars[i] != (reflect.Value{}) {
+			if vars[i].IsValid() {
 				vars[i].Set(vals[i])
 			}
 		}
 
 		// Dynamic elision of final error.
-		// TODO: move into Call case
+		// TODO: move into Call case? Would miss Shell case.
+		// But we need to get g(elidedErrorFunc()).
 		isLastError := false
 		if len(s.Right) == 1 {
 			isLastError = isError(types[len(types)-1])
@@ -273,20 +275,8 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		if isLastError && len(vars) == len(vals)-1 {
 			// last error is ignored, panic if non-nil
 			errVal := vals[len(vals)-1]
-			if errVal != (reflect.Value{}) && !errVal.IsNil() {
-				panic(Panic{val: fmt.Sprintf("TODO uncaught error: %v", nil)})
-				// TODO: Go object
-				/*errFn := errVal.(*MethodikVal).Methods["Error"]
-				res, err := p.callClosure(errFn, nil)
-				if err != nil {
-					return nil, Panic{str: fmt.Sprintf("panic during error panic: %v", err)}
-				}
-				v, err := p.readVar(res[0])
-				if err != nil {
-					return nil, Panic{str: fmt.Sprintf("panic during error result: %v", err)}
-				}
-				return nil, Panic{str: fmt.Sprintf("uncaught error: %v", v)}
-				*/
+			if errVal.IsValid() && errVal.Interface() != nil {
+				panic(Panic{val: errVal.Interface()})
 			}
 		}
 		return nil
@@ -309,7 +299,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		for {
 			if s.Cond != nil {
 				cond := p.evalExprOne(s.Cond)
-				if cond.Kind() == reflect.Bool && cond.Bool() {
+				if cond.Kind() == reflect.Bool && !cond.Bool() {
 					break
 				}
 			}
@@ -684,26 +674,59 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		return []reflect.Value{lhs.Slice(i, j)}
 	case *expr.Shell:
+		res := make(chan string)
+		out := os.Stdout
+		if e.DropOut {
+			out = devNull
+			close(res)
+		} else if e.TrapOut {
+			r, w, err := os.Pipe()
+			if err != nil {
+				panic(err)
+			}
+			out = w
+			go func() {
+				b, err := ioutil.ReadAll(r)
+				if err != nil {
+					panic(err)
+				}
+				res <- string(b)
+			}()
+		} else {
+			close(res)
+		}
+		var err error
 		for _, cmd := range e.Cmds {
 			j := &shell.Job{
 				Cmd:    cmd,
 				Params: p,
 				Stdin:  os.Stdin,
-				Stdout: os.Stdout,
+				Stdout: out,
 				Stderr: os.Stderr,
 			}
-			if err := j.Start(); err != nil {
-				panic(interpPanic{err})
+			if err = j.Start(); err != nil {
+				break
 			}
-			done, err := j.Wait()
+			var done bool
+			done, err = j.Wait()
 			if err != nil {
-				panic(interpPanic{err})
+				break
 			}
 			if !done {
 				break // TODO not right, instead we should just have one cmd, not Cmds here.
 			}
 		}
-		return nil
+		if e.TrapOut {
+			out.Close()
+		}
+		str := reflect.ValueOf(<-res)
+		if err != nil {
+			fmt.Printf("shell err: %v\n", err)
+			return []reflect.Value{str, reflect.ValueOf(err)}
+		}
+		errt := reflect.TypeOf((*error)(nil)).Elem()
+		nilerr := reflect.New(errt).Elem()
+		return []reflect.Value{str, nilerr}
 	case *expr.SliceLiteral:
 		t := p.reflector.ToRType(e.Type)
 		slice := reflect.MakeSlice(t, len(e.Elems), len(e.Elems))
@@ -912,4 +935,14 @@ type Panic struct {
 
 func (p Panic) Error() string {
 	return fmt.Sprintf("neugram panic: %v", p.val)
+}
+
+var devNull *os.File
+
+func init() {
+	var err error
+	devNull, err = os.Open("/dev/null")
+	if err != nil {
+		panic(err)
+	}
 }
