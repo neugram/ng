@@ -653,6 +653,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{pkg.Exports[e.Right.Name]}
 		}
 		v := lhs.MethodByName(e.Right.Name)
+		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr {
+			v = lhs.Addr().MethodByName(e.Right.Name)
+		}
 		if v == (reflect.Value{}) && lhs.Kind() == reflect.Struct {
 			v = lhs.FieldByName(e.Right.Name)
 		}
