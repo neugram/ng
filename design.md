@@ -4,7 +4,7 @@ Neugram is a programming language focused on numerical data processing.
 The key data structure is the table. A table has a small (known) number
 of named columns and many rows.
 
-Very imporant: it is easy to import Go packages and call Go from inside
+Very important: it is easy to import Go packages and call Go from inside
 Neugram. Serious work should be implemented in Go, Neugram is the
 numerical glue.
 
