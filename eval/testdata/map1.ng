@@ -1,0 +1,18 @@
+m := map[string]int{}
+
+m["seven"] = 1
+m["two"] = 2
+
+m["three"] = 3
+m["seven"] = 7
+m["ten"] = 10
+delete(m, "two")
+
+total := 0
+for _, v := range m {
+	total += v
+}
+
+if m["seven"] == 7 && total == 20 {
+	print("OK")
+}

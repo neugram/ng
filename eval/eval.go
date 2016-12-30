@@ -385,6 +385,21 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 					break
 				}
 			}
+		case reflect.Map:
+			keys := src.MapKeys()
+			for _, k := range keys {
+				key.Set(k)
+				v := src.MapIndex(key)
+				val.Set(v)
+				p.evalStmt(s.Body)
+				if p.Returning {
+					break
+				}
+				if p.Breaking {
+					p.Breaking = false // TODO: break label
+					break
+				}
+			}
 		default:
 			panic(interpPanic{fmt.Errorf("unknown range type: %T", src)})
 		}

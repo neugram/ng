@@ -196,6 +196,9 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		case *tipe.Slice:
 			kt = tipe.Int
 			vt = t.Elem
+		case *tipe.Map:
+			kt = t.Key
+			vt = t.Value
 		default:
 			c.errorf("TODO range over non-slice: %T", t)
 		}
