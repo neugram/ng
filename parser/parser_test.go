@@ -79,7 +79,10 @@ var parserTests = []parserTest{
 	{
 		"func() integer { return 7 }",
 		&expr.FuncLiteral{
-			Type: &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}}},
+			Type: &tipe.Func{
+				Params:  &tipe.Tuple{},
+				Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
+			},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
 			}},
@@ -114,10 +117,14 @@ var parserTests = []parserTest{
 			return x
 		}`,
 		&expr.FuncLiteral{
-			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tint64}}},
+			Type: &tipe.Func{
+				Params:  &tipe.Tuple{},
+				Results: &tipe.Tuple{Elems: []tipe.Type{tint64}},
+			},
 			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{
 				&stmt.Assign{
+					Decl:  true,
 					Left:  []expr.Expr{&expr.Ident{"x"}},
 					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
 				},
@@ -134,10 +141,14 @@ var parserTests = []parserTest{
 			}
 		}`,
 		&expr.FuncLiteral{
-			Type:        &tipe.Func{Results: &tipe.Tuple{Elems: []tipe.Type{tint64}}},
+			Type: &tipe.Func{
+				Params:  &tipe.Tuple{},
+				Results: &tipe.Tuple{Elems: []tipe.Type{tint64}},
+			},
 			ResultNames: []string{""},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
 				Init: &stmt.Assign{
+					Decl:  true,
 					Left:  []expr.Expr{&expr.Ident{"x"}},
 					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(9)}},
 				},
@@ -187,7 +198,9 @@ var parserTests = []parserTest{
 	{
 		"func() { x = -x }",
 		&expr.FuncLiteral{
-			Type: &tipe.Func{},
+			Type: &tipe.Func{
+				Params: &tipe.Tuple{},
+			},
 			Body: &stmt.Block{[]stmt.Stmt{&stmt.Assign{
 				Left:  []expr.Expr{&expr.Ident{"x"}},
 				Right: []expr.Expr{&expr.Unary{Op: token.Sub, Expr: &expr.Ident{"x"}}},
@@ -200,32 +213,31 @@ var parserTests = []parserTest{
 	{`"hello"`, &expr.BasicLiteral{"hello"}},
 	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
 	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
-	{"x[4]", &expr.Index{Expr: &expr.Ident{"x"}, Index: basic(4)}},
+	{"x[4]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{basic(4)}}},
 	{"x[1+2]", &expr.Index{
-		Expr: &expr.Ident{"x"},
-		Index: &expr.Binary{Op: token.Add,
+		Left: &expr.Ident{"x"},
+		Indicies: []expr.Expr{&expr.Binary{Op: token.Add,
 			Left:  basic(1),
 			Right: basic(2),
-		},
+		}},
 	}},
-	/* {"x[1:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}}}},
-	{"x[1:]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}}}},
-	{"x[:3]", &expr.TableIndex{Expr: &expr.Ident{"x"}, Cols: expr.Range{End: &expr.BasicLiteral{big.NewInt(3)}}}},
-	{"x[:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
-	{"x[,:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
-	{"x[:,:]", &expr.TableIndex{Expr: &expr.Ident{"x"}}},
+	{"x[1:3]", &expr.Index{
+		Left:     &expr.Ident{"x"},
+		Indicies: []expr.Expr{&expr.Slice{Low: basic(1), High: basic(3)}},
+	}},
+	{"x[1:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}}}},
+	{"x[:3]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{High: basic(3)}}}},
+	{"x[:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{}}}},
+	{"x[:,:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{}, &expr.Slice{}}}},
+	{"x[1:,:3]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}, &expr.Slice{High: basic(3)}}}},
+	{"x[1:3,5:7]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1), High: basic(3)}, &expr.Slice{Low: basic(5), High: basic(7)}}}},
+	/* TODO
 	{`x["C1"|"C2"]`, &expr.TableIndex{Expr: &expr.Ident{"x"}, ColNames: []string{"C1", "C2"}}},
 	{`x["C1",1:]`, &expr.TableIndex{
 		Expr:     &expr.Ident{"x"},
 		ColNames: []string{"C1"},
 		Rows:     expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}},
 	}},
-	{"x[1:3,5:7]", &expr.TableIndex{
-		Expr: &expr.Ident{"x"},
-		Cols: expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}, End: &expr.BasicLiteral{big.NewInt(3)}},
-		Rows: expr.Range{Start: &expr.BasicLiteral{big.NewInt(5)}, End: &expr.BasicLiteral{big.NewInt(7)}},
-	}},
-
 	/*{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{tipe.Num}}},
 	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
 		Type: &tipe.Table{tipe.Num},
@@ -256,7 +268,12 @@ func TestParseExpr(t *testing.T) {
 		}
 		got := s.(*stmt.Simple).Expr
 		if !EqualExpr(got, test.want) {
-			t.Errorf("ParseExpr(%q):\n%v", test.input, DiffExpr(test.want, got))
+			diff, err := DiffExpr(test.want, got)
+			if err != nil {
+				t.Errorf("ParseExpr(%q): DiffExpr error: %v\nGot: %s\nWant: %s", test.input, err, pretty.Sprint(got), pretty.Sprint(test.want))
+			} else {
+				t.Errorf("ParseExpr(%q):\n%v", test.input, diff)
+			}
 		}
 	}
 }
@@ -607,14 +624,16 @@ var stmtTests = []stmtTest{
 			Type: &tipe.Methodik{
 				Type:        tinteger,
 				MethodNames: []string{"f"},
-				Methods: []*tipe.Func{
-					{Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}}},
-				},
+				Methods: []*tipe.Func{{
+					Params:  &tipe.Tuple{},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
+				}},
 			},
 			Methods: []*expr.FuncLiteral{{
 				Name:         "f",
 				ReceiverName: "a",
 				Type: &tipe.Func{
+					Params:  &tipe.Tuple{},
 					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 				},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
@@ -738,7 +757,13 @@ func TestParseStmt(t *testing.T) {
 			continue
 		}
 		if !EqualStmt(got, test.want) {
-			t.Errorf("ParseStmt(%q):\n%v", test.input, DiffStmt(test.want, got))
+			diff, err := DiffStmt(test.want, got)
+			if err != nil {
+				t.Errorf("ParseStmt(%q): DiffStmt error: %v\nGot: %s\nWant: %s", test.input, err, pretty.Sprint(got), pretty.Sprint(test.want))
+			} else {
+				t.Errorf("ParseStmt(%q):\n%v", test.input, diff)
+			}
+
 		}
 	}
 }

@@ -208,9 +208,6 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !EqualExpr(x.Left, y.Left) {
-			return false
-		}
 		if !EqualExpr(x.Low, y.Low) {
 			return false
 		}
@@ -229,37 +226,10 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !EqualExpr(x.Expr, y.Expr) {
+		if !EqualExpr(x.Left, y.Left) {
 			return false
 		}
-		if !EqualExpr(x.Index, y.Index) {
-			return false
-		}
-		return true
-	case *expr.TableIndex:
-		y, ok := y.(*expr.TableIndex)
-		if !ok {
-			return false
-		}
-		if x == nil || y == nil {
-			return x == nil && y == nil
-		}
-		if !EqualExpr(x.Expr, y.Expr) {
-			return false
-		}
-		if !reflect.DeepEqual(x.ColNames, y.ColNames) {
-			return false
-		}
-		rangeEq := func(x, y expr.Range) bool {
-			return EqualExpr(x.Start, y.Start) && EqualExpr(x.End, y.End) && EqualExpr(x.Exact, y.Exact)
-		}
-		if !rangeEq(x.Cols, y.Cols) {
-			return false
-		}
-		if !rangeEq(x.Rows, y.Rows) {
-			return false
-		}
-		return true
+		return equalExprs(x.Indicies, y.Indicies)
 	case *expr.ShellList:
 		y, ok := y.(*expr.ShellList)
 		if !ok {

@@ -37,7 +37,7 @@ var exprTests = []struct {
 		}()`,
 		8,
 	},
-	/*{
+	{
 		`func() int64 {
 			x := 9
 			x++
@@ -73,7 +73,7 @@ var exprTests = []struct {
 			return v
 		}()`,
 		12,
-	},*/
+	},
 }
 
 func mkBasicProgram() (*Program, error) {

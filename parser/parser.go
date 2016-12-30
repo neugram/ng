@@ -374,112 +374,67 @@ func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
 	p.expect(token.LeftBracket)
 	p.next()
 
-	if p.s.Token == token.Colon {
-		// [:expr]
-		p.next()
-		high := p.parseExpr()
-		p.expect(token.RightBracket)
-		p.next()
-		return &expr.Slice{
-			Left: lhs,
-			High: high,
-		}
-	}
-
-	e := p.parseExpr()
-	if p.s.Token == token.RightBracket {
-		// [expr]
-		p.next()
-		return &expr.Index{
-			Expr:  lhs,
-			Index: e,
-		}
-	}
-	p.expect(token.Colon)
-	p.next()
-	if p.s.Token == token.RightBracket {
-		// [expr:]
-		p.next()
-		return &expr.Slice{
-			Left: lhs,
-			Low:  e,
-		}
-	}
-	high := p.parseExpr()
-	if p.s.Token == token.RightBracket {
-		// [expr:high]
-		p.next()
-		return &expr.Slice{
-			Left: lhs,
-			Low:  e,
-			High: high,
-		}
-	}
-	p.expect(token.Colon)
-	p.next()
-	max := p.parseExpr()
-	p.expect(token.RightBracket)
-	p.next()
-	// [expr:high:max]
-	return &expr.Slice{
+	res := &expr.Index{
 		Left: lhs,
-		Low:  e,
-		High: high,
-		Max:  max,
-	}
-}
-
-/*
-func (p *Parser) parseTableIndex(lhs expr.Expr, first *expr.BasicLiteral) *expr.TableIndex {
-	x := &expr.TableIndex{
-		Expr: lhs,
 	}
 
-	// Cols
-	if p.s.Token == token.Pipe {
-		x.ColNames = append(x.ColNames, first)
-	}
-	for p.s.Token == token.Pipe {
-		p.next()
-		// "Col1"|"Col2"
-		if p.s.Token != token.String {
-			return x
+	for p.s.Token != 0 && p.s.Token != token.RightBracket {
+		if len(res.Indicies) != 0 {
+			if !p.expect(token.Comma) {
+				break
+			}
+			p.next()
 		}
-		name, _ := strconv.Unquote(p.s.Literal.(string))
-		x.ColNames = append(x.ColNames, name)
-		p.next()
-	}
-	if p.s.Token == token.RightBracket {
-		// ["Col1"|"Col2"]
-		p.next()
-		return x
-	}
-	if p.s.Token != token.Comma {
-		if len(x.ColNames) != 0 {
-			p.errorf("expected ',' or ']' after column names, got %s", p.s.Token)
-			return x
+
+		if p.s.Token == token.Colon {
+			// [:expr]
+			p.next()
+			if p.s.Token == token.RightBracket || p.s.Token == token.Comma {
+				res.Indicies = append(res.Indicies, &expr.Slice{})
+				continue
+			}
+			high := p.parseExpr()
+			res.Indicies = append(res.Indicies, &expr.Slice{High: high})
+			continue
 		}
-		// [0:1, [:1, [0:], or [0:,
-		x.Cols = p.parseRange()
-	}
-	if p.s.Token == token.RightBracket {
+
+		e := p.parseExpr()
+		if p.s.Token == token.RightBracket || p.s.Token == token.Comma {
+			// [expr]
+			res.Indicies = append(res.Indicies, e)
+			continue
+		}
+		p.expect(token.Colon)
 		p.next()
-		return x
-	}
-	if p.s.Token != token.Comma {
-		p.errorf("expected ',' or ']' after column range, got %s", p.s.Token)
-		return x
-	}
-	p.next()
+		if p.s.Token == token.RightBracket || p.s.Token == token.Comma {
+			// [expr:]
+			res.Indicies = append(res.Indicies, &expr.Slice{Low: e})
+			continue
+		}
+		high := p.parseExpr()
+		if p.s.Token == token.RightBracket || p.s.Token == token.Comma {
+			// [expr:high]
+			res.Indicies = append(res.Indicies, &expr.Slice{
+				Low:  e,
+				High: high,
+			})
+			continue
+		}
+		p.expect(token.Colon)
+		p.next()
+		max := p.parseExpr()
+		// [expr:high:max]
+		res.Indicies = append(res.Indicies, &expr.Slice{
+			Low:  e,
+			High: high,
+			Max:  max,
+		})
 
-	// Rows
-	x.Rows = p.parseRange()
-
+	}
 	p.expect(token.RightBracket)
 	p.next()
-	return x
+	return res
 }
-*/
 
 func (p *Parser) parseRange() (r expr.Range) {
 	var x expr.Expr
@@ -1049,9 +1004,12 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 
 	if method {
 		// func (a) f()
-		f.PointerReceiver = true // TODO remove?
 		p.expect(token.LeftParen)
 		p.next()
+		if p.s.Token == token.Mul {
+			f.PointerReceiver = true
+			p.next()
+		}
 		f.ReceiverName = p.parseIdent().Name
 		p.expect(token.RightParen)
 		p.next()

@@ -132,6 +132,18 @@ var typeTests = []typeTest{
 			{"y", tipe.String},
 		},
 	},
+	{
+		[]string{
+			`x := []int64{1,2}`,
+			`y := x[0]`,
+			`z := x[0:1]`,
+		},
+		[]identType{
+			{"x", &tipe.Slice{Elem: tipe.Int64}},
+			{"y", tipe.Int64},
+			{"z", &tipe.Slice{Elem: tipe.Int64}},
+		},
+	},
 }
 
 func TestBasic(t *testing.T) {

@@ -1303,69 +1303,78 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		p.mode = modeInvalid
 		c.errorf("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
-	case *expr.Slice:
+	case *expr.Index:
 		left := c.expr(e.Left)
 		if left.mode == modeInvalid {
 			return left
 		}
-		if _, isSlice := tipe.Underlying(left.typ).(*tipe.Slice); !isSlice {
-			p.mode = modeInvalid
-			c.errorf("cannot slice %s (type %s)", e.Left, left.typ)
-			return p
-		}
-		p.mode = modeVar
-		p.typ = left.typ
-
-		ints := func(exprs ...expr.Expr) (p partial) {
-			for _, e := range exprs {
-				if e == nil {
-					continue
-				}
-				p := c.expr(e)
-				if p.mode == modeInvalid {
-					return p
-				}
-				c.convert(&p, tipe.Int)
-				if p.mode == modeInvalid {
-					return p
-				}
-			}
-			p.mode = modeVar
-			return p
-		}
-		if p := ints(e.Low, e.High, e.Max); p.mode == modeInvalid {
-			return p
-		}
-		return p
-	case *expr.Index:
-		left := c.expr(e.Expr)
-		if left.mode == modeInvalid {
-			return left
-		}
-		ind := c.expr(e.Index)
-		if ind.mode == modeInvalid {
-			return ind
-		}
 		switch lt := tipe.Underlying(left.typ).(type) {
 		case *tipe.Map:
+			if len(e.Indicies) != 1 {
+				p.mode = modeInvalid
+				c.errorf("cannot table slice %s (type %s)", e.Left, left.typ)
+				return p
+			}
+			ind := c.expr(e.Indicies[0])
+			if ind.mode == modeInvalid {
+				return ind
+			}
 			c.assign(&ind, lt.Key)
-
+			if ind.mode == modeInvalid {
+				return ind
+			}
 			p.mode = modeVar // TODO not really? because not addressable
 			p.typ = lt.Value
 			return p
 		case *tipe.Slice:
+			if len(e.Indicies) != 1 {
+				p.mode = modeInvalid
+				c.errorf("cannot table slice %s (type %s)", e.Left, left.typ)
+				return p
+			}
+			if s, isSlice := e.Indicies[0].(*expr.Slice); isSlice {
+				p.mode = modeVar
+				p.typ = left.typ
+				ints := func(exprs ...expr.Expr) (p partial) {
+					for _, e := range exprs {
+						if e == nil {
+							continue
+						}
+						p := c.expr(e)
+						if p.mode == modeInvalid {
+							return p
+						}
+						c.convert(&p, tipe.Int)
+						if p.mode == modeInvalid {
+							return p
+						}
+					}
+					p.mode = modeVar
+					return p
+				}
+				if p := ints(s.Low, s.High, s.Max); p.mode == modeInvalid {
+					return p
+				}
+				return p
+			}
+			ind := c.expr(e.Indicies[0])
+			if ind.mode == modeInvalid {
+				return ind
+			}
 			c.assign(&ind, tipe.Int)
 			if ind.mode == modeInvalid {
 				return ind
 			}
 			p.mode = modeVar
-			p.typ = tipe.Int
+			p.typ = lt.Elem
+			return p
+		case *tipe.Table:
+			p.mode = modeInvalid
+			c.errorf("TODO table slicing support")
 			return p
 		}
 
 		panic(fmt.Sprintf("typecheck.expr TODO Index: %+v", e))
-	case *expr.TableIndex:
-		panic(fmt.Sprintf("typecheck.expr TODO TableIndex: %+v", e))
 	case *expr.Shell:
 		p.mode = modeVar
 		p.typ = &tipe.Tuple{Elems: []tipe.Type{

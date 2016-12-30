@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
@@ -40,10 +39,14 @@ type Selector struct {
 }
 
 type Slice struct {
-	Left Expr
 	Low  Expr
 	High Expr
 	Max  Expr
+}
+
+type Index struct {
+	Left     Expr
+	Indicies []Expr
 }
 
 type BasicLiteral struct {
@@ -105,18 +108,6 @@ type Range struct {
 	Exact Expr
 }
 
-type Index struct {
-	Expr  Expr
-	Index Expr
-}
-
-type TableIndex struct {
-	Expr     Expr
-	ColNames []string
-	Cols     Range
-	Rows     Range
-}
-
 type ShellList struct {
 	AndOr []*ShellAndOr
 }
@@ -176,7 +167,6 @@ var (
 	_ = Expr((*Type)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
-	_ = Expr((*TableIndex)(nil))
 	_ = Expr((*ShellList)(nil))
 	_ = Expr((*ShellAndOr)(nil))
 	_ = Expr((*ShellPipeline)(nil))
@@ -202,7 +192,6 @@ func (e *Type) expr()           {}
 func (e *Ident) expr()          {}
 func (e *Call) expr()           {}
 func (e *Index) expr()          {}
-func (e *TableIndex) expr()     {}
 func (e *ShellList) expr()      {}
 func (e *ShellAndOr) expr()     {}
 func (e *ShellPipeline) expr()  {}
@@ -235,7 +224,7 @@ func (e *Slice) Sexp() string {
 	if e == nil {
 		return "nilsel"
 	}
-	return fmt.Sprintf("(slice %s %s %s %s)", exprSexp(e.Left), exprSexp(e.Low), exprSexp(e.High), exprSexp(e.Max))
+	return fmt.Sprintf("(slice %s %s %s)", exprSexp(e.Low), exprSexp(e.High), exprSexp(e.Max))
 }
 func (e *BasicLiteral) Sexp() string {
 	if e == nil {
@@ -302,34 +291,7 @@ func (e *Type) Sexp() string {
 	return fmt.Sprintf("(typeexpr %s)", tipeSexp(e.Type))
 }
 func (e *Index) Sexp() string {
-	return fmt.Sprintf("(index %s %s", exprSexp(e.Expr), exprSexp(e.Index))
-}
-func (e *TableIndex) Sexp() string {
-	names := strings.Join(e.ColNames, `"|"`)
-	if names != "" {
-		names = ` "` + names + `"`
-	}
-	rangeSexp := func(r Range) string {
-		rs := ""
-		if r.Start != nil || r.End != nil {
-			if r.Start != nil {
-				rs += exprSexp(r.Start)
-			}
-			rs += ":"
-			if r.End != nil {
-				rs += exprSexp(r.End)
-			}
-		}
-		exact := ""
-		if r.Exact != nil {
-			if rs != "" {
-				rs += " "
-			}
-			exact = exprSexp(r.Exact)
-		}
-		return fmt.Sprintf("(%s%s)", rs, exact)
-	}
-	return fmt.Sprintf("(tableindex %s%s %s %s", exprSexp(e.Expr), names, rangeSexp(e.Cols), rangeSexp(e.Rows))
+	return fmt.Sprintf("(index %s %s", exprSexp(e.Left), exprsStr(e.Indicies))
 }
 
 func (e *ShellList) Sexp() string {

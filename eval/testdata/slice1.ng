@@ -2,13 +2,13 @@ x := []string{"zero", "one", "two"}
 
 indexOK := false
 
-if x[0] == "zero" && x[1] == "one" && x[2] == "two" {
+if x[0] == "zero" && x[1] == "one" && x[2] == "two" && x[1:3][0] == "one" {
 	indexOK = true
 }
 
 total := 0
 sawZero, sawOne, sawTwo := false, false, false
-for i, s := range x {
+for i, s := range x[:3] {
 	total++
 	if i == 0 && s == "zero" {
 		sawZero = true
@@ -22,7 +22,7 @@ for i, s := range x {
 }
 
 totalI := 0
-for i := range x {
+for i := range x[:] {
 	totalI += i
 }
 
