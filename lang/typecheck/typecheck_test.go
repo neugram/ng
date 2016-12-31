@@ -144,6 +144,41 @@ var typeTests = []typeTest{
 			{"z", &tipe.Slice{Elem: tipe.Int64}},
 		},
 	},
+	{
+		[]string{
+			`type A interface {
+				M() int64
+				N(x, y int8) (int32, error)
+			}`,
+			`type B interface { M() int64 }`,
+			`a := A(nil)`,
+			`b := B(a)`,
+			`m := b.M()`,
+		},
+		[]identType{
+			{"a", &tipe.Interface{Methods: map[string]*tipe.Func{
+				"M": &tipe.Func{
+					Params:  &tipe.Tuple{},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
+				},
+				"N": &tipe.Func{
+					Params: &tipe.Tuple{Elems: []tipe.Type{
+						tipe.Int8, tipe.Int8,
+					}},
+					Results: &tipe.Tuple{Elems: []tipe.Type{
+						tipe.Int32, Universe.Objs["error"].Type,
+					}},
+				},
+			}}},
+			{"b", &tipe.Interface{Methods: map[string]*tipe.Func{
+				"M": &tipe.Func{
+					Params:  &tipe.Tuple{},
+					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
+				},
+			}}},
+			{"m", tipe.Int64},
+		},
+	},
 }
 
 func TestBasic(t *testing.T) {

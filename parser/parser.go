@@ -640,6 +640,24 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.expect(token.RightBrace)
 		p.next()
 		return s
+	case token.Interface:
+		p.next()
+		p.expect(token.LeftBrace)
+		p.next()
+		iface := &tipe.Interface{Methods: make(map[string]*tipe.Func)}
+		for p.s.Token > 0 && p.s.Token != token.RightBrace {
+			f := p.parseFuncType(false)
+			// TODO: we are throwing away a lot of information
+			// not technically part of the type but that we want
+			// in the AST for pretty printing. Recover it.
+			iface.Methods[f.Name] = f.Type
+			if p.s.Token == token.Semicolon {
+				p.next()
+			}
+		}
+		p.expect(token.RightBrace)
+		p.next()
+		return iface
 	case token.Func:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	case token.Map:
@@ -995,9 +1013,6 @@ func (p *Parser) parseStmts() (stmts []stmt.Stmt) {
 // parseFuncType just parses the top of the func (the part woven
 // into the type declaration), not the body.
 func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
-	p.expect(token.Func)
-	p.next()
-
 	f := &expr.FuncLiteral{
 		Type: &tipe.Func{},
 	}
@@ -1051,6 +1066,7 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 
 func (p *Parser) parseFunc(method bool) *expr.FuncLiteral {
 	p.expect(token.Func)
+	p.next()
 	f := p.parseFuncType(method)
 	if p.s.Token != token.LeftBrace {
 		p.next()

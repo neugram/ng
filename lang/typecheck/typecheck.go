@@ -231,20 +231,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.TypeDecl:
-		if t, ok := s.Type.(*tipe.Struct); ok {
-			var usesNum bool
-			var resolved bool
-			for i, f := range t.Fields {
-				t.Fields[i], resolved = c.resolve(f)
-				usesNum = usesNum || tipe.UsesNum(t.Fields[i])
-				if !resolved {
-					return nil
-				}
-			}
-			if usesNum {
-				t.Spec.Num = tipe.Num
-			}
-		}
+		t, _ := c.resolve(s.Type)
+		s.Type = t
 
 		obj := &Obj{
 			Kind: ObjType,
@@ -558,6 +546,16 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Params = p.(*tipe.Tuple)
 		t.Results = r.(*tipe.Tuple)
 		return t, r1 && r2
+	case *tipe.Interface:
+		resolved := true
+		m := make(map[string]*tipe.Func, len(t.Methods))
+		for name, f := range t.Methods {
+			f, r1 := c.resolve(f)
+			m[name] = f.(*tipe.Func)
+			resolved = resolved && r1
+		}
+		t.Methods = m
+		return t, resolved
 	case *tipe.Map:
 		var r1, r2 bool
 		t.Key, r1 = c.resolve(t.Key)
@@ -578,11 +576,16 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
 	case *tipe.Struct:
+		usesNum := false
 		resolved := true
 		for i, f := range t.Fields {
 			f, r1 := c.resolve(f)
+			usesNum = usesNum || tipe.UsesNum(f)
 			t.Fields[i] = f
 			resolved = resolved && r1
+		}
+		if usesNum {
+			t.Spec.Num = tipe.Num
 		}
 		return t, resolved
 	case *tipe.Table:
