@@ -462,6 +462,9 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 }
 
 func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
+	if v.Type() == t {
+		return v
+	}
 	switch t.Kind() {
 	case reflect.Int:
 		switch v.Kind() {
@@ -555,6 +558,15 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 		}
 	case reflect.Float64:
 		return reflect.ValueOf(float64(v.Int()))
+	case reflect.Interface:
+		return reflect.ValueOf(v.Interface())
+	case reflect.String:
+		switch src := v.Interface().(type) {
+		case []byte:
+			return reflect.ValueOf(string(src))
+		case rune:
+			return reflect.ValueOf(string(src))
+		}
 	}
 	panic(interpPanic{fmt.Errorf("unknown type conv: %v <- %v", t, v.Type())})
 }

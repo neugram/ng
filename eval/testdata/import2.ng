@@ -1,0 +1,16 @@
+import "bytes"
+import "io"
+
+buf := &bytes.Buffer{}
+buf.WriteString("OK")
+
+type reader interface {
+	Read(p []uint8) (n int, err error)
+}
+
+r := reader(buf)
+
+b := make([]uint8, 2)
+io.ReadFull(r, b)
+
+print(string(string(b)))

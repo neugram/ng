@@ -1452,6 +1452,7 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 		//panic(fmt.Sprintf("dst: %s, dstNames: %s, dstTypes: %s\n", dst, dstNames, dstTypes))
 		for i, name := range dstNames {
 			if !tipe.Equal(dstTypes[i], srcm[name]) {
+				//panic(fmt.Sprintf("assignable name=%s, dst=%s, srcm[name]=%s\n", name, pretty.Sprint(dstTypes[i]), pretty.Sprint(srcm[name])))
 				// TODO: report missing method?
 				return false
 			}
@@ -1468,6 +1469,16 @@ func (c *Checker) convertible(dst, src tipe.Type) bool {
 	// numerics can be converted to one another
 	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
 		return true
+	}
+	if dst, isSlice := dst.(*tipe.Slice); isSlice {
+		if (dst.Elem == tipe.Uint8 || dst.Elem == tipe.Byte) && src == tipe.String {
+			return true
+		}
+	}
+	if src, isSlice := src.(*tipe.Slice); isSlice {
+		if (src.Elem == tipe.Uint8 || src.Elem == tipe.Byte) && dst == tipe.String {
+			return true
+		}
 	}
 
 	// TODO several other forms of "identical" types,
@@ -1603,7 +1614,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			} else {
 				return nil
 			}
-		case tipe.Int8:
+		case tipe.Byte, tipe.Int8: // wrong, byte is an alias of int8
 			if i, ok := constant.Int64Val(v); ok {
 				if int64(int8(i)) != i {
 					return nil

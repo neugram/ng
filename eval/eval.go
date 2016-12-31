@@ -49,6 +49,11 @@ type Program struct {
 
 	Returning bool
 	Breaking  bool
+
+	// builtinCalled is set by any builtin function that has
+	// a generic return type. The intepreter has to unbox the
+	// return type.
+	builtinCalled bool
 }
 
 type evalMap interface {
@@ -58,12 +63,22 @@ type evalMap interface {
 
 func New() *Program {
 	universe := new(Scope)
+	p := &Program{
+		Universe: universe,
+		Types:    typecheck.New(),
+		PkgVars:  make(map[string]*interface{}),
+		Cur: &Scope{
+			Parent: universe,
+		},
+		reflector: newReflector(),
+	}
 	addUniverse := func(name string, val interface{}) {
-		universe = &Scope{
-			Parent:  universe,
+		p.Universe = &Scope{
+			Parent:  p.Universe,
 			VarName: name,
 			Var:     reflect.ValueOf(val),
 		}
+		p.Cur.Parent = p.Universe
 	}
 	addUniverse("true", true)
 	addUniverse("false", false)
@@ -89,54 +104,51 @@ func New() *Program {
 	addUniverse("copy", func(dst, src interface{}) int {
 		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
 	})
-	addUniverse("append", func(s interface{}, v ...interface{}) interface{} {
-		res := reflect.ValueOf(s)
-		for _, elem := range v {
-			res = reflect.Append(res, reflect.ValueOf(elem))
-		}
-		return res.Interface()
-	})
+	addUniverse("append", p.builtinAppend)
 	addUniverse("delete", func(m, k interface{}) {
 		reflect.ValueOf(m).SetMapIndex(reflect.ValueOf(k), reflect.Value{})
 	})
-	addUniverse("make", func(p ...interface{}) interface{} {
-		t := p[0].(reflect.Type)
-		switch t.Kind() {
-		case reflect.Chan:
-			panic("TODO make Chan")
-		case reflect.Slice:
-			var slen, scap int
-			if len(p) > 1 {
-				slen = p[1].(int)
-			}
-			if len(p) > 2 {
-				scap = p[2].(int)
-			} else {
-				scap = slen
-			}
-			return reflect.MakeSlice(t, slen, scap).Interface()
-		case reflect.Map:
-			return reflect.MakeMap(t).Interface()
-		}
-		fmt.Println("make: ", p)
-		return nil
-	})
-	addUniverse("new", func(p interface{}) interface{} {
-		t := p.(reflect.Type)
-		return reflect.New(t).Interface()
-	})
-
-	p := &Program{
-		Universe: universe,
-		Types:    typecheck.New(),
-		PkgVars:  make(map[string]*interface{}),
-		Cur: &Scope{
-			Parent: universe,
-		},
-		reflector: newReflector(),
-	}
-
+	addUniverse("make", p.builtinMake)
+	addUniverse("new", p.builtinNew)
 	return p
+}
+
+func (p *Program) builtinAppend(s interface{}, v ...interface{}) interface{} {
+	p.builtinCalled = true
+	res := reflect.ValueOf(s)
+	for _, elem := range v {
+		res = reflect.Append(res, reflect.ValueOf(elem))
+	}
+	return res.Interface()
+}
+
+func (p *Program) builtinNew(v interface{}) interface{} {
+	p.builtinCalled = true
+	t := v.(reflect.Type)
+	return reflect.New(t).Interface()
+}
+
+func (p *Program) builtinMake(v ...interface{}) interface{} {
+	p.builtinCalled = true
+	t := v[0].(reflect.Type)
+	switch t.Kind() {
+	case reflect.Chan:
+		panic("TODO make Chan")
+	case reflect.Slice:
+		var slen, scap int
+		if len(v) > 1 {
+			slen = v[1].(int)
+		}
+		if len(v) > 2 {
+			scap = v[2].(int)
+		} else {
+			scap = slen
+		}
+		return reflect.MakeSlice(t, slen, scap).Interface()
+	case reflect.Map:
+		return reflect.MakeMap(t).Interface()
+	}
+	return nil
 }
 
 func (p *Program) Environ() *environ.Environ {
@@ -224,6 +236,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			} else {
 				types = append(types, t)
 			}
+			// TODO: insert an implicit interface type conversion here
 			vals = append(vals, v...)
 		}
 
@@ -457,9 +470,12 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			return reflect.ValueOf(res)
 		}
 		ret := reflect.New(t).Elem()
-		if t.Kind() == reflect.Interface {
+		switch t.Kind() {
+		case reflect.Interface:
 			ret.Set(reflect.ValueOf(int(val.Int64())))
-		} else {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			ret.SetUint(val.Uint64())
+		default:
 			ret.SetInt(val.Int64())
 		}
 		return ret
@@ -528,7 +544,20 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		fn := p.evalExprOne(e.Func)
 		args := make([]reflect.Value, len(e.Args))
 		for i, arg := range e.Args {
-			args[i] = p.evalExprOne(arg)
+			v := p.evalExprOne(arg)
+			if t := fn.Type(); t.Kind() == reflect.Func && !t.IsVariadic() {
+				// Implicit interface conversion on use.
+				// Bonus: this makes up for the fact that the
+				// evaluator currently stores custom ng
+				// interfaces in a Go empty interface{}.
+				argt := fn.Type().In(i)
+				if argt.Kind() == reflect.Interface && argt != v.Type() {
+					underlying := reflect.ValueOf(v.Interface())
+					v = reflect.New(argt).Elem()
+					v.Set(underlying) // re-box with right type
+				}
+			}
+			args[i] = v
 		}
 		if t, isTypeConv := fn.Interface().(reflect.Type); isTypeConv {
 			return []reflect.Value{typeConv(t, args[0])}
@@ -546,12 +575,16 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		// TODO: have typecheck do the error elision for us
 		// so we can insert the dynamic panic check once, right here.
 		res := fn.Call(args)
-		/*for i := range res {
-			// Necessary to turn the return type of append
-			// from an interface{} into a slice so it can
-			// be set.
-			res[i] = reflect.ValueOf(res[i].Interface())
-		}*/
+		if p.builtinCalled {
+			p.builtinCalled = false
+			fmt.Printf("have builtin make\n")
+			for i := range res {
+				// Necessary to turn the return type of append
+				// from an interface{} into a slice so it can
+				// be set.
+				res[i] = reflect.ValueOf(res[i].Interface())
+			}
+		}
 		return res
 	case *expr.CompLiteral:
 		t := p.reflector.ToRType(e.Type)
