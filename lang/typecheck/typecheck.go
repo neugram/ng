@@ -592,6 +592,9 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Type, resolved = c.resolve(t.Type)
 		return t, resolved
 	case *tipe.Tuple:
+		if t == nil {
+			return t, true
+		}
 		resolved = true
 		for i, e := range t.Elems {
 			var r bool
