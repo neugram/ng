@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -42,6 +43,8 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 			v = v[1 : len(arg)-1]
 			v = quoteUnescaper.Replace(v)
 			argv1[i] = v
+		} else {
+			argv1[i] = unquoteUnescape.ReplaceAllString(arg, "$1")
 		}
 	}
 
@@ -49,6 +52,7 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 }
 
 var quoteUnescaper = strings.NewReplacer(`\"`, `"`, "\\`", "`")
+var unquoteUnescape = regexp.MustCompile(`\\(.)`)
 
 var expanders = []func([]string, string, paramset) ([]string, error){
 	braceExpand,
@@ -157,7 +161,16 @@ func paramExpand(src []string, arg string, params paramset) (res []string, err e
 // paths expansion (*, ?, [)
 func pathsExpand(src []string, arg string, params paramset) (res []string, err error) {
 	res = src
-	if !strings.ContainsAny(arg, "*?[") {
+	isGlob := false
+	for i := 0; i < len(arg); i++ {
+		switch arg[i] {
+		case '\\':
+			i++
+		case '*', '?', '[':
+			isGlob = true
+		}
+	}
+	if !isGlob {
 		return append(res, arg), nil
 	}
 	// TODO to support interior quoting (like ab"*".c) this will need a rewrite.

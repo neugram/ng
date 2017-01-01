@@ -40,10 +40,14 @@ if x := $$ VAL=foo echo -n $VAL $$; x != "foo" {
 	print("did not expand unquoted param:", x)
 	ok = false
 }
-/* TODO if x := $$ echo -n \*.h $$; x != "*.h" {
+if x := $$ echo -n \*.h $$; x != "*.h" {
 	print("escaped * malfunctioned:", x)
 	ok = false
-}*/
+}
+if x := $$ echo -n \" $$; x != `"` {
+	print("escaped quote malfunctioned:", x)
+	ok = false
+}
 
 if ok {
 	print("OK")
