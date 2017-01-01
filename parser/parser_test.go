@@ -280,22 +280,7 @@ func TestParseExpr(t *testing.T) {
 
 var shellTests = []parserTest{
 	{``, &expr.Shell{}},
-	{`ls -l`, &expr.Shell{
-		Cmds: []*expr.ShellList{{
-			AndOr: []*expr.ShellAndOr{{
-				Pipeline: []*expr.ShellPipeline{{
-					Bang: false,
-					Cmd: []*expr.ShellCmd{{
-						SimpleCmd: &expr.ShellSimpleCmd{
-							Redirect: nil,
-							Assign:   nil,
-							Args:     []string{"ls", "-l"},
-						},
-					}},
-				}},
-			}},
-		}},
-	}},
+	{`ls -l`, simplesh("ls", "-l")},
 	{`ls | head`, &expr.Shell{
 		Cmds: []*expr.ShellList{{
 			AndOr: []*expr.ShellAndOr{{
@@ -508,15 +493,38 @@ var shellTests = []parserTest{
 			}}},
 		},
 	}}}},
-	/*{`($$ echo "a b \"" 'c \' \d "e f'g" $$)`, nil},
-	  {`($$ find . -name \*.c $$)`, nil},
-	  {`($$ grep -R "*foo" . $$)`, nil},
-	  {`($$ go build "-ldflags=-v -extldflags=-v" pkg $$)`, nil},
-	*/
-	// TODO: find . -name \*.h -exec grep -H {} \;
-	// TODO: `ls \
-	// -l`
+	{`GOOS=linux GOARCH=arm64 go build`, &expr.Shell{Cmds: []*expr.ShellList{{
+		AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
+			Cmd: []*expr.ShellCmd{{SimpleCmd: &expr.ShellSimpleCmd{
+				Assign: []expr.ShellAssign{
+					{Key: "GOOS", Value: "linux"},
+					{Key: "GOARCH", Value: "arm64"},
+				},
+				Args: []string{"go", "build"},
+			}}},
+		}}}},
+	}}}},
+	{`grep -R "fun*foo" .`, simplesh("grep", "-R", `"fun*foo"`, ".")},
+	{`echo -n not_a_file_*`, simplesh("echo", "-n", "not_a_file_*")},
+	{`echo -n "\""`, simplesh("echo", "-n", `"\""`)},
+	{`echo "a b \"" 'c \' \d "e f'g"`, simplesh(
+		"echo", `"a b \""`, `'c \'`, `\d`, `"e f'g"`,
+	)},
+	{`go build "-ldflags=-v -extldflags=-v" pkg`, simplesh("go", "build", `"-ldflags=-v -extldflags=-v"`, "pkg")},
+	{`find . -name \*.c -exec grep -H {} \;`, simplesh("find", ".", "-name", `\*.c`, "-exec", "grep", "-H", "{}", `\;`)},
+	// TODO {`ls \
+	//-l`, simplesh(`ls`, `-l`)},
 	// TODO: test unbalanced paren errors
+}
+
+func simplesh(args ...string) *expr.Shell {
+	return &expr.Shell{Cmds: []*expr.ShellList{{
+		AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
+			Cmd: []*expr.ShellCmd{{SimpleCmd: &expr.ShellSimpleCmd{
+				Args: args,
+			}}},
+		}}}},
+	}}}
 }
 
 func TestParseShell(t *testing.T) {

@@ -1,0 +1,50 @@
+ok := true
+
+if x := $$ echo -n {a,b}c $$; x != "ac bc" {
+	print("brace expansion failed:", x)
+	ok = false
+}
+if x := $$ echo -n "{a,b}c" $$; x != "{a,b}c" {
+	print("quoted braces misbehaved:", x)
+	ok = false
+}
+if x := $$ echo -n "\"" $$; x != `"` {
+	print("quoted quote misbehaved:", x)
+	ok = false
+}
+if x := $$ echo -n "\`" $$; x != "`" {
+	print("quoted backtick misbehaved:", x)
+	ok = false
+}
+if x := $$ echo -n not_a_file_* $$; x != "" {
+	print("found a file we should not:", x)
+	ok = false
+}
+if x := $$ echo -n "not_a_file_*" $$; x != "not_a_file_*" {
+	print("incorrectly expanded *:", x)
+	ok = false
+}
+if x := $$ echo -n "~" $$; x != "~" {
+	print("incorrectly expanded double-quoted ~:", x)
+	ok = false
+}
+if x := $$ echo -n '~' $$; x != "~" {
+	print("incorrectly expanded single-quoted ~:", x)
+	ok = false
+}
+if x := $$ echo -n ~ $$; x == "~" {
+	print("did not expand ~:", x)
+	ok = false
+}
+if x := $$ VAL=foo echo -n $VAL $$; x != "foo" {
+	print("did not expand unquoted param:", x)
+	ok = false
+}
+/* TODO if x := $$ echo -n \*.h $$; x != "*.h" {
+	print("escaped * malfunctioned:", x)
+	ok = false
+}*/
+
+if ok {
+	print("OK")
+}

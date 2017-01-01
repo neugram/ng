@@ -97,7 +97,7 @@ func isAssignment(word string) (k, v string) {
 	for i, r := range word {
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			if r == '=' {
-				return word[:i], word[i:]
+				return word[:i], word[i+1:]
 			}
 			return "", ""
 		}

@@ -201,7 +201,6 @@ func (s *Scanner) scanSingleQuotedShellWord() string {
 
 func (s *Scanner) scanRawString() string {
 	off := s.Offset
-	s.next()
 
 	for {
 		r := s.r
@@ -219,7 +218,6 @@ func (s *Scanner) scanRawString() string {
 
 func (s *Scanner) scanRune() rune {
 	off := s.Offset
-	s.next()
 
 	for {
 		r := s.r
@@ -248,7 +246,6 @@ func (s *Scanner) scanRune() rune {
 
 func (s *Scanner) scanString(spanNewlines bool) string {
 	off := s.Offset
-	s.next()
 
 	for {
 		r := s.r
@@ -306,8 +303,8 @@ func (s *Scanner) scanComment() string {
 	return string(lit)
 }
 
-func (s *Scanner) nextInShell(r rune) {
-	switch r {
+func (s *Scanner) nextInShell() {
+	switch s.r {
 	case '$':
 		// TODO: there's a significant grammatical issue here. the input:
 		//	$$ ls$$
@@ -329,13 +326,13 @@ func (s *Scanner) nextInShell(r rune) {
 		s.next()
 		s.semi = true
 		str := s.scanString(true)
-		s.Literal = str[1 : len(str)-1]
+		s.Literal = str
 		s.Token = token.ShellWord
 	case '\'':
 		s.next()
 		s.semi = true
 		str := s.scanSingleQuotedShellWord()
-		s.Literal = str[1 : len(str)-1]
+		s.Literal = str
 		s.Token = token.ShellWord
 	case '\n':
 		s.Token = token.ShellNewline
@@ -409,7 +406,7 @@ func (s *Scanner) Next() {
 	switch {
 	case s.inShell:
 		//fmt.Printf("inShell, r=%q\n", string(r))
-		s.nextInShell(r)
+		s.nextInShell()
 		return
 	case unicode.IsLetter(r) || r == '_':
 		lit := s.scanIdentifier()

@@ -14,8 +14,13 @@ import (
 func expansion(argv1 []string, params paramset) ([]string, error) {
 	var err error
 	var argv2 []string
+
 	for _, expander := range expanders {
 		for _, arg := range argv1 {
+			if arg[0] == '\'' || arg[0] == '"' {
+				argv2 = append(argv2, arg)
+				continue
+			}
 			argv2, err = expander(argv2, arg, params)
 			if err != nil {
 				return nil, err
@@ -25,8 +30,25 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 		argv2 = nil
 	}
 
+	for i, arg := range argv1 {
+		s, e := arg[0], arg[len(arg)-1]
+		if s == '\'' && e == '\'' {
+			argv1[i] = arg[1 : len(arg)-1]
+		} else if s == '"' && e == '"' {
+			v, err := ExpandParams(arg, params)
+			if err != nil {
+				return nil, err
+			}
+			v = v[1 : len(arg)-1]
+			v = quoteUnescaper.Replace(v)
+			argv1[i] = v
+		}
+	}
+
 	return argv1, nil
 }
+
+var quoteUnescaper = strings.NewReplacer(`\"`, `"`, "\\`", "`")
 
 var expanders = []func([]string, string, paramset) ([]string, error){
 	braceExpand,
