@@ -48,6 +48,10 @@ if x := $$ echo -n \" $$; x != `"` {
 	print("escaped quote malfunctioned:", x)
 	ok = false
 }
+if x := $$ echo -n a\;b {} \; $$; x != `a;b {} ;` {
+	print("escaped control characters malfunctioned:", x)
+	ok = false
+}
 
 if ok {
 	print("OK")

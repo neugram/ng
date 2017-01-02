@@ -69,20 +69,19 @@ func braceExpand(src []string, arg string, _ paramset) (res []string, err error)
 		return append(res, arg), nil
 	}
 	i2 := indexUnquoted(arg[i1:], '}')
-	if i2 == -1 {
+	if i2 == -1 || indexUnquoted(arg[i1:i2], ',') == -1 {
 		return append(res, arg), nil
-	} else {
-		prefix, suffix := arg[:i1], arg[i1+i2+1:]
-		arg = arg[i1+1 : i1+i2]
-		for len(arg) > 0 {
-			c := indexUnquoted(arg, ',')
-			if c == -1 {
-				res, _ = braceExpand(res, prefix+arg+suffix, nil)
-				break
-			}
-			res, _ = braceExpand(res, prefix+arg[:c]+suffix, nil)
-			arg = arg[c+1:]
+	}
+	prefix, suffix := arg[:i1], arg[i1+i2+1:]
+	arg = arg[i1+1 : i1+i2]
+	for len(arg) > 0 {
+		c := indexUnquoted(arg, ',')
+		if c == -1 {
+			res, _ = braceExpand(res, prefix+arg+suffix, nil)
+			break
 		}
+		res, _ = braceExpand(res, prefix+arg[:c]+suffix, nil)
+		arg = arg[c+1:]
 	}
 	return res, nil
 }

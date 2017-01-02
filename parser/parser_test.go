@@ -511,7 +511,23 @@ var shellTests = []parserTest{
 		"echo", `"a b \""`, `'c \'`, `\d`, `"e f'g"`,
 	)},
 	{`go build "-ldflags=-v -extldflags=-v" pkg`, simplesh("go", "build", `"-ldflags=-v -extldflags=-v"`, "pkg")},
-	{`find . -name \*.c -exec grep -H {} \;`, simplesh("find", ".", "-name", `\*.c`, "-exec", "grep", "-H", "{}", `\;`)},
+	{`find . -name \*.c -exec grep -H {} \;
+	ls`, &expr.Shell{Cmds: []*expr.ShellList{
+		{
+			AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
+				Cmd: []*expr.ShellCmd{{SimpleCmd: &expr.ShellSimpleCmd{
+					Args: []string{"find", ".", "-name", `\*.c`, "-exec", "grep", "-H", "{}", `\;`},
+				}}},
+			}}}},
+		},
+		{
+			AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
+				Cmd: []*expr.ShellCmd{{SimpleCmd: &expr.ShellSimpleCmd{
+					Args: []string{"ls"},
+				}}},
+			}}}},
+		},
+	}}},
 	// TODO {`ls \
 	//-l`, simplesh(`ls`, `-l`)},
 	// TODO: test unbalanced paren errors

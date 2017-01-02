@@ -106,6 +106,9 @@ func (s *Scanner) scanShellWord() string {
 	off := s.Offset
 	for {
 		switch s.r {
+		case '\\':
+			s.next()
+			s.next()
 		case ' ', '\t', '\n', '\r', '|', '&', ';', '<', '>', '(', ')':
 			return string(s.src[off:s.Offset])
 		default:
