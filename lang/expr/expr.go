@@ -1,5 +1,6 @@
 // Copyright 2015 The Neugram Authors. All rights reserved.
-// See the LICENSE file for rights to use this source code.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 // Package expr defines data structures representing Neugram expressions.
 package expr
