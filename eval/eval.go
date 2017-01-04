@@ -175,7 +175,13 @@ func (p *Program) Get(name string) string {
 
 // Set is part of the implementation of shell.Params.
 func (p *Program) Set(name, value string) {
-	panic("TODO Scope.Set")
+	s := &Scope{
+		Parent:   p.Cur,
+		VarName:  name,
+		Var:      reflect.ValueOf(value),
+		Implicit: true,
+	}
+	p.Cur = s
 }
 
 func (p *Program) Eval(s stmt.Stmt) (res []reflect.Value, err error) {
@@ -729,6 +735,8 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		return []reflect.Value{v}
 	case *expr.Shell:
+		p.pushScope()
+		defer p.popScope()
 		res := make(chan string)
 		out := os.Stdout
 		if e.DropOut {

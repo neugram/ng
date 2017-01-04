@@ -314,22 +314,14 @@ func (j *Job) execPipeline(plcmd *expr.ShellPipeline, sio stdio) (err error) {
 	return nil
 }
 
-type cmdParams struct {
-	kv []expr.ShellAssign
-	p  paramset
-}
-
-func (p *cmdParams) Get(name string) string {
-	for _, v := range p.kv {
-		if v.Key == name {
-			return v.Value
-		}
-	}
-	return p.p.Get(name)
-}
-
 func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error) {
-	argv, err := expansion(cmd.Args, &cmdParams{cmd.Assign, j.Params})
+	if len(cmd.Args) == 0 {
+		for _, v := range cmd.Assign {
+			j.Params.Set(v.Key, v.Value)
+		}
+		return nil, nil
+	}
+	argv, err := expansion(cmd.Args, j.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -369,10 +361,20 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 	case "exit", "logout":
 		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	}
+	env := Env.List()
+	if len(cmd.Assign) != 0 {
+		baseEnv := env
+		env = make([]string, 0, len(cmd.Assign)+len(baseEnv))
+		for _, kv := range cmd.Assign {
+			env = append(env, kv.Key+"="+kv.Value)
+		}
+		env = append(env, baseEnv...)
+	}
 	p := &proc{
 		job:  j,
 		argv: argv,
 		sio:  sio,
+		env:  env,
 	}
 	for _, r := range cmd.Redirect {
 		switch r.Token {
@@ -470,7 +472,7 @@ func (pl *pipeline) start() (err error) {
 	}()
 	for i, p := range pl.proc {
 		attr := &os.ProcAttr{
-			Env:   Env.List(),
+			Env:   p.env,
 			Files: []*os.File{p.sio.in, p.sio.out, p.sio.err},
 		}
 		attr.Sys = &syscall.SysProcAttr{
@@ -556,6 +558,7 @@ func (p *proc) waitUntilDone() error {
 type proc struct {
 	job     *Job
 	argv    []string
+	env     []string
 	path    string
 	process *os.Process
 	sio     stdio

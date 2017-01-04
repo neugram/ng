@@ -1,0 +1,23 @@
+ok := true
+
+x := $$
+VAL=v0
+VAL=v1
+VAL=v2 echo -n $VAL
+$$
+
+if x != "v1" {
+	print("got: ", x)
+	ok = false
+}
+
+x = $$ echo -n $VAL $$
+
+if x != "" {
+	print("got leftover val: ", x)
+	ok = false
+}
+
+if ok {
+	print("OK")
+}

@@ -20,7 +20,9 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 
 	for _, expander := range expanders {
 		for _, arg := range argv1 {
-			if arg[0] == '\'' || arg[0] == '"' {
+			if len(arg) == 0 {
+				continue
+			} else if arg[0] == '\'' || arg[0] == '"' {
 				argv2 = append(argv2, arg)
 				continue
 			}
@@ -34,6 +36,9 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 	}
 
 	for i, arg := range argv1 {
+		if len(arg) == 0 {
+			continue
+		}
 		s, e := arg[0], arg[len(arg)-1]
 		if s == '\'' && e == '\'' {
 			argv1[i] = arg[1 : len(arg)-1]
