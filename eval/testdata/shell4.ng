@@ -36,10 +36,28 @@ if x := $$ echo -n ~ $$; x == "~" {
 	print("did not expand ~:", x)
 	ok = false
 }
-if x := $$ VAL=foo echo -n $VAL $$; x != "foo" {
-	print("did not expand unquoted param:", x)
+if x := $$ echo -n $ $$; x != "$" {
+	print("individual $ did not print:", x)
 	ok = false
 }
+aparam := "v1"
+v := "v2"
+if x := $$ echo -n _$aparam${aparam}$v${v}$notaval_ $$; x != "_v1v1v2v2_" {
+	print("did not expand params:", x)
+	ok = false
+}
+/* TODO if x := $$ VAL=v1; VAL=v2 echo -n $VAL $$; x != "v1" {
+	print("did not expand unquoted param:", x)
+	ok = false
+}*/
+/* TODO if x := $$ VAL=v3 env | grep VAL $$; x != "VAL=v3" {
+	print("bad env:", x)
+	ok = false
+}*/
+/* TODO if x := $$ VAL=v4; echo ${V} $$; x != "v4" {
+	print("braced param not expanded correctly:", x)
+	ok = false
+}*/
 if x := $$ echo -n \*.h $$; x != "*.h" {
 	print("escaped * malfunctioned:", x)
 	ok = false

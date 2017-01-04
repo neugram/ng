@@ -529,6 +529,7 @@ var shellTests = []parserTest{
 			}}}},
 		},
 	}}},
+	{`echo -n a${VAL}c `, simplesh("echo", "-n", "a${VAL}c")},
 	// TODO {`ls \
 	//-l`, simplesh(`ls`, `-l`)},
 	// TODO: test unbalanced paren errors

@@ -325,7 +325,7 @@ func (p *cmdParams) Get(name string) string {
 			return v.Value
 		}
 	}
-	return p.Get(name)
+	return p.p.Get(name)
 }
 
 func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error) {

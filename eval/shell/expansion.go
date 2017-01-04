@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 func expansion(argv1 []string, params paramset) ([]string, error) {
@@ -65,9 +66,17 @@ var expanders = []func([]string, string, paramset) ([]string, error){
 // brace expansion (for example: "c{d,e}" becomes "cd ce")
 func braceExpand(src []string, arg string, _ paramset) (res []string, err error) {
 	res = src
-	i1 := indexUnquoted(arg, '{')
-	if i1 == -1 {
-		return append(res, arg), nil
+	var i1 int
+	for start := 0; ; {
+		i1 = indexUnquoted(arg[start:], '{')
+		if i1 == -1 {
+			return append(res, arg), nil
+		}
+		i1 += start
+		if i1 == 0 || arg[i1-1] != '$' {
+			break
+		}
+		start = i1 + 1
 	}
 	i2 := indexUnquoted(arg[i1:], '}')
 	if i2 == -1 || indexUnquoted(arg[i1:i2], ',') == -1 {
@@ -122,15 +131,55 @@ func tildeExpand(src []string, arg string, params paramset) (res []string, err e
 	return append(src, expanded), nil
 }
 
+// expandBraceParam expands the ${braced param} at the beginning of arg.
+func expandBraceParam(arg string, params paramset) (string, error) {
+	var r rune
+	var i2 int
+	for i2, r = range arg[1:] {
+		if r == '}' {
+			i2--
+			break
+		}
+	}
+	if i2 == -1 {
+		return "", fmt.Errorf("invalid braced parameter expansion: %q", arg)
+	}
+	// TODO: ${parameter:-word}
+	// TODO: ${parameter/pattern/string}
+	// TODO: ${parameter[index]}
+	// TODO: ${parameter[offset:length]}
+	end := 1 + i2 + 1
+	name := arg[2:end]
+	val := params.Get(name)
+	return val + arg[end+1:], nil
+}
+
 // ExpandParams expands $ variables.
 func ExpandParams(arg string, params paramset) (string, error) {
+	skip := 0
 	for {
-		i1 := indexParam(arg)
+		i1 := indexParam(arg[skip:])
 		if i1 == -1 {
 			break
 		}
-		var r rune
+		i1 += skip
 		i2 := -1
+		if len(arg) == i1+1 {
+			break
+		}
+		var name string
+		if arg[i1+1] == '{' {
+			res, err := expandBraceParam(arg[i1:], params)
+			if err != nil {
+				return "", err
+			}
+			arg = arg[:i1] + res
+			continue
+		} else if r, _ := utf8.DecodeRuneInString(arg[i1+1:]); !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			skip = i1 + 1
+			continue
+		}
+		var r rune
 		for i2, r = range arg[i1+1:] {
 			if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 				i2--
@@ -138,10 +187,10 @@ func ExpandParams(arg string, params paramset) (string, error) {
 			}
 		}
 		if i2 == -1 {
-			return "", fmt.Errorf("invalid $ parameter: %q", arg)
+			return "", fmt.Errorf("invalid $ parameter: %q[%d:]", arg, i1)
 		}
 		end := i1 + 1 + i2 + 1
-		name := arg[i1+1 : end]
+		name = arg[i1+1 : end]
 		val := params.Get(name)
 		arg = arg[:i1] + val + arg[end:]
 	}

@@ -110,6 +110,14 @@ func (s *Scanner) scanShellWord() string {
 		case '\\':
 			s.next()
 			s.next()
+		case '$':
+			s.next()
+			if s.r == '{' {
+				for s.r != '}' {
+					s.next()
+				}
+				s.next()
+			}
 		case ' ', '\t', '\n', '\r', '|', '&', ';', '<', '>', '(', ')':
 			return string(s.src[off:s.Offset])
 		default:
