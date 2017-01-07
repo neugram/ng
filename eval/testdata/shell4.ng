@@ -62,6 +62,10 @@ if x := $$ echo -n a\;b {} \; $$; x != `a;b {} ;` {
 	print("escaped control characters malfunctioned:", x)
 	ok = false
 }
+if x := $$ A=B echo -n C=D $$; x != "C=D" {
+	printf("echo missed argument with '=': %q", x)
+	ok = false
+}
 
 if ok {
 	print("OK")

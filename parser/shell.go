@@ -125,14 +125,16 @@ func (p *Parser) parseShellSimpleCmd() (l *expr.ShellSimpleCmd) {
 		if r != nil {
 			l.Redirect = append(l.Redirect, r)
 		} else {
-			if k, v := isAssignment(w); k != "" {
-				l.Assign = append(l.Assign, expr.ShellAssign{
-					Key:   k,
-					Value: v,
-				})
-			} else {
-				l.Args = append(l.Args, w)
+			if len(l.Args) == 0 {
+				if k, v := isAssignment(w); k != "" {
+					l.Assign = append(l.Assign, expr.ShellAssign{
+						Key:   k,
+						Value: v,
+					})
+					continue
+				}
 			}
+			l.Args = append(l.Args, w)
 		}
 	}
 	return l
