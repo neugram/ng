@@ -350,11 +350,15 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 		return nil
 	case *stmt.Import:
-		//typ := p.Types.Lookup(s.Name).Type.(*tipe.Package)
+		// TODO: try plugin.Open if available
+		gopkg := gowrap.Pkgs[s.Name]
+		if gopkg == nil {
+			panic(Panic{val: fmt.Errorf("unsupported package: %v", s.Name)})
+		}
 		p.Cur = &Scope{
 			Parent:   p.Cur,
 			VarName:  s.Name,
-			Var:      reflect.ValueOf(gowrap.Pkgs[s.Name]),
+			Var:      reflect.ValueOf(gopkg),
 			Implicit: true,
 		}
 		return nil
@@ -724,7 +728,8 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Selector:
 		lhs := p.evalExprOne(e.Left)
 		if pkg, ok := lhs.Interface().(*gowrap.Pkg); ok {
-			return []reflect.Value{pkg.Exports[e.Right.Name]}
+			name := e.Right.Name
+			return []reflect.Value{pkg.Exports[name]}
 		}
 		v := lhs.MethodByName(e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr {
@@ -784,7 +789,6 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		}
 		str := reflect.ValueOf(<-res)
 		if err != nil {
-			fmt.Printf("shell err: %v\n", err)
 			return []reflect.Value{str, reflect.ValueOf(err)}
 		}
 		errt := reflect.TypeOf((*error)(nil)).Elem()

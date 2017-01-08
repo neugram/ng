@@ -7,6 +7,7 @@
 //go:generate go run genwrap.go io
 //go:generate go run genwrap.go sync
 //go:generate go run genwrap.go bytes
+//go:generate go run genwrap.go strings
 
 package gowrap // import "neugram.io/eval/gowrap"
 import "reflect"
