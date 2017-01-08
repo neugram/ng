@@ -41,9 +41,13 @@ if x := $$ echo -n $ $$; x != "$" {
 	ok = false
 }
 aparam := "v1"
-v := "v2"
-if x := $$ echo -n _$aparam${aparam}$v${v}$notaval_ $$; x != "_v1v1v2v2_" {
+v := "vee2"
+if x := $$ echo -n _$aparam${aparam}$v${v}$notaval_ $$; x != "_v1v1vee2vee2_" {
 	print("did not expand params:", x)
+	ok = false
+}
+if x := $$ echo -n "$v" $$; x != "vee2" {
+	print("did not expand quoted param:", x)
 	ok = false
 }
 if x := $$ VAL=v3 env | grep VAL $$; x != "VAL=v3\n" {

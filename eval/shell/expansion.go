@@ -47,7 +47,7 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			v = v[1 : len(arg)-1]
+			v = v[1 : len(v)-1]
 			v = quoteUnescaper.Replace(v)
 			argv1[i] = v
 		} else {
