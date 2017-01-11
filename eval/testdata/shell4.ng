@@ -4,6 +4,22 @@ if x := $$ echo -n {a,b}c $$; x != "ac bc" {
 	print("brace expansion failed:", x)
 	ok = false
 }
+/* TODO if x := $$ echo -n {a,}b $$; x != "ab b" {
+	print("empty-last brace expansion failed:", x)
+	ok = false
+}*/
+if x := $$ echo -n {,a}b $$; x != "b ab" {
+	print("empty-first brace expansion failed:", x)
+	ok = false
+}
+if x := $$ echo -n a{2..4}b $$; x != "a2b a3b a4b" {
+	print("brace numeric expansion failed:", x)
+	ok = false
+}
+if x := $$ echo -n a{3..1}b $$; x != "a3b a2b a1b" {
+	print("brace reverse numeric expansion failed:", x)
+	ok = false
+}
 if x := $$ echo -n "{a,b}c" $$; x != "{a,b}c" {
 	print("quoted braces misbehaved:", x)
 	ok = false

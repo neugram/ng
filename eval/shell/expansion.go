@@ -84,10 +84,29 @@ func braceExpand(src []string, arg string, _ paramset) (res []string, err error)
 		start = i1 + 1
 	}
 	i2 := indexUnquoted(arg[i1:], '}')
-	if i2 == -1 || indexUnquoted(arg[i1:i2], ',') == -1 {
+	if i2 == -1 {
 		return append(res, arg), nil
 	}
 	prefix, suffix := arg[:i1], arg[i1+i2+1:]
+	if indexUnquoted(arg, ',') == -1 {
+		// Not a {a,b} expansion.
+		// Check for {n0..n1} numeric expansion.
+		var start, end int
+		n, err := fmt.Sscanf(arg[i1:i1+i2+1], "{%d..%d}", &start, &end)
+		if err != nil || n != 2 {
+			return append(res, arg), nil
+		}
+		if start > end {
+			for i := start; i >= end; i-- {
+				res, _ = braceExpand(res, fmt.Sprintf("%s%d%s", prefix, i, suffix), nil)
+			}
+		} else {
+			for i := start; i <= end; i++ {
+				res, _ = braceExpand(res, fmt.Sprintf("%s%d%s", prefix, i, suffix), nil)
+			}
+		}
+		return res, nil
+	}
 	arg = arg[i1+1 : i1+i2]
 	for len(arg) > 0 {
 		c := indexUnquoted(arg, ',')
