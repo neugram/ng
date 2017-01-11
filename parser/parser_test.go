@@ -768,6 +768,12 @@ var stmtTests = []stmtTest{
 			}},
 		},
 	},
+	{`go func() {}()`, &stmt.Go{Call: &expr.Call{
+		Func: &expr.FuncLiteral{
+			Type: &tipe.Func{Params: &tipe.Tuple{}},
+			Body: &stmt.Block{},
+		},
+	}}},
 }
 
 func TestParseStmt(t *testing.T) {

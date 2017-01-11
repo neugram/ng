@@ -717,6 +717,14 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualStmt(x.Body, y.Body) {
 			return false
 		}
+	case *stmt.Go:
+		y, ok := y.(*stmt.Go)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Call, y.Call) {
+			return false
+		}
 	case *stmt.Range:
 		y, ok := y.(*stmt.Range)
 		if !ok {

@@ -862,6 +862,10 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseFor()
 		p.expectSemi()
 		return s
+	case token.Go:
+		s := p.parseGo()
+		p.expectSemi()
+		return s
 	case token.Const:
 		p.next()
 		s := &stmt.Const{
@@ -907,6 +911,18 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *Parser) parseGo() stmt.Stmt {
+	p.expect(token.Go)
+	p.next()
+	e := p.parsePrimaryExpr()
+	call, ok := e.(*expr.Call)
+	if !ok {
+		p.errorf("go statement must invoke function")
+		return nil
+	}
+	return &stmt.Go{Call: call}
 }
 
 func (p *Parser) parseFor() stmt.Stmt {

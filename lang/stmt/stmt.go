@@ -67,6 +67,10 @@ type For struct {
 	Body Stmt // always *BlockStmt
 }
 
+type Go struct {
+	Call *expr.Call
+}
+
 type Range struct {
 	Decl bool
 	Key  expr.Expr
@@ -91,6 +95,7 @@ func (s Assign) stmt()       {}
 func (s Block) stmt()        {}
 func (s If) stmt()           {}
 func (s For) stmt()          {}
+func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}
 func (s Simple) stmt()       {}
@@ -132,6 +137,9 @@ func (e *If) Sexp() string {
 }
 func (e *For) Sexp() string {
 	return fmt.Sprintf("(for %s %s %s %s)", stmtSexp(e.Init), exprSexp(e.Cond), stmtSexp(e.Post), stmtSexp(e.Body))
+}
+func (e *Go) Sexp() string {
+	return fmt.Sprintf("(go %s)", exprSexp(e.Call))
 }
 func (e *Range) Sexp() string {
 	return fmt.Sprintf("(range %s %s %s %s)", exprSexp(e.Key), exprSexp(e.Val), exprSexp(e.Expr), stmtSexp(e.Body))
