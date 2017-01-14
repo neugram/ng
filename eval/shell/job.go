@@ -17,6 +17,7 @@ import (
 
 	"neugram.io/eval/environ"
 	"neugram.io/lang/expr"
+	"neugram.io/lang/format"
 	"neugram.io/lang/token"
 )
 
@@ -107,30 +108,7 @@ func (j *Job) Continue() error {
 }
 
 func shellListString(cmd *expr.ShellList) string {
-	return "TODO shellListString"
-	/*var s []string
-	for _, c := range cmd.List {
-		switch c := c.(type) {
-		case *expr.ShellList:
-			s = append(s, shellListString(c))
-		case *expr.ShellCmd:
-			s = append(s, strings.Join(c.Argv, " "))
-		}
-	}
-	sep := "<unknown>"
-	switch cmd.Segment {
-	case expr.SegmentSemi:
-		sep = "; "
-	case expr.SegmentPipe:
-		sep = " | "
-	case expr.SegmentAnd:
-		sep = " && "
-	case expr.SegmentOut:
-		sep = " > "
-	case expr.SegmentIn:
-		sep = " < "
-	}
-	return strings.Join(s, sep)*/
+	return format.Expr(cmd)
 }
 
 // Wait waits until the job is stopped or complete.
