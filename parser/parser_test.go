@@ -2,19 +2,19 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package parser
+package parser_test
 
 import (
 	"fmt"
 	"math/big"
 	"testing"
 
-	"github.com/kr/pretty"
-
 	"neugram.io/lang/expr"
+	"neugram.io/lang/format"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
+	"neugram.io/parser"
 )
 
 type parserTest struct {
@@ -258,7 +258,7 @@ var tinteger = &tipe.Unresolved{Name: "integer"}
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
 		fmt.Printf("Parsing %q\n", test.input)
-		s, err := ParseStmt([]byte(test.input))
+		s, err := parser.ParseStmt([]byte(test.input))
 		if err != nil {
 			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
 			continue
@@ -268,10 +268,10 @@ func TestParseExpr(t *testing.T) {
 			continue
 		}
 		got := s.(*stmt.Simple).Expr
-		if !EqualExpr(got, test.want) {
-			diff, err := DiffExpr(test.want, got)
-			if err != nil {
-				t.Errorf("ParseExpr(%q): DiffExpr error: %v\nGot: %s\nWant: %s", test.input, err, pretty.Sprint(got), pretty.Sprint(test.want))
+		if !parser.EqualExpr(got, test.want) {
+			diff := format.Diff(test.want, got)
+			if diff == "" {
+				t.Errorf("ParseExpr(%q): format.Diff empty but expressions not equal", test.input)
 			} else {
 				t.Errorf("ParseExpr(%q):\n%v", test.input, diff)
 			}
@@ -548,7 +548,7 @@ func simplesh(args ...string) *expr.Shell {
 func TestParseShell(t *testing.T) {
 	for _, test := range shellTests {
 		fmt.Printf("Parsing %q\n", test.input)
-		s, err := ParseStmt([]byte("($$ " + test.input + " $$)"))
+		s, err := parser.ParseStmt([]byte("($$ " + test.input + " $$)"))
 		if err != nil {
 			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
 			continue
@@ -558,9 +558,8 @@ func TestParseShell(t *testing.T) {
 			continue
 		}
 		got := s.(*stmt.Simple).Expr.(*expr.Unary).Expr.(*expr.Shell)
-		if !EqualExpr(got, test.want) {
-			t.Errorf("ParseExpr(%q) = %v", test.input, pretty.Sprint(got))
-			pretty.Ldiff(t, test.want, got)
+		if !parser.EqualExpr(got, test.want) {
+			t.Errorf("ParseExpr(%q) = %v\ndiff: %s", test.input, format.Debug(got), format.Diff(test.want, got))
 		}
 	}
 }
@@ -779,7 +778,7 @@ var stmtTests = []stmtTest{
 func TestParseStmt(t *testing.T) {
 	for _, test := range stmtTests {
 		fmt.Printf("Parsing stmt %q\n", test.input)
-		got, err := ParseStmt([]byte(test.input))
+		got, err := parser.ParseStmt([]byte(test.input))
 		if err != nil {
 			t.Errorf("ParseStmt(%q): error: %v", test.input, err)
 			continue
@@ -788,14 +787,13 @@ func TestParseStmt(t *testing.T) {
 			t.Errorf("ParseStmt(%q): nil stmt", test.input)
 			continue
 		}
-		if !EqualStmt(got, test.want) {
-			diff, err := DiffStmt(test.want, got)
-			if err != nil {
-				t.Errorf("ParseStmt(%q): DiffStmt error: %v\nGot: %s\nWant: %s", test.input, err, pretty.Sprint(got), pretty.Sprint(test.want))
+		if !parser.EqualStmt(got, test.want) {
+			diff := format.Diff(test.want, got)
+			if diff == "" {
+				t.Errorf("ParseStmt(%q): format.Diff empty but statements not equal", test.input)
 			} else {
 				t.Errorf("ParseStmt(%q):\n%v", test.input, diff)
 			}
-
 		}
 	}
 }

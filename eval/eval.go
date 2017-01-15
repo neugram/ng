@@ -16,6 +16,7 @@ import (
 	"neugram.io/eval/gowrap"
 	"neugram.io/eval/shell"
 	"neugram.io/lang/expr"
+	"neugram.io/lang/format"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
@@ -452,7 +453,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 	case *stmt.MethodikDecl:
 		return nil
 	}
-	panic(fmt.Sprintf("TODO evalStmt: %T: %s", s, s.Sexp()))
+	panic(fmt.Sprintf("TODO evalStmt: %s", format.Stmt(s)))
 }
 
 func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
@@ -845,7 +846,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		t := p.reflector.ToRType(p.Types.Types[e])
 		return []reflect.Value{convert(v, t)}
 	}
-	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", e.Sexp(), e)})
+	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", format.Expr(e), e)})
 }
 
 // TODO make thread safe
@@ -976,7 +977,6 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			rtype = reflect.TypeOf((*error)(nil)).Elem()
 		} else {
 			rtype = reflect.TypeOf((*interface{})(nil)).Elem()
-			//panic(fmt.Sprintf("cannot make rtype of %s", t.Sexp()))
 		}
 	}
 	r.fwd[t] = rtype

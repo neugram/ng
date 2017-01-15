@@ -6,7 +6,6 @@
 package typecheck
 
 import (
-	"bytes"
 	"fmt"
 	"go/constant"
 	goimporter "go/importer"
@@ -920,7 +919,6 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 }
 
 func (c *Checker) exprPartial(e expr.Expr) (p partial) {
-	//fmt.Printf("exprPartial(%s)\n", e.Sexp())
 	defer func() {
 		if p.mode == modeConst {
 			c.Values[p.expr] = p.val
@@ -1722,32 +1720,6 @@ func (c *Checker) Add(s stmt.Stmt) tipe.Type {
 
 func (c *Checker) Lookup(name string) *Obj {
 	return c.cur.LookupRec(name)
-}
-
-func (c *Checker) String() string {
-	buf := new(bytes.Buffer)
-	buf.WriteString("typecheck.Checker{\n")
-	buf.WriteString("\tTypes: map[expr.Expr]tipe.Type{\n")
-	for k, v := range c.Types {
-		fmt.Fprintf(buf, "\t\t(%p)%s: %s\n", k, k.Sexp(), v.Sexp())
-	}
-	buf.WriteString("\t},\n")
-	buf.WriteString("\tDefs: map[*expr.Ident]*Obj{\n")
-	for k, v := range c.Defs {
-		t := "niltype"
-		if v.Type != nil {
-			t = v.Type.Sexp()
-		}
-		fmt.Fprintf(buf, "\t\t(%p)%s: (%p)*Obj{Kind: %v, Type:%s}\n", k, k.Sexp(), v, v.Kind, t)
-	}
-	buf.WriteString("\t},\n")
-	buf.WriteString("\tValues : map[expr.Expr]constant.Value{\n")
-	for k, v := range c.Values {
-		fmt.Fprintf(buf, "\t\t(%p)%s: %s\n", k, k.Sexp(), v)
-	}
-	buf.WriteString("\t},\n")
-	buf.WriteString("}")
-	return buf.String()
 }
 
 type Scope struct {

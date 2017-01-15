@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"neugram.io/lang/expr"
+	"neugram.io/lang/format"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
@@ -416,7 +417,7 @@ func (p *Parser) parseOut() (names []string, params *tipe.Tuple) {
 			return t.Name
 		default:
 			p.errorf("expected return value name, got %T", t)
-			return "BAD:" + t.Sexp() // TODO something better
+			return fmt.Sprintf("BAD:%T", t)
 		}
 	}
 
@@ -709,12 +710,11 @@ func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
 	if e, isExpr := s.(*stmt.Simple); isExpr {
 		return e.Expr
 	}
-	fmt.Printf("expected boolean expression, found statement: %s", s.Sexp())
+	fmt.Printf("expected boolean expression, found statement: %s", format.Stmt(s))
 	return &expr.Bad{p.error("expected boolean expression, found statement")}
 }
 
 func extractRange(s stmt.Stmt) (res *stmt.Range) {
-	//defer fmt.Printf("extractRange(%s) res=%s\n", s.Sexp(), res)
 	a, ok := s.(*stmt.Assign)
 	if !ok || len(a.Right) != 1 {
 		return nil

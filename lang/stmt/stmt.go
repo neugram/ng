@@ -6,16 +6,11 @@
 package stmt
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-
 	"neugram.io/lang/expr"
 	"neugram.io/lang/tipe"
 )
 
 type Stmt interface {
-	Sexp() string
 	stmt()
 }
 
@@ -99,81 +94,3 @@ func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}
 func (s Simple) stmt()       {}
-
-func (s *Block) Sexp() string {
-	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "(block")
-	for _, s := range s.Stmts {
-		buf.WriteRune(' ')
-		buf.WriteString(stmtSexp(s))
-	}
-	fmt.Fprintf(buf, ")")
-	return buf.String()
-}
-func (e *Return) Sexp() string { return fmt.Sprintf("(return %s)", exprsStr(e.Exprs)) }
-func (e *Import) Sexp() string { return fmt.Sprintf("(import %s %s)", e.Name, e.Path) }
-func (e *TypeDecl) Sexp() string {
-	return fmt.Sprintf("(typedecl %s %s)", e.Name, typeSexp(e.Type))
-}
-func (e *MethodikDecl) Sexp() string {
-	var methods []string
-	for _, m := range e.Methods {
-		methods = append(methods, m.Sexp())
-	}
-	return fmt.Sprintf("(methodikdecl %s %s %s)", e.Name, typeSexp(e.Type), strings.Join(methods, " "))
-}
-func (e *Const) Sexp() string {
-	return fmt.Sprintf("(constdecl %s %s %s)", e.Name, typeSexp(e.Type), exprSexp(e.Value))
-}
-func (e *Assign) Sexp() string {
-	decl := ""
-	if e.Decl {
-		decl = " decl"
-	}
-	return fmt.Sprintf("(assign%s (%s) (%s))", decl, exprsStr(e.Left), exprsStr(e.Right))
-}
-func (e *If) Sexp() string {
-	return fmt.Sprintf("(if %s %s %s %s)", stmtSexp(e.Init), exprSexp(e.Cond), stmtSexp(e.Body), stmtSexp(e.Else))
-}
-func (e *For) Sexp() string {
-	return fmt.Sprintf("(for %s %s %s %s)", stmtSexp(e.Init), exprSexp(e.Cond), stmtSexp(e.Post), stmtSexp(e.Body))
-}
-func (e *Go) Sexp() string {
-	return fmt.Sprintf("(go %s)", exprSexp(e.Call))
-}
-func (e *Range) Sexp() string {
-	return fmt.Sprintf("(range %s %s %s %s)", exprSexp(e.Key), exprSexp(e.Val), exprSexp(e.Expr), stmtSexp(e.Body))
-}
-func (e *Simple) Sexp() string { return fmt.Sprintf("(simple %s)", exprSexp(e.Expr)) }
-
-func stmtSexp(s Stmt) string {
-	if s == nil {
-		return "nilstmt"
-	}
-	return s.Sexp()
-}
-
-func typeSexp(e tipe.Type) string {
-	if e == nil {
-		return "niltype"
-	}
-	return e.Sexp()
-}
-
-func exprSexp(e expr.Expr) string {
-	if e == nil {
-		return "nilexpr"
-	}
-	return e.Sexp()
-}
-
-func exprsStr(e []expr.Expr) string {
-	buf := new(bytes.Buffer)
-	for i, arg := range e {
-		if i > 0 {
-			buf.WriteRune(' ')
-		}
-		buf.WriteString(exprSexp(arg))
-	}
-	return buf.String()
-}

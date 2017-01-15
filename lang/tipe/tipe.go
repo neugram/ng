@@ -11,11 +11,9 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 )
 
 type Type interface {
-	Sexp() string
 	tipe()
 }
 
@@ -183,111 +181,6 @@ func (t *Map) tipe()        {}
 func (t *Package) tipe()    {}
 func (t *Interface) tipe()  {}
 func (t *Unresolved) tipe() {}
-
-func (e Specialization) Sexp() string {
-	return fmt.Sprintf("(spec num=%s)", e.Num.Sexp())
-}
-
-func (e Basic) Sexp() string   { return fmt.Sprintf("(basictype %s)", string(e)) }
-func (e Builtin) Sexp() string { return fmt.Sprintf("(%s)", string(e)) }
-func (e *Func) Sexp() string {
-	p := "nilparams"
-	if e.Params != nil {
-		p = e.Params.Sexp()
-	}
-	r := "nilresults"
-	if e.Results != nil {
-		p = e.Results.Sexp()
-	}
-	return fmt.Sprintf("(functype %s %s %s)", e.Spec.Sexp(), p, r)
-}
-func (e *Struct) Sexp() string {
-	var s []string
-	for i, tag := range e.FieldNames {
-		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Fields[i].Sexp()))
-	}
-	return fmt.Sprintf("(structtype %s %s)", e.Spec.Sexp(), strings.Join(s, " "))
-}
-func (e *Methodik) Sexp() string {
-	u := "nil"
-	if e.Type != nil {
-		u = e.Type.Sexp()
-	}
-	var s []string
-	for i, tag := range e.MethodNames {
-		s = append(s, fmt.Sprintf("(%s %s)", tag, e.Methods[i].Sexp()))
-	}
-	return fmt.Sprintf("(methodiktype %s %s %s)", e.Spec.Sexp(), u, strings.Join(s, " "))
-}
-func (e *Slice) Sexp() string {
-	u := "nil"
-	if e.Elem != nil {
-		u = e.Elem.Sexp()
-	}
-	return fmt.Sprintf("(slicetype %s)", u)
-}
-func (e *Table) Sexp() string {
-	u := "nil"
-	if e.Type != nil {
-		u = e.Type.Sexp()
-	}
-	return fmt.Sprintf("(tabletype %s)", u)
-}
-func (e *Tuple) Sexp() string {
-	var elems []string
-	for _, t := range e.Elems {
-		ts := "<nil>"
-		if t != nil {
-			ts = t.Sexp()
-		}
-		elems = append(elems, ts)
-	}
-	return fmt.Sprintf("(tupletype %s)", strings.Join(elems, " "))
-}
-func (e *Pointer) Sexp() string {
-	u := "nil"
-	if e.Elem != nil {
-		u = e.Elem.Sexp()
-	}
-	return fmt.Sprintf("(* %s)", u)
-}
-func (e *Map) Sexp() string {
-	k, v := "nil", "nil"
-	if e.Key != nil {
-		k = e.Key.Sexp()
-	}
-	if e.Value != nil {
-		v = e.Value.Sexp()
-	}
-	return fmt.Sprintf("(map %s %s)", k, v)
-}
-
-func (e *Package) Sexp() string {
-	var elems []string
-	for n, t := range e.Exports {
-		ts := "<nil>"
-		if t != nil {
-			ts = t.Sexp()
-		}
-		elems = append(elems, "("+n+" "+ts+")")
-	}
-	return fmt.Sprintf("(package %s)", strings.Join(elems, " "))
-}
-
-func (e *Interface) Sexp() string {
-	var s []string
-	for name, fn := range e.Methods {
-		s = append(s, fmt.Sprintf("(%s %s)", name, fn.Sexp()))
-	}
-	return fmt.Sprintf("(interfacetype %s)", strings.Join(s, " "))
-}
-
-func (e *Unresolved) Sexp() string {
-	if e.Package == "" {
-		return fmt.Sprintf("(unresolved %s)", e.Name)
-	}
-	return fmt.Sprintf("(unresolved %s.%s)", e.Package, e.Name)
-}
 
 func IsNumeric(t Type) bool {
 	b, ok := t.(Basic)
@@ -551,8 +444,8 @@ func (t Interface) String() string {
 		return "interface{}"
 	}
 	s := "interface{"
-	for name, m := range t.Methods {
-		s += "\t" + name + m.Sexp() // TODO .String()
+	for name, _ := range t.Methods {
+		s += "\t" + name + "(TODO)"
 	}
 	s += "\n}"
 	return s

@@ -195,7 +195,6 @@ func TestBasic(t *testing.T) {
 
 		c := New()
 		for si, s := range stmts {
-			//t.Logf("Add((%p)%s)", s, s.Sexp())
 			c.Add(s)
 			if len(c.Errs) > 0 {
 				t.Fatalf("%d: Add(%q): %v", i, test.stmts[si], c.Errs[0])
