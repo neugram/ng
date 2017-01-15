@@ -160,6 +160,10 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		return nil
 
+	case *stmt.Go:
+		c.expr(s.Call)
+		return nil
+
 	case *stmt.If:
 		if s.Init != nil {
 			c.pushScope()

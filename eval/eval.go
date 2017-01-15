@@ -337,6 +337,15 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			}
 		}
 		return nil
+	case *stmt.Go:
+		fn, args := p.prepCall(s.Call)
+		for i, arg := range args {
+			v := reflect.New(arg.Type()).Elem()
+			v.Set(arg)
+			args[i] = v
+		}
+		go fn.Call(args)
+		return nil
 	case *stmt.If:
 		if s.Init != nil {
 			p.pushScope()
@@ -509,6 +518,28 @@ type interpPanic struct {
 	reason error
 }
 
+func (p *Program) prepCall(e *expr.Call) (fn reflect.Value, args []reflect.Value) {
+	fn = p.evalExprOne(e.Func)
+	args = make([]reflect.Value, len(e.Args))
+	for i, arg := range e.Args {
+		v := p.evalExprOne(arg)
+		if t := fn.Type(); t.Kind() == reflect.Func && !t.IsVariadic() {
+			// Implicit interface conversion on use.
+			// Bonus: this makes up for the fact that the
+			// evaluator currently stores custom ng
+			// interfaces in a Go empty interface{}.
+			argt := fn.Type().In(i)
+			if argt.Kind() == reflect.Interface && argt != v.Type() {
+				underlying := reflect.ValueOf(v.Interface())
+				v = reflect.New(argt).Elem()
+				v.Set(underlying) // re-box with right type
+			}
+		}
+		args[i] = v
+	}
+	return fn, args
+}
+
 func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	switch e := e.(type) {
 	case *expr.BasicLiteral:
@@ -553,36 +584,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		t := p.reflector.ToRType(p.Types.Types[e])
 		return []reflect.Value{convert(reflect.ValueOf(v), t)}
 	case *expr.Call:
-		fn := p.evalExprOne(e.Func)
-		args := make([]reflect.Value, len(e.Args))
-		for i, arg := range e.Args {
-			v := p.evalExprOne(arg)
-			if t := fn.Type(); t.Kind() == reflect.Func && !t.IsVariadic() {
-				// Implicit interface conversion on use.
-				// Bonus: this makes up for the fact that the
-				// evaluator currently stores custom ng
-				// interfaces in a Go empty interface{}.
-				argt := fn.Type().In(i)
-				if argt.Kind() == reflect.Interface && argt != v.Type() {
-					underlying := reflect.ValueOf(v.Interface())
-					v = reflect.New(argt).Elem()
-					v.Set(underlying) // re-box with right type
-				}
-			}
-			args[i] = v
-		}
+		fn, args := p.prepCall(e)
 		if t, isTypeConv := fn.Interface().(reflect.Type); isTypeConv {
 			return []reflect.Value{typeConv(t, args[0])}
-		}
-		var t []reflect.Type
-		switch resTyp := p.Types.Types[e].(type) {
-		case *tipe.Tuple:
-			t = make([]reflect.Type, len(resTyp.Elems))
-			for i, elemTyp := range resTyp.Elems {
-				t[i] = p.reflector.ToRType(elemTyp)
-			}
-		default:
-			t = []reflect.Type{p.reflector.ToRType(resTyp)}
 		}
 		// TODO: have typecheck do the error elision for us
 		// so we can insert the dynamic panic check once, right here.

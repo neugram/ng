@@ -1,0 +1,45 @@
+import "sync"
+
+ok := true
+
+wg := sync.WaitGroup{}
+mu := sync.Mutex{}
+x := 0
+for i := 0; i < 5; i++ {
+	wg.Add(1)
+	go func(i int) {
+		mu.Lock()
+		x += i
+		mu.Unlock()
+		wg.Done()
+	}(i)
+}
+wg.Wait()
+
+if want := 0 + 1 + 2 + 3 + 4; x != want {
+	printf("x=%d, want=%d\n", x, want)
+	ok = false
+}
+
+/*
+TODO
+
+ch := make(chan int, 5)
+for i := 0; i < 5; i++ {
+	go func(i int) {
+		ch <- i
+	}(i)
+}
+y := 0
+for i := 0; i < 5; i++ {
+	y += <-ch
+}
+if want := 0 + 1 + 2 + 3 + 4; y != want {
+	printf("y=%d, want=%d\n", y, want)
+	ok = false
+}
+*/
+
+if ok {
+	print("OK")
+}
