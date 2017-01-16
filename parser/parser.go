@@ -182,6 +182,26 @@ func (p *Parser) parseUnaryExpr() expr.Expr {
 		p.next()
 		x := p.parseUnaryExpr()
 		return &expr.Unary{Op: token.Mul, Expr: x}
+	case token.ChanOp:
+		// channel type or receive expression
+		p.next()
+		x := p.parseUnaryExpr()
+
+		if extyp, ok := x.(*expr.Type); ok {
+			// parsed a channel type, add in the receive prefix '<-'
+			if t, ok := extyp.Type.(*tipe.Chan); ok {
+				if t.Direction == tipe.ChanRecv {
+					p.error(`expected "chan", found "<-"`)
+				}
+				// TODO: nested channel types
+				t.Direction = tipe.ChanRecv
+			} else {
+				p.errorf(`expected "chan", found %q`, format.Type(t))
+			}
+			return x
+		}
+		// parsed a receive expression
+		return &expr.Unary{Op: token.ChanOp, Expr: x}
 	default:
 		return p.parsePrimaryExpr()
 	}
@@ -204,7 +224,6 @@ func (p *Parser) parseArgs() []expr.Expr {
 	p.next()
 	var args []expr.Expr
 	for p.s.Token != token.RightParen && p.s.r > 0 {
-		// TODO: if this might be a builtin, accept a type name
 		args = append(args, p.parseExpr())
 		if !p.expectCommaOr(token.RightParen, "arguments") {
 			break
@@ -595,6 +614,28 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.next()
 		s.Value = p.parseType()
 		return s
+	case token.ChanOp:
+		// <-chan T, a read-only channel
+		p.next()
+		p.expect(token.Chan)
+		p.next()
+		s := &tipe.Chan{
+			Direction: tipe.ChanRecv,
+			Elem:      p.parseType(),
+		}
+		return s
+	case token.Chan:
+		// chan T, or chan<- T
+		p.next()
+		s := &tipe.Chan{}
+		if p.s.Token == token.ChanOp {
+			s.Direction = tipe.ChanSend
+			p.next()
+		} else {
+			s.Direction = tipe.ChanBoth
+		}
+		s.Elem = p.parseType()
+		return s
 	default:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	}
@@ -697,6 +738,12 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 				Right: &expr.BasicLiteral{big.NewInt(1)},
 			}},
 		}
+	case token.ChanOp:
+		p.next()
+		return &stmt.Send{
+			Chan:  exprs[0],
+			Value: p.parseExpr(),
+		}
 	}
 
 	// TODO len==1
@@ -765,7 +812,7 @@ func (p *Parser) parseStmt() stmt.Stmt {
 			p.expectSemi()
 		}
 		return s
-	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul, token.Map,
+	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul, token.ChanOp, token.Map,
 		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Rune, token.Shell:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()

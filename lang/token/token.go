@@ -49,6 +49,7 @@ const (
 	GreaterAnd   // >&
 	AndGreater   // &>
 	TwoGreater   // >>
+	ChanOp       // <-
 
 	// Statement Operators
 
@@ -100,6 +101,7 @@ const (
 
 	Go
 
+	Chan
 	Map
 	Struct
 	Methodik
@@ -140,6 +142,7 @@ var tokens = map[string]Token{
 	">&":           GreaterAnd,
 	"&>":           AndGreater,
 	">>":           TwoGreater,
+	"<-":           ChanOp,
 	"++":           Inc,
 	"--":           Dec,
 	"AddAssign":    AddAssign,
@@ -180,6 +183,7 @@ var Keywords = map[string]Token{
 	"break":       Break,
 	"goto":        Goto,
 	"go":          Go,
+	"chan":        Chan,
 	"map":         Map,
 	"struct":      Struct,
 	"methodik":    Methodik,

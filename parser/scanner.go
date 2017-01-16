@@ -575,6 +575,9 @@ func (s *Scanner) Next() {
 		}
 	case '<':
 		switch s.r {
+		case '-':
+			s.next()
+			s.Token = token.ChanOp
 		case '=':
 			s.next()
 			s.Token = token.LessEqual

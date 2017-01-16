@@ -466,6 +466,12 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 	if v.Type() == t {
 		return v
 	}
+	if v.Kind() == reflect.Chan && t.Kind() == reflect.Chan {
+		// bidirectional channel restricting to send/recv-only
+		ret := reflect.New(t).Elem()
+		ret.Set(v)
+		return ret
+	}
 	switch t.Kind() {
 	case reflect.Int:
 		switch v.Kind() {

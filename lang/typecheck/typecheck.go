@@ -14,6 +14,7 @@ import (
 	"math/big"
 
 	"neugram.io/lang/expr"
+	"neugram.io/lang/format"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
@@ -334,6 +335,26 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.checkImport(s)
 		return nil
 
+	case *stmt.Send:
+		p := c.expr(s.Chan)
+		if p.mode == modeInvalid {
+			return nil
+		}
+		cht, ok := p.typ.(*tipe.Chan)
+		if !ok {
+			c.errorf("cannot send to non-channel type: %s", format.Type(cht))
+			return nil
+		}
+		p = c.expr(s.Value)
+		if p.mode == modeInvalid {
+			return nil
+		}
+		c.convert(&p, cht.Elem)
+		if p.mode == modeInvalid {
+			c.errorf("cannot send %s to %s", format.Type(p.typ), format.Type(cht))
+		}
+		return nil
+
 	default:
 		panic(fmt.Sprintf("typecheck: unknown stmt %T", s))
 	}
@@ -528,7 +549,7 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 	p = c.exprPartial(e)
 	if p.mode == modeTypeExpr {
 		p.mode = modeInvalid
-		c.errorf("type %s is not an expression", p.typ)
+		c.errorf("type %s is not an expression", format.Type(p.typ))
 	}
 	return p
 }
@@ -577,6 +598,9 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
 	case *tipe.Slice:
+		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
+	case *tipe.Chan:
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
 	case *tipe.Struct:
@@ -775,7 +799,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		arg0 := c.exprType(e.Args[0])
 		if arg0 != nil {
 			switch t := arg0.(type) {
-			case *tipe.Slice, *tipe.Map: // TODO Chan:
+			case *tipe.Slice, *tipe.Map, *tipe.Chan:
 				p.typ = t
 			}
 		}
@@ -1213,8 +1237,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.Unary:
 		switch e.Op {
 		case token.LeftParen, token.Not, token.Sub:
-			sub := c.expr(e.Expr)
-			p.mode = modeVar
+			sub := c.exprPartial(e.Expr)
+			p.mode = sub.mode
 			p.typ = sub.typ
 			return p
 		case token.Ref:
@@ -1242,6 +1266,21 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			}
 			c.errorf("invalid dereference of %s", e.Expr)
 			p.mode = modeInvalid
+			return p
+		case token.ChanOp:
+			sub := c.expr(e.Expr)
+			if sub.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			t, ok := sub.typ.(*tipe.Chan)
+			if !ok {
+				c.errorf("receive from non-chan type %s", format.Type(sub.typ))
+				p.mode = modeInvalid
+				return p
+			}
+			p.mode = modeVar
+			p.typ = t.Elem
 			return p
 		}
 	case *expr.Binary:
@@ -1422,7 +1461,7 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 	}
 
 	if !c.convertible(t, p.typ) {
-		c.errorf("cannot convert %s to %s", p.typ, t)
+		c.errorf("cannot convert %s to %s", format.Type(p.typ), format.Type(t))
 		p.mode = modeInvalid
 		return
 	}
@@ -1462,6 +1501,14 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 		}
 		return true
 	}
+
+	// bidirectional channels can be assigned to directional channels
+	if srcCh, ok := src.(*tipe.Chan); ok && srcCh.Direction == tipe.ChanBoth {
+		if dstCh, ok := dst.(*tipe.Chan); ok {
+			return tipe.Equal(srcCh.Elem, dstCh.Elem)
+		}
+	}
+
 	return false
 }
 

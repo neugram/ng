@@ -135,7 +135,11 @@ func (p *Program) builtinMake(v ...interface{}) interface{} {
 	t := v[0].(reflect.Type)
 	switch t.Kind() {
 	case reflect.Chan:
-		panic("TODO make Chan")
+		size := 0
+		if len(v) > 1 {
+			size = v[1].(int)
+		}
+		return reflect.MakeChan(t, size).Interface()
 	case reflect.Slice:
 		var slen, scap int
 		if len(v) > 1 {
@@ -457,6 +461,11 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			p.Cur = s
 		}
 		return res
+	case *stmt.Send:
+		ch := p.evalExprOne(s.Chan)
+		v := p.evalExprOne(s.Value)
+		ch.Send(v)
+		return nil
 	case *stmt.TypeDecl:
 		return nil
 	case *stmt.MethodikDecl:
@@ -478,12 +487,14 @@ type (
 	untypedFloat struct{ *big.Float }
 )
 
+// TODO merge convert func into typeConv func?
 func convert(v reflect.Value, t reflect.Type) reflect.Value {
 	if v.Type() == t {
 		return v
 	}
-	//fmt.Printf("convert(%s -> %s)\n", v.Type(), t)
 	switch val := v.Interface().(type) {
+	case reflect.Type:
+		return v // type conversion
 	case untypedInt:
 		if t == reflect.TypeOf(untypedFloat{}) {
 			res := untypedFloat{new(big.Float)}
@@ -593,7 +604,6 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		res := fn.Call(args)
 		if p.builtinCalled {
 			p.builtinCalled = false
-			fmt.Printf("have builtin make\n")
 			for i := range res {
 				// Necessary to turn the return type of append
 				// from an interface{} into a slice so it can
@@ -846,6 +856,11 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				panic(interpPanic{err})
 			}
 			v = reflect.ValueOf(res)
+		case token.ChanOp:
+			ch := p.evalExprOne(e.Expr)
+			res, ok := ch.Recv()
+			_ = ok // TODO
+			v = res
 		}
 		t := p.reflector.ToRType(p.Types.Types[e])
 		return []reflect.Value{convert(v, t)}
@@ -969,6 +984,19 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 	// TODO case *Table:
 	case *tipe.Pointer:
 		rtype = reflect.PtrTo(r.ToRType(t.Elem))
+	case *tipe.Chan:
+		var dir reflect.ChanDir
+		switch t.Direction {
+		case tipe.ChanBoth:
+			dir = reflect.BothDir
+		case tipe.ChanSend:
+			dir = reflect.SendDir
+		case tipe.ChanRecv:
+			dir = reflect.RecvDir
+		default:
+			panic(fmt.Sprintf("bad channel direction: %v", t.Direction))
+		}
+		rtype = reflect.ChanOf(dir, r.ToRType(t.Elem))
 	case *tipe.Map:
 		rtype = reflect.MapOf(r.ToRType(t.Key), r.ToRType(t.Value))
 	// TODO case *Interface:

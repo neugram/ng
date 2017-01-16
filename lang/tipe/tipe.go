@@ -64,6 +64,19 @@ type Pointer struct {
 	Elem Type
 }
 
+type ChanDirection int
+
+const (
+	ChanBoth ChanDirection = iota
+	ChanSend
+	ChanRecv
+)
+
+type Chan struct {
+	Direction ChanDirection
+	Elem      Type
+}
+
 type Map struct {
 	Key   Type
 	Value Type
@@ -162,6 +175,7 @@ var (
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
 	_ = Type((*Pointer)(nil))
+	_ = Type((*Chan)(nil))
 	_ = Type((*Map)(nil))
 	_ = Type((*Package)(nil))
 	_ = Type((*Interface)(nil))
@@ -177,6 +191,7 @@ func (t *Slice) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
 func (t *Pointer) tipe()    {}
+func (t *Chan) tipe()       {}
 func (t *Map) tipe()        {}
 func (t *Package) tipe()    {}
 func (t *Interface) tipe()  {}
@@ -419,6 +434,18 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		if x == nil || y == nil {
+			return false
+		}
+		return Equal(x.Elem, y.Elem)
+	case *Chan:
+		y, ok := y.(*Chan)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if x.Direction != y.Direction {
 			return false
 		}
 		return Equal(x.Elem, y.Elem)

@@ -21,24 +21,22 @@ if want := 0 + 1 + 2 + 3 + 4; x != want {
 	ok = false
 }
 
-/*
-TODO
-
 ch := make(chan int, 5)
+sendch := (chan<- int)(ch)
 for i := 0; i < 5; i++ {
 	go func(i int) {
-		ch <- i
+		sendch <- i
 	}(i)
 }
+recvch := (<-chan int)(ch)
 y := 0
 for i := 0; i < 5; i++ {
-	y += <-ch
+	y += <-recvch
 }
 if want := 0 + 1 + 2 + 3 + 4; y != want {
 	printf("y=%d, want=%d\n", y, want)
 	ok = false
 }
-*/
 
 if ok {
 	print("OK")

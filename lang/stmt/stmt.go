@@ -82,6 +82,12 @@ type Simple struct {
 	Expr expr.Expr
 }
 
+// Send is channel send statement, "a <- b".
+type Send struct {
+	Chan  expr.Expr
+	Value expr.Expr
+}
+
 func (s Import) stmt()       {}
 func (s TypeDecl) stmt()     {}
 func (s MethodikDecl) stmt() {}
@@ -94,3 +100,4 @@ func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}
 func (s Simple) stmt()       {}
+func (s Send) stmt()         {}
