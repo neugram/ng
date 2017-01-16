@@ -6,27 +6,89 @@ package format
 
 import (
 	"bytes"
+	"sort"
 
 	"neugram.io/lang/tipe"
 )
 
 func (p *printer) tipe(t tipe.Type) {
 	switch t := t.(type) {
-	/*case *stmt.Simple:
-		p.expr(s.Expr)
-	case *stmt.Return:
-		p.buf.WriteString("return")
-		if len(s.Exprs) > 0 {
-			p.buf.WriteByte(' ')
+	case tipe.Basic:
+		p.buf.WriteString(string(t))
+	case *tipe.Struct:
+		if len(t.Fields) == 0 {
+			p.buf.WriteString("struct{}")
+			return
 		}
-		for i, e := range s.Exprs {
-			if i > 0 {
-				p.buf.WriteString(", ")
+		p.buf.WriteString("struct {")
+		p.indent++
+		maxlen := 0
+		for _, name := range t.FieldNames {
+			if len(name) > maxlen {
+				maxlen = len(name)
 			}
-			p.expr(e)
-		}*/
+		}
+		for i, ft := range t.Fields {
+			p.newline()
+			name := "*ERROR*No*Name*"
+			if i < len(t.FieldNames) {
+				name = t.FieldNames[i]
+			}
+			p.buf.WriteString(name)
+			for i := len(name); i <= maxlen; i++ {
+				p.buf.WriteByte(' ')
+			}
+			p.tipe(ft)
+		}
+		p.indent--
+		p.newline()
+		p.buf.WriteByte('}')
+	case *tipe.Unresolved:
+		if t.Package != "" {
+			p.buf.WriteString(t.Package)
+			p.buf.WriteByte('.')
+		}
+		p.buf.WriteString(t.Name)
+	case *tipe.Slice:
+		p.buf.WriteString("[]")
+		p.tipe(t.Elem)
+	case *tipe.Interface:
+		if len(t.Methods) == 0 {
+			p.buf.WriteString("interface{}")
+			return
+		}
+		p.buf.WriteString("interface {")
+		p.indent++
+		names := make([]string, 0, len(t.Methods))
+		for name := range t.Methods {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			p.newline()
+			p.buf.WriteString(name)
+			p.tipe(t.Methods[name])
+		}
+		p.indent--
+		p.newline()
+		p.buf.WriteByte('}')
+	case *tipe.Map:
+		p.buf.WriteString("map[")
+		p.tipe(t.Key)
+		p.buf.WriteByte(']')
+		p.tipe(t.Value)
+	case *tipe.Chan:
+		if t.Direction == tipe.ChanRecv {
+			p.buf.WriteString("<-")
+		}
+		p.buf.WriteString("chan")
+		if t.Direction == tipe.ChanSend {
+			p.buf.WriteString("<-")
+		}
+		p.buf.WriteByte(' ')
+		p.tipe(t.Elem)
 	default:
-		p.printf("format: unknown type %T: ", t)
+		p.buf.WriteString("format: unknown type: ")
 		WriteDebug(p.buf, t)
 	}
 }
