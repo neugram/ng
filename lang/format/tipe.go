@@ -12,6 +12,10 @@ import (
 )
 
 func (p *printer) tipe(t tipe.Type) {
+	if t == nil {
+		p.buf.WriteString("<nil>")
+		return
+	}
 	switch t := t.(type) {
 	case tipe.Basic:
 		p.buf.WriteString(string(t))
@@ -43,6 +47,9 @@ func (p *printer) tipe(t tipe.Type) {
 		p.indent--
 		p.newline()
 		p.buf.WriteByte('}')
+	case *tipe.Pointer:
+		p.buf.WriteByte('*')
+		p.tipe(t.Elem)
 	case *tipe.Unresolved:
 		if t.Package != "" {
 			p.buf.WriteString(t.Package)
@@ -67,7 +74,7 @@ func (p *printer) tipe(t tipe.Type) {
 		for _, name := range names {
 			p.newline()
 			p.buf.WriteString(name)
-			p.tipe(t.Methods[name])
+			p.tipeFuncSig(t.Methods[name])
 		}
 		p.indent--
 		p.newline()
@@ -87,9 +94,40 @@ func (p *printer) tipe(t tipe.Type) {
 		}
 		p.buf.WriteByte(' ')
 		p.tipe(t.Elem)
+	case *tipe.Func:
+		p.buf.WriteString("func")
+		p.tipeFuncSig(t)
 	default:
 		p.buf.WriteString("format: unknown type: ")
 		WriteDebug(p.buf, t)
+	}
+}
+
+func (p *printer) tipeFuncSig(t *tipe.Func) {
+	p.buf.WriteByte('(')
+	if t.Params != nil {
+		for i, elem := range t.Params.Elems {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			p.tipe(elem)
+		}
+	}
+	p.buf.WriteByte(')')
+	if t.Results != nil && len(t.Results.Elems) > 0 {
+		p.buf.WriteByte(' ')
+		if len(t.Results.Elems) > 1 {
+			p.buf.WriteByte('(')
+		}
+		for i, elem := range t.Results.Elems {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			p.tipe(elem)
+		}
+		if len(t.Results.Elems) > 1 {
+			p.buf.WriteByte(')')
+		}
 	}
 }
 

@@ -173,7 +173,9 @@ func (p *debugPrinter) printv(v reflect.Value) {
 		}
 		p.buf.WriteByte('}')
 	default:
-		if v.Kind() == reflect.String {
+		if !v.IsValid() {
+			p.printf("?")
+		} else if v.Kind() == reflect.String {
 			p.printf("%q", v.String())
 		} else if v.CanInterface() {
 			p.printf("%#v", v.Interface())

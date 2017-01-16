@@ -402,83 +402,73 @@ func (p *Parser) parseRange() (r expr.Range) {
 	return r
 }
 
-func (p *Parser) parseIn() (names []string, params *tipe.Tuple) {
-	params = &tipe.Tuple{}
-	for p.s.Token > 0 && p.s.Token != token.RightParen {
-		n := p.parseIdent().Name
-		t := p.maybeParseType()
-		if t != nil {
-			for i := len(params.Elems) - 1; i >= 0 && params.Elems[i] == nil; i-- {
-				params.Elems[i] = t
-			}
-		}
-		if p.s.Token == token.Comma {
-			p.next()
-		}
-		names = append(names, n)
-		params.Elems = append(params.Elems, t)
+func (p *Parser) parseParam() (name string, t tipe.Type) {
+	// Scan what may be a type, or may be a parameter name.
+	first := p.maybeParseType()
+	if n := typeAsName(first); n != "" && p.s.Token > 0 && p.s.Token != token.Comma && p.s.Token != token.RightParen {
+		// Looks like a type may follow. Treat first as a name.
+		name = n
+		t = p.maybeParseType()
+	} else {
+		t = first
 	}
-	return names, params
+	if t == nil {
+		p.errorf("expected name or type, got %s", p.s.Token)
+		p.next() // make progress
+	} else if p.s.Token == token.Comma {
+		p.next()
+	}
+	return name, t
 }
 
-func (p *Parser) parseOut() (names []string, params *tipe.Tuple) {
-	typeToName := func(t tipe.Type) string {
-		if t == nil {
-			panic("nil type")
-		}
-		switch t := t.(type) {
-		case tipe.Basic:
-			return string(t)
-		case *tipe.Unresolved:
-			if t.Package != "" {
-				p.errorf("invalid return value name %s.%s", t.Package, t.Name)
-			}
-			return t.Name
-		default:
-			p.errorf("expected return value name, got %T", t)
-			return fmt.Sprintf("BAD:%T", t)
-		}
+func typeAsName(t tipe.Type) string {
+	if u, ok := t.(*tipe.Unresolved); ok && u.Package == "" {
+		return u.Name
 	}
+	return ""
+}
 
-	// Either none of the output parameters have names, or all do.
-	var types []tipe.Type
-	var named bool
+func (p *Parser) parseParamTuple() (names []string, params *tipe.Tuple) {
+	params = &tipe.Tuple{}
 	for p.s.Token > 0 && p.s.Token != token.RightParen {
-		t := p.maybeParseType()
+		name, t := p.parseParam()
 		if t == nil {
-			p.errorf("expected return value name or type, got %s", p.s.Token)
-			p.next() // make progress
 			continue
 		}
-		if p.s.Token > 0 && p.s.Token != token.RightParen && p.s.Token != token.Comma {
-			// Type was actually a name.
-			names = append(names, typeToName(t))
-			types = append(types, p.maybeParseType())
+		names = append(names, name)
+		params.Elems = append(params.Elems, t)
+	}
+	// Either none of the parameters have names, or all do.
+	named := false
+	for _, n := range names {
+		if n != "" {
 			named = true
-		} else {
-			// Single element parameter, assume a type for now.
-			names = append(names, "")
-			types = append(types, t)
-		}
-
-		if p.s.Token == token.Comma {
-			p.next()
 		}
 	}
-
 	if named {
-		// (a, b T1, b T2)
-		// All dangling types are really names.
-		for i, name := range names {
-			if name == "" {
-				names[i] = typeToName(types[i])
-				types[i] = nil
+		for i, n := range names {
+			if n == "" {
+				names[i] = typeAsName(params.Elems[i])
+				if names[i] == "" {
+					p.error("function signature mixes named and unnamed arguments")
+					return nil, &tipe.Tuple{}
+				}
+				params.Elems[i] = nil
+			} else {
+				// Back-propagate types for named, typeless params.
+				t := params.Elems[i]
+				for j := i - 1; j >= 0 && params.Elems[j] == nil; j-- {
+					params.Elems[j] = t
+				}
 			}
 		}
-	} else {
-		// (T1, T2)
+		for _, t := range params.Elems {
+			if t == nil {
+				p.error("function signature mixes named and unnamed arguments")
+				return nil, &tipe.Tuple{}
+			}
+		}
 	}
-	params = &tipe.Tuple{Elems: types}
 	return names, params
 }
 
@@ -602,7 +592,9 @@ func (p *Parser) maybeParseType() tipe.Type {
 		p.next()
 		return iface
 	case token.Func:
-		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
+		p.next()
+		lit := p.parseFuncType(false)
+		return lit.Type
 	case token.Map:
 		// map[T]U
 		s := &tipe.Map{}
@@ -636,6 +628,8 @@ func (p *Parser) maybeParseType() tipe.Type {
 		}
 		s.Elem = p.parseType()
 		return s
+	case token.Semicolon:
+		// no type
 	default:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)
 	}
@@ -757,7 +751,6 @@ func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
 	if e, isExpr := s.(*stmt.Simple); isExpr {
 		return e.Expr
 	}
-	fmt.Printf("expected boolean expression, found statement: %s", format.Stmt(s))
 	return &expr.Bad{p.error("expected boolean expression, found statement")}
 }
 
@@ -1025,7 +1018,7 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 	p.expect(token.LeftParen)
 	p.next()
 	if p.s.Token != token.RightParen {
-		f.ParamNames, f.Type.Params = p.parseIn()
+		f.ParamNames, f.Type.Params = p.parseParamTuple()
 	} else {
 		f.Type.Params = new(tipe.Tuple)
 	}
@@ -1036,7 +1029,7 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 		p.expect(token.LeftParen)
 		p.next()
 		if p.s.Token != token.RightParen {
-			f.ResultNames, f.Type.Results = p.parseOut()
+			f.ResultNames, f.Type.Results = p.parseParamTuple()
 		}
 		p.expect(token.RightParen)
 		p.next()

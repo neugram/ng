@@ -51,6 +51,15 @@ var typeTests = []string{
 		Inner2More interface{}
 	}
 }`,
+	`func()`,
+	`***int`,
+	`func(func(int) bool, func() (int, error)) func() (bool, error)`,
+	`interface {
+	M0(int, int) (int, int)
+	M1(struct{})
+	M2(*int) error
+}`,
+	`struct{}`,
 }
 
 func TestTypes(t *testing.T) {
