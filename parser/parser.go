@@ -628,7 +628,7 @@ func (p *Parser) maybeParseType() tipe.Type {
 		}
 		s.Elem = p.parseType()
 		return s
-	case token.Semicolon:
+	case token.Semicolon, token.Comma, token.RightParen, token.LeftBrace:
 		// no type
 	default:
 		fmt.Printf("maybeParseType: token=%s\n", p.s.Token)

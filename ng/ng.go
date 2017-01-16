@@ -237,7 +237,7 @@ func handleResult(res parser.Result) {
 	for _, s := range res.Stmts {
 		v, err := prg.Eval(s)
 		if err != nil {
-			fmt.Printf("eval error: %v\n", err)
+			fmt.Printf("ng: %v\n", err)
 			continue
 		}
 		if len(v) > 1 {

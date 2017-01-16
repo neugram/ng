@@ -1,0 +1,21 @@
+type x func(func(), func(*int)) func(x, y int, z *struct{})
+
+ok := true
+ycalled := false
+y := x(func(func(), func(*int)) func(int, int, *struct{}) {
+	ycalled = true
+	return nil
+})
+z := y(nil, nil)
+if !ycalled {
+	print("y not called")
+	ok = false
+}
+if z != nil {
+	print("z not nil")
+	ok = false
+}
+
+if ok {
+	print("OK")
+}

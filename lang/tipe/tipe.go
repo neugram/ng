@@ -115,8 +115,8 @@ const (
 	Invalid Basic = "invalid"
 	Num     Basic = "num" // type parameter
 	Bool    Basic = "bool"
-	Byte    Basic = "byte"
-	Rune    Basic = "rune"
+	Byte    Basic = "byte" // TODO: make this a type alias
+	Rune    Basic = "rune" // TODO: make this a type alias
 	Integer Basic = "integer"
 	Float   Basic = "float"
 	Complex Basic = "complex"
