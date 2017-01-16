@@ -1,7 +1,7 @@
 import "bytes"
 import "io"
 
-buf := &bytes.Buffer{}
+buf := new(bytes.Buffer)
 buf.WriteString("OK")
 
 type reader interface {

@@ -559,7 +559,15 @@ func (c *Checker) exprType(e expr.Expr) tipe.Type {
 	if p.mode == modeTypeExpr {
 		return p.typ
 	}
-	c.errorf("argument %s is not a type", format.Expr(e))
+	switch e := p.expr.(type) {
+	case *expr.Selector:
+		if pkg, ok := e.Left.(*expr.Ident); ok {
+			if t := c.lookupPkgType(pkg.Name, e.Right.Name); t != nil {
+				return t
+			}
+		}
+	}
+	c.errorf("argument %s is not a type (%#+v)", format.Expr(e), p)
 	return nil
 }
 
@@ -632,20 +640,8 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		return t, resolved
 	case *tipe.Unresolved:
 		if t.Package != "" {
-			name := t.Package + "." + t.Name
-			obj := c.cur.LookupRec(t.Package)
-			if obj == nil {
-				c.errorf("undefined %s in %s", t.Package, name)
-				return t, false
-			}
-			if obj.Kind != ObjPkg {
-				c.errorf("%s is not a packacge", t.Package)
-				return t, false
-			}
-			pkg := obj.Type.(*tipe.Package)
-			res := pkg.Exports[t.Name]
+			res := c.lookupPkgType(t.Package, t.Name)
 			if res == nil {
-				c.errorf("%s not in package %s", name, t.Package)
 				return t, false
 			}
 			return res, true
@@ -664,6 +660,26 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	default:
 		return t, true
 	}
+}
+
+func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
+	name := pkgName + "." + sel
+	obj := c.cur.LookupRec(pkgName)
+	if obj == nil {
+		c.errorf("undefined %s in %s", pkgName, name)
+		return nil
+	}
+	if obj.Kind != ObjPkg {
+		c.errorf("%s is not a packacge", pkgName)
+		return nil
+	}
+	pkg := obj.Type.(*tipe.Package)
+	res := pkg.Exports[sel]
+	if res == nil {
+		c.errorf("%s not in package %s", name, pkgName)
+		return nil
+	}
+	return res
 }
 
 func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
