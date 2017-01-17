@@ -549,7 +549,9 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 	case untypedString:
 		ret := reflect.New(t).Elem()
 		s := val.string
-		if t.Kind() == reflect.Interface {
+		if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
+			ret.Set(reflect.ValueOf([]byte(s)))
+		} else if t.Kind() == reflect.Interface {
 			ret.Set(reflect.ValueOf(s))
 		} else {
 			ret.SetString(s)
@@ -963,6 +965,17 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 	if rtype != nil {
 		return rtype
 	}
+	if t == tipe.Byte {
+		rtype = reflect.TypeOf(byte(0))
+		r.fwd[t] = rtype
+		return rtype
+	}
+	if t == tipe.Rune {
+		rtype = reflect.TypeOf(rune(0))
+		r.fwd[t] = rtype
+		return rtype
+	}
+	t = tipe.Unalias(t)
 	switch t := t.(type) {
 	case tipe.Basic:
 		switch t {
@@ -972,10 +985,6 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			panic("TODO rtype for Num")
 		case tipe.Bool:
 			rtype = reflect.TypeOf(false)
-		case tipe.Byte:
-			rtype = reflect.TypeOf(byte(0))
-		case tipe.Rune:
-			rtype = reflect.TypeOf(rune(0))
 		case tipe.Integer:
 			rtype = reflect.TypeOf((*big.Int)(nil))
 		case tipe.Float:

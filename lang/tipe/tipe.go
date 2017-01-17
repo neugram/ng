@@ -92,6 +92,16 @@ type Interface struct {
 	Methods map[string]*Func
 }
 
+type Alias struct {
+	Name string
+	Type Type
+}
+
+var (
+	Byte = &Alias{Name: "byte", Type: Uint8}
+	Rune = &Alias{Name: "rune", Type: Int32}
+)
+
 // Specialization carries any type specialization data particular to this type.
 //
 // *Func, *Struct, *Methodik can be parameterized over the name num, which can
@@ -115,8 +125,6 @@ const (
 	Invalid Basic = "invalid"
 	Num     Basic = "num" // type parameter
 	Bool    Basic = "bool"
-	Byte    Basic = "byte" // TODO: make this a type alias
-	Rune    Basic = "rune" // TODO: make this a type alias
 	Integer Basic = "integer"
 	Float   Basic = "float"
 	Complex Basic = "complex"
@@ -182,6 +190,7 @@ var (
 	_ = Type((*Map)(nil))
 	_ = Type((*Package)(nil))
 	_ = Type((*Interface)(nil))
+	_ = Type((*Alias)(nil))
 	_ = Type((*Unresolved)(nil))
 )
 
@@ -198,16 +207,18 @@ func (t *Chan) tipe()       {}
 func (t *Map) tipe()        {}
 func (t *Package) tipe()    {}
 func (t *Interface) tipe()  {}
+func (t *Alias) tipe()      {}
 func (t *Unresolved) tipe() {}
 
 func IsNumeric(t Type) bool {
-	b, ok := t.(Basic)
+	t = Unalias(t)
+	b, ok := Underlying(t).(Basic)
 	if !ok {
 		return false
 	}
 	switch b {
 	case Num, Integer, Float, Complex,
-		Int, Byte, Int8, Int16, Int32, Int64,
+		Int, Int8, Int16, Int32, Int64,
 		Uint8, Uint16, Uint32, Uint64,
 		Float32, Float64,
 		UntypedInteger, UntypedFloat, UntypedComplex:
@@ -217,6 +228,7 @@ func IsNumeric(t Type) bool {
 }
 
 func UsesNum(t Type) bool {
+	t = Unalias(t)
 	switch t := t.(type) {
 	case *Func:
 		if t.Params != nil {
@@ -261,7 +273,19 @@ func UsesNum(t Type) bool {
 	return false
 }
 
+func Unalias(t Type) Type {
+	for {
+		if u, ok := t.(*Alias); ok {
+			t = u.Type
+		} else {
+			break
+		}
+	}
+	return t
+}
+
 func Equal(x, y Type) bool {
+	x, y = Unalias(x), Unalias(y)
 	if x == y {
 		return true
 	}
@@ -486,7 +510,8 @@ func Underlying(t Type) Type {
 		return nil
 	}
 	switch t := t.(type) {
-	// TODO case *Named:
+	case *Alias:
+		return Underlying(t.Type)
 	case *Methodik:
 		return Underlying(t.Type)
 	default:
@@ -528,6 +553,7 @@ func (m *Memory) Methods(t Type) ([]string, []Type) {
 }
 
 func methods(t Type, methodset map[string]Type, pointersRemoved int) {
+	t = Unalias(t)
 	switch t := t.(type) {
 	// TODO case *Named:
 	case *Pointer:

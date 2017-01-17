@@ -1569,6 +1569,7 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 	if tipe.Equal(dst, src) {
 		return true
 	}
+	dst, src = tipe.Unalias(dst), tipe.Unalias(src)
 	if src == tipe.UntypedNil {
 		switch tipe.Underlying(dst).(type) {
 		case *tipe.Interface, *tipe.Pointer, *tipe.Slice, *tipe.Map, *tipe.Chan, *tipe.Func:
@@ -1611,6 +1612,11 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 	return false
 }
 
+func isString(t tipe.Type) bool {
+	t = tipe.Underlying(t)
+	return t == tipe.String || t == tipe.UntypedString
+}
+
 func (c *Checker) convertible(dst, src tipe.Type) bool {
 	if c.assignable(dst, src) {
 		return true
@@ -1619,13 +1625,14 @@ func (c *Checker) convertible(dst, src tipe.Type) bool {
 	if tipe.IsNumeric(dst) && tipe.IsNumeric(src) {
 		return true
 	}
+	dst, src = tipe.Unalias(dst), tipe.Unalias(src)
 	if dst, isSlice := dst.(*tipe.Slice); isSlice {
-		if (dst.Elem == tipe.Uint8 || dst.Elem == tipe.Byte) && src == tipe.String {
+		if tipe.Equal(dst.Elem, tipe.Uint8) && isString(src) {
 			return true
 		}
 	}
 	if src, isSlice := src.(*tipe.Slice); isSlice {
-		if (src.Elem == tipe.Uint8 || src.Elem == tipe.Byte) && dst == tipe.String {
+		if tipe.Equal(src.Elem, tipe.Uint8) && isString(dst) {
 			return true
 		}
 	}
@@ -1653,7 +1660,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 			c.errorf("cannot convert %s to untyped %s", format.Type(p.typ), format.Type(t))
 		}
 	} else {
-		switch t := t.(type) {
+		switch t := tipe.Unalias(t).(type) {
 		case tipe.Basic:
 			switch p.mode {
 			case modeConst:
@@ -1771,7 +1778,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 			} else {
 				return nil
 			}
-		case tipe.Byte, tipe.Int8: // wrong, byte is an alias of int8
+		case tipe.Int8:
 			if i, ok := constant.Int64Val(v); ok {
 				if int64(int8(i)) != i {
 					return nil

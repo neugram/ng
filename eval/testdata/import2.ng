@@ -1,16 +1,29 @@
+ok := true
+
 import "bytes"
 import "io"
-
 buf := new(bytes.Buffer)
 buf.WriteString("OK")
-
 type reader interface {
 	Read(p []uint8) (n int, err error)
 }
-
 r := reader(buf)
-
 b := make([]uint8, 2)
 io.ReadFull(r, b)
+res := string(string(b))
+if res != "OK" {
+	printf("res=%q, want %q", res, "OK")
+	ok = false
+}
 
-print(string(string(b)))
+import "encoding/base64"
+x := base64.StdEncoding.EncodeToString([]byte("hello"))
+y := base64.StdEncoding.DecodeString(x)
+if got, want := string(y), "hello"; got != want {
+	printf("got=%q, want %q", got, want)
+	ok = false
+}
+
+if ok {
+	print("OK")
+}

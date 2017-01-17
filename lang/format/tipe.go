@@ -97,6 +97,8 @@ func (p *printer) tipe(t tipe.Type) {
 	case *tipe.Func:
 		p.buf.WriteString("func")
 		p.tipeFuncSig(t)
+	case *tipe.Alias:
+		p.buf.WriteString(t.Name)
 	default:
 		p.buf.WriteString("format: unknown type: ")
 		WriteDebug(p.buf, t)

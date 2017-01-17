@@ -584,5 +584,11 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 			return reflect.ValueOf(string(src))
 		}
 	}
+	if t == reflect.TypeOf([]byte(nil)) {
+		switch src := v.Interface().(type) {
+		case string:
+			return reflect.ValueOf([]byte(src))
+		}
+	}
 	panic(interpPanic{fmt.Errorf("unknown type conv: %v <- %v", t, v.Type())})
 }
