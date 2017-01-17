@@ -4,7 +4,7 @@ package gowrap
 
 import (
 	"reflect"
-	"sync"
+	sync "sync"
 )
 
 var wrap_sync = &Pkg{

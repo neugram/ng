@@ -3,7 +3,7 @@
 package gowrap
 
 import (
-	"bytes"
+	bytes "bytes"
 	"reflect"
 )
 

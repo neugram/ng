@@ -3,7 +3,7 @@
 package gowrap
 
 import (
-	"fmt"
+	fmt "fmt"
 	"reflect"
 )
 

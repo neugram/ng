@@ -370,7 +370,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		return nil
 	case *stmt.Import:
 		// TODO: try plugin.Open if available
-		gopkg := gowrap.Pkgs[s.Name]
+		gopkg := gowrap.Pkgs[s.Path]
 		if gopkg == nil {
 			panic(Panic{val: fmt.Errorf("unsupported package: %v", s.Name)})
 		}

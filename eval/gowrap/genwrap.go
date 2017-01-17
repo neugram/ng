@@ -15,6 +15,7 @@ import (
 	"go/types"
 	"log"
 	"os"
+	"strings"
 	"text/template"
 )
 
@@ -23,7 +24,8 @@ func main() {
 }
 
 func genpkg(pkgName string) {
-	output, err := os.Create("wrap_" + pkgName + ".go")
+	quotedPkgName := strings.Replace(pkgName, "/", "_", -1)
+	output, err := os.Create("wrap_" + quotedPkgName + ".go")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,12 +49,12 @@ func genpkg(pkgName string) {
 		switch obj.(type) {
 		case *types.TypeName:
 			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
-				exports[name] = "reflect.ValueOf((*" + pkgName + "." + name + ")(nil))"
+				exports[name] = "reflect.ValueOf((*" + quotedPkgName + "." + name + ")(nil))"
 			} else {
-				exports[name] = "reflect.ValueOf(" + pkgName + "." + name + nilexpr(obj.Type()) + ")"
+				exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + ")"
 			}
 		case *types.Var, *types.Func, *types.Const:
-			exports[name] = "reflect.ValueOf(" + pkgName + "." + name + ")"
+			exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + ")"
 		default:
 			fmt.Printf("unexpected obj: %T\n", obj)
 		}
@@ -60,8 +62,9 @@ func genpkg(pkgName string) {
 
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, data{
-		Name:    pkgName,
-		Exports: exports,
+		Name:       pkgName,
+		QuotedName: quotedPkgName,
+		Exports:    exports,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -91,8 +94,9 @@ func nilexpr(t types.Type) string {
 }
 
 type data struct {
-	Name    string
-	Exports map[string]string
+	Name       string
+	QuotedName string
+	Exports    map[string]string
 }
 
 var tmpl = template.Must(template.New("genwrap").Parse(`
@@ -102,10 +106,10 @@ package gowrap
 
 import (
 	"reflect"
-	"{{.Name}}"
+	{{.QuotedName}} "{{.Name}}"
 )
 
-var wrap_{{.Name}} = &Pkg{
+var wrap_{{.QuotedName}} = &Pkg{
 	Exports: map[string]reflect.Value{
 		{{with $data := .}}
 		{{range $name, $export := $data.Exports}}
@@ -115,6 +119,6 @@ var wrap_{{.Name}} = &Pkg{
 }
 
 func init() {
-	Pkgs["{{.Name}}"] = wrap_{{.Name}}
+	Pkgs["{{.Name}}"] = wrap_{{.QuotedName}}
 }
 `))

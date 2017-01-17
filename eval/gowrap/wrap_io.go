@@ -3,7 +3,7 @@
 package gowrap
 
 import (
-	"io"
+	io "io"
 	"reflect"
 )
 

@@ -4,7 +4,7 @@ package gowrap
 
 import (
 	"reflect"
-	"strings"
+	strings "strings"
 )
 
 var wrap_strings = &Pkg{
