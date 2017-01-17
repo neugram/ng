@@ -414,6 +414,12 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.UntypedBool
 		case gotypes.UntypedString:
 			return tipe.UntypedString
+		case gotypes.UntypedInt:
+			return tipe.UntypedInteger
+		case gotypes.UntypedFloat:
+			return tipe.UntypedFloat
+		case gotypes.UntypedRune:
+			return tipe.UntypedRune
 		}
 	case *gotypes.Named:
 		if t.Obj().Id() == goErrorID {
@@ -422,6 +428,10 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		return new(tipe.Methodik)
 	case *gotypes.Slice:
 		return &tipe.Slice{}
+	case *gotypes.Chan:
+		return new(tipe.Chan)
+	case *gotypes.Map:
+		return new(tipe.Map)
 	case *gotypes.Struct:
 		return new(tipe.Struct)
 	case *gotypes.Pointer:
@@ -456,6 +466,21 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 		}
 	case *gotypes.Slice:
 		res.(*tipe.Slice).Elem = c.fromGoType(t.Elem())
+	case *gotypes.Chan:
+		ch := res.(*tipe.Chan)
+		switch t.Dir() {
+		case gotypes.SendRecv:
+			ch.Direction = tipe.ChanBoth
+		case gotypes.SendOnly:
+			ch.Direction = tipe.ChanSend
+		case gotypes.RecvOnly:
+			ch.Direction = tipe.ChanRecv
+		}
+		ch.Elem = c.fromGoType(t.Elem())
+	case *gotypes.Map:
+		m := res.(*tipe.Map)
+		m.Key = c.fromGoType(t.Key())
+		m.Value = c.fromGoType(t.Elem())
 	case *gotypes.Struct:
 		s := res.(*tipe.Struct)
 		for i := 0; i < t.NumFields(); i++ {
