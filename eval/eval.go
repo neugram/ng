@@ -102,12 +102,17 @@ func New() *Program {
 		}
 		return reflect.ValueOf(c).Cap()
 	})
-	addUniverse("panic", func(c interface{}) { panic(Panic{c}) })
+	addUniverse("panic", func(c interface{}) {
+		c = promoteUntyped(c)
+		panic(Panic{c})
+	})
 	addUniverse("copy", func(dst, src interface{}) int {
+		src = promoteUntyped(src)
 		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
 	})
 	addUniverse("append", p.builtinAppend)
 	addUniverse("delete", func(m, k interface{}) {
+		k = promoteUntyped(k)
 		reflect.ValueOf(m).SetMapIndex(reflect.ValueOf(k), reflect.Value{})
 	})
 	addUniverse("make", p.builtinMake)
@@ -483,9 +488,30 @@ func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
 }
 
 type (
-	untypedInt   struct{ *big.Int }
-	untypedFloat struct{ *big.Float }
+	untypedInt    struct{ *big.Int }
+	untypedFloat  struct{ *big.Float }
+	untypedString struct{ string }
+	untypedRune   struct{ rune }
+	untypedBool   struct{ bool }
 )
+
+func promoteUntyped(x interface{}) interface{} {
+	switch x := x.(type) {
+	case untypedInt:
+		return int(x.Int64())
+	case untypedFloat:
+		f, _ := x.Float64()
+		return float64(f)
+	case untypedString:
+		return x.string
+	case untypedRune:
+		return x.rune
+	case untypedBool:
+		return x.bool
+	default:
+		return x
+	}
+}
 
 // TODO merge convert func into typeConv func?
 func convert(v reflect.Value, t reflect.Type) reflect.Value {
@@ -520,8 +546,36 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetFloat(f)
 		}
 		return ret
+	case untypedString:
+		ret := reflect.New(t).Elem()
+		s := val.string
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(s))
+		} else {
+			ret.SetString(s)
+		}
+		return ret
+	case untypedRune:
+		ret := reflect.New(t).Elem()
+		r := val.rune
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(r))
+		} else {
+			ret.SetInt(int64(r))
+		}
+		return ret
+	case untypedBool:
+		ret := reflect.New(t).Elem()
+		b := val.bool
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(b))
+		} else {
+			ret.SetBool(b)
+		}
+		return ret
+
 	default:
-		panic(fmt.Sprintf("TODO convert(%v, %s)", v, t))
+		panic(fmt.Sprintf("TODO convert(%v (%T), %s)", v, val, t))
 	}
 }
 
@@ -560,6 +614,12 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			v = reflect.ValueOf(untypedInt{val})
 		case *big.Float:
 			v = reflect.ValueOf(untypedFloat{val})
+		case string:
+			v = reflect.ValueOf(untypedString{val})
+		case rune:
+			v = reflect.ValueOf(untypedRune{val})
+		case bool:
+			v = reflect.ValueOf(untypedBool{val})
 		default:
 			v = reflect.ValueOf(val)
 		}
@@ -950,12 +1010,16 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			rtype = reflect.TypeOf(float64(0))
 		case tipe.UntypedNil:
 			panic("TODO UntypedNil")
-		case tipe.UntypedBool:
-			panic("TODO Untyped Bool")
 		case tipe.UntypedInteger:
 			rtype = reflect.TypeOf(untypedInt{})
 		case tipe.UntypedFloat:
 			rtype = reflect.TypeOf(untypedFloat{})
+		case tipe.UntypedString:
+			rtype = reflect.TypeOf(untypedString{})
+		case tipe.UntypedRune:
+			rtype = reflect.TypeOf(untypedRune{})
+		case tipe.UntypedBool:
+			rtype = reflect.TypeOf(untypedBool{})
 		case tipe.UntypedComplex:
 			panic("TODO Untyped Complex")
 		}

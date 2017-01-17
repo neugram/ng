@@ -128,19 +128,22 @@ const (
 	Int32 Basic = "int32"
 	Int64 Basic = "int64"
 
-	Uint   Basic = "uint"
-	Uint8  Basic = "uint8"
-	Uint16 Basic = "uint16"
-	Uint32 Basic = "uint32"
-	Uint64 Basic = "uint64"
+	Uint    Basic = "uint"
+	Uint8   Basic = "uint8"
+	Uint16  Basic = "uint16"
+	Uint32  Basic = "uint32"
+	Uint64  Basic = "uint64"
+	Uintptr Basic = "uintptr"
 
 	Float32 Basic = "float32"
 	Float64 Basic = "float64"
 
 	UntypedNil     Basic = "untyped nil" // nil pointer or nil interface
+	UntypedString  Basic = "untyped string"
 	UntypedBool    Basic = "untyped bool"
 	UntypedInteger Basic = "untyped integer"
 	UntypedFloat   Basic = "untyped float"
+	UntypedRune    Basic = "untyped rune"
 	UntypedComplex Basic = "untyped complex"
 )
 

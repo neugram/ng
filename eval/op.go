@@ -131,8 +131,17 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case untypedFloat:
 				return untypedFloat{z.Add(x.Float, y.Float)}, nil
 			}
+		case untypedString:
+			switch y := y.(type) {
+			case untypedString:
+				return untypedString{x.string + y.string}, nil
+			case string:
+				return x.string + y, nil
+			}
 		case string:
 			switch y := y.(type) {
+			case untypedString:
+				return x + y.string, nil
 			case string:
 				return x + y, nil
 			}

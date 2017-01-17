@@ -404,10 +404,16 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.Uint32
 		case gotypes.Uint64:
 			return tipe.Uint64
+		case gotypes.Uintptr:
+			return tipe.Uintptr
 		case gotypes.Float32:
 			return tipe.Float32
 		case gotypes.Float64:
 			return tipe.Float64
+		case gotypes.UntypedBool:
+			return tipe.UntypedBool
+		case gotypes.UntypedString:
+			return tipe.UntypedString
 		}
 	case *gotypes.Named:
 		if t.Obj().Id() == goErrorID {
@@ -987,6 +993,11 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		switch obj.Kind {
 		case ObjVar, ObjPkg:
 			p.mode = modeVar
+		case ObjConst:
+			p.mode = modeConst
+			if v, ok := obj.Decl.(constant.Value); ok {
+				p.val = v
+			}
 		case ObjType:
 			p.mode = modeTypeExpr
 		}
@@ -1004,11 +1015,17 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			p.typ = tipe.UntypedFloat
 			p.val = constant.MakeFromLiteral(v.String(), gotoken.FLOAT, 0)
 		case string:
-			p.mode = modeVar
-			p.typ = tipe.String
+			p.mode = modeConst
+			p.typ = tipe.UntypedString
+			p.val = constant.MakeFromLiteral(v, gotoken.STRING, 0)
 		case rune:
-			p.mode = modeVar
-			p.typ = tipe.Rune
+			p.mode = modeConst
+			p.typ = tipe.UntypedRune
+			p.val = constant.MakeFromLiteral(string(v), gotoken.CHAR, 0)
+		case bool:
+			p.mode = modeConst
+			p.typ = tipe.UntypedBool
+			p.val = constant.MakeBool(v)
 		}
 		return p
 	case *expr.FuncLiteral:
@@ -1533,6 +1550,9 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 			return true
 		}
 	}
+	if src == tipe.UntypedString && tipe.Underlying(dst) == tipe.String {
+		return true
+	}
 
 	if idst, ok := tipe.Underlying(dst).(*tipe.Interface); ok {
 		// Everything can be assigned to interface{}.
@@ -1618,7 +1638,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 					// TODO more details about why
 				}
 			case modeVar:
-				panic("TODO coerce var to basic")
+				panic(fmt.Sprintf("TODO coerce var to basic: t=%s, p.typ=%s", t, format.Type(p.typ)))
 			}
 		}
 	}
@@ -1686,6 +1706,10 @@ func convGoOp(op token.Token) gotoken.Token {
 	case token.Pow:
 		panic("TODO token.Pow")
 		return gotoken.REM
+	case token.LogicalAnd:
+		return gotoken.LAND
+	case token.LogicalOr:
+		return gotoken.LOR
 	default:
 		panic(fmt.Sprintf("typecheck: bad op: %s", op))
 	}
@@ -1698,9 +1722,13 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 	case constant.Bool:
 		if t == tipe.Bool || t == tipe.UntypedBool {
 			return v
-		} else {
-			return nil
 		}
+		return nil
+	case constant.String:
+		if t == tipe.String || t == tipe.UntypedString {
+			return v
+		}
+		return nil
 	case constant.Int:
 		switch t {
 		case tipe.Integer, tipe.UntypedInteger:
@@ -1866,6 +1894,7 @@ type ObjKind int
 const (
 	ObjUnknown ObjKind = iota
 	ObjVar
+	ObjConst
 	ObjPkg
 	ObjType
 )
@@ -1876,6 +1905,8 @@ func (o ObjKind) String() string {
 		return "ObjUnknown"
 	case ObjVar:
 		return "ObjVar"
+	case ObjConst:
+		return "ObjConst"
 	case ObjPkg:
 		return "ObjPkg"
 	case ObjType:
@@ -1889,7 +1920,7 @@ func (o ObjKind) String() string {
 type Obj struct {
 	Kind ObjKind
 	Type tipe.Type
-	Decl interface{} // *expr.FuncLiteral, *stmt.ClassDecl
+	Decl interface{} // *expr.FuncLiteral, *stmt.MethodikDecl, constant.Value
 	Used bool
 }
 
@@ -1899,7 +1930,7 @@ func isTyped(t tipe.Type) bool {
 
 func isUntyped(t tipe.Type) bool {
 	switch t {
-	case tipe.UntypedNil, tipe.UntypedBool,
+	case tipe.UntypedNil, tipe.UntypedBool, tipe.UntypedString, tipe.UntypedRune,
 		tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
 		return true
 	}
@@ -1930,7 +1961,8 @@ func isOrdered(t tipe.Type) bool {
 	case tipe.Num, tipe.Byte, tipe.Rune, tipe.Integer, tipe.Float, tipe.Complex, tipe.String,
 		tipe.Int, tipe.Int8, tipe.Int16, tipe.Int32, tipe.Int64,
 		tipe.Uint, tipe.Uint8, tipe.Uint16, tipe.Uint32, tipe.Uint64,
-		tipe.Float32, tipe.Float64, tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex:
+		tipe.Float32, tipe.Float64,
+		tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex, tipe.UntypedString:
 		return true
 	default:
 		return false
@@ -1955,6 +1987,8 @@ func defaultType(t tipe.Type) tipe.Type {
 	switch b {
 	case tipe.UntypedBool:
 		return tipe.Bool
+	case tipe.UntypedString:
+		return tipe.String
 	case tipe.UntypedInteger:
 		return tipe.Int // tipe.Num
 	case tipe.UntypedFloat:

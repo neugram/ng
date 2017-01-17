@@ -4,7 +4,11 @@
 
 package typecheck
 
-import "neugram.io/lang/tipe"
+import (
+	"go/constant"
+
+	"neugram.io/lang/tipe"
+)
 
 var Universe = &Scope{Objs: universeObjs}
 
@@ -19,8 +23,8 @@ var errorType = &tipe.Interface{
 }
 
 var universeObjs = map[string]*Obj{
-	"true":  &Obj{Kind: ObjVar, Type: tipe.Bool}, // TODO UntypedBool?
-	"false": &Obj{Kind: ObjVar, Type: tipe.Bool},
+	"true":  &Obj{Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(true)},
+	"false": &Obj{Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(false)},
 	"nil":   &Obj{Kind: ObjVar, Type: tipe.UntypedNil},
 	"env":   &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
 	"alias": &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
@@ -89,6 +93,7 @@ func init() {
 		tipe.Uint16,
 		tipe.Uint32,
 		tipe.Uint64,
+		tipe.Uintptr,
 		tipe.Float32,
 		tipe.Float64,
 	}
