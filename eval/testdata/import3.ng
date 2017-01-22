@@ -1,0 +1,22 @@
+import "./vec.ng"
+
+ok := vec.OK
+
+if vec.X != "initx" {
+	ok = false
+	printf(`vec.X=%q, want %q`, vec.X, "initx")
+}
+
+X := "badx" // should be ignroed
+
+prefix := "pass through: "
+vec.X = prefix
+want := prefix + "val"
+if got := vec.PassThrough("val"); got != want {
+	ok = false
+	printf(`vec.PassThrough("val")=%q, want %q`, got, want)
+}
+
+if ok {
+	print("OK")
+}

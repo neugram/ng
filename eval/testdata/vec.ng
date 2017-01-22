@@ -1,0 +1,40 @@
+// This package exports symbols and is used by ./import3.ng.
+
+type Vector3 struct {
+	X float64
+	Y float64
+	Z float64
+	// TODO: X, Y, Z float64
+}
+
+Zero := Vector3{}
+One := Vector3{X: 1.0, Y: 1.0, Z: 1.0}
+// TODO: One := Vector3{X: 1, Y: 1, Z: 1}
+
+func Add(m, n Vector3) Vector3 {
+	return Vector3{m.X + n.X, m.Y + n.Y, m.Z + n.Z}
+}
+
+func Sub(m, n Vector3) Vector3 {
+	return Vector3{m.X - n.X, m.Y - n.Y, m.Z - n.Z}
+}
+
+func Dot(m, n Vector3) float64 {
+	return m.X*n.X + m.Y*n.Y + m.Z*n.Z
+}
+
+OK := true
+/* TODO
+if got := vec.Sub(vec.One, vec.One); got != vec.Zero {
+	OK = false
+	printf("vec.One - vec.One = %v", got)
+}
+*/
+
+X := "initx"
+
+func PassThrough(s string) string { return X + s }
+
+if OK {
+	print("OK")
+}

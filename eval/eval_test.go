@@ -5,7 +5,6 @@
 package eval
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -78,7 +77,7 @@ var exprTests = []struct {
 }
 
 func mkBasicProgram() (*Program, error) {
-	p := New()
+	p := New("basic")
 	if _, err := p.Eval(mustParse("x := 4")); err != nil {
 		return nil, err
 	}
@@ -143,49 +142,6 @@ func mustParse(src string) stmt.Stmt {
 	return expr
 }
 
-// TODO: this should probably be part of package eval.
-func runProgram(b []byte) error {
-	p := parser.New()
-	prg := New()
-
-	lines := bytes.Split(b, []byte{'\n'})
-
-	// TODO: position information in the parser will replace i.
-	for i, line := range lines {
-		res := p.ParseLine(line)
-		if len(res.Errs) > 0 {
-			return fmt.Errorf("%d: %v", i+1, res.Errs[0])
-		}
-		for _, s := range res.Stmts {
-			if _, err := prg.Eval(s); err != nil {
-				if _, isPanic := err.(Panic); isPanic {
-					return err
-				}
-				return fmt.Errorf("%d: %v", i+1, err)
-			}
-		}
-		for _, cmd := range res.Cmds {
-			j := &shell.Job{
-				Cmd:    cmd,
-				Stdin:  os.Stdin,
-				Stdout: os.Stdout,
-				Stderr: os.Stderr,
-			}
-			if err := j.Start(); err != nil {
-				return err
-			}
-			done, err := j.Wait()
-			if err != nil {
-				return err
-			}
-			if !done {
-				break // TODO not right, instead we should just have one cmd, not Cmds here.
-			}
-		}
-	}
-	return nil
-}
-
 func TestPrograms(t *testing.T) {
 	files, err := filepath.Glob("testdata/*.ng")
 	if err != nil {
@@ -209,14 +165,6 @@ func TestPrograms(t *testing.T) {
 	shell.Alias = environ.New()
 
 	for _, file := range files {
-		contents, err := ioutil.ReadFile(file)
-		if err != nil {
-			t.Fatalf("%s: %v", file, err)
-		}
-		if len(contents) == 0 {
-			t.Fatalf("%s: empty testdata", file)
-		}
-
 		out, err := ioutil.TempFile("", filepath.Base(file)+".stdout.")
 		if err != nil {
 			t.Fatal(err)
@@ -224,11 +172,11 @@ func TestPrograms(t *testing.T) {
 
 		os.Stdout = out
 		os.Stderr = out
-		err = runProgram(contents)
+		err = EvalFile(file)
 		os.Stdout = origStdout
 		os.Stderr = origStderr
-		if err := out.Close(); err != nil {
-			t.Fatal(err)
+		if err2 := out.Close(); err2 != nil {
+			t.Fatal(err2)
 		}
 
 		if strings.HasSuffix(file, "_panic.ng") {

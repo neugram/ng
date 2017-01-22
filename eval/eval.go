@@ -5,12 +5,15 @@
 package eval
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime/debug"
+	"strings"
 
 	"neugram.io/eval/environ"
 	"neugram.io/eval/gowrap"
@@ -21,6 +24,7 @@ import (
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
 	"neugram.io/lang/typecheck"
+	"neugram.io/parser"
 )
 
 type Scope struct {
@@ -44,9 +48,10 @@ func (s *Scope) Lookup(name string) reflect.Value {
 
 type Program struct {
 	Universe  *Scope
-	PkgVars   map[string]*interface{}
 	Cur       *Scope
 	Types     *typecheck.Checker
+	Pkgs      map[string]*gowrap.Pkg
+	Path      string
 	reflector *reflector
 
 	Returning bool
@@ -63,12 +68,13 @@ type evalMap interface {
 	SetVal(key, val interface{})
 }
 
-func New() *Program {
+func New(path string) *Program {
 	universe := new(Scope)
 	p := &Program{
 		Universe: universe,
-		Types:    typecheck.New(),
-		PkgVars:  make(map[string]*interface{}),
+		Types:    typecheck.New(path),
+		Pkgs:     make(map[string]*gowrap.Pkg),
+		Path:     path,
 		Cur: &Scope{
 			Parent: universe,
 		},
@@ -118,6 +124,62 @@ func New() *Program {
 	addUniverse("make", p.builtinMake)
 	addUniverse("new", p.builtinNew)
 	return p
+}
+
+func EvalFile(path string) error {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("eval: %v", err)
+	}
+	p := New(path)
+	return p.evalFile()
+}
+
+func (p *Program) evalFile() error {
+	prsr := parser.New()
+	f, err := os.Open(p.Path)
+	if err != nil {
+		return fmt.Errorf("eval: %v", err)
+	}
+	defer f.Close()
+
+	// TODO: position information in the parser will replace i.
+	scanner := bufio.NewScanner(f)
+	for i := 0; scanner.Scan(); i++ {
+		line := scanner.Bytes()
+		res := prsr.ParseLine(line)
+		if len(res.Errs) > 0 {
+			return fmt.Errorf("%d: %v", i+1, res.Errs[0])
+		}
+		for _, s := range res.Stmts {
+			if _, err := p.Eval(s); err != nil {
+				if _, isPanic := err.(Panic); isPanic {
+					return err
+				}
+				return fmt.Errorf("%d: %v", i+1, err)
+			}
+		}
+		for _, cmd := range res.Cmds {
+			j := &shell.Job{
+				Cmd:    cmd,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+			if err := j.Start(); err != nil {
+				return err
+			}
+			done, err := j.Wait()
+			if err != nil {
+				return err
+			}
+			if !done {
+				break // TODO not right, instead we should just have one cmd, not Cmds here.
+			}
+		}
+	}
+	return nil
+
 }
 
 func (p *Program) builtinAppend(s interface{}, v ...interface{}) interface{} {
@@ -369,15 +431,47 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 		return nil
 	case *stmt.Import:
-		// TODO: try plugin.Open if available
-		gopkg := gowrap.Pkgs[s.Path]
-		if gopkg == nil {
-			panic(Panic{val: fmt.Errorf("unsupported package: %v", s.Name)})
+		var pkg *gowrap.Pkg
+		if strings.HasSuffix(s.Path, ".ng") {
+			path := filepath.Join(filepath.Dir(p.Path), s.Path)
+			pkg = p.Pkgs[path]
+			if pkg == nil {
+				typ := p.Types.NgPkgs[path]
+				if typ == nil {
+					panic(Panic{val: fmt.Errorf("cannot find package typechecking: %v", path)})
+				}
+				oldPath := p.Path
+				oldCur := p.Cur
+				p.Path = path
+				p.Cur = p.Universe
+				func() {
+					defer func() {
+						p.Path = oldPath
+						p.Cur = oldCur
+					}()
+					if err := p.evalFile(); err != nil {
+						panic(Panic{val: fmt.Errorf("%s: %v", p.Path, err)})
+					}
+
+					pkg = &gowrap.Pkg{Exports: make(map[string]reflect.Value)}
+					for p.Cur != p.Universe {
+						pkg.Exports[p.Cur.VarName] = p.Cur.Var
+						p.Cur = p.Cur.Parent
+					}
+				}()
+				p.Pkgs[path] = pkg
+			}
+		} else {
+			// TODO: try plugin.Open if available
+			pkg = gowrap.Pkgs[s.Path]
+			if pkg == nil {
+				panic(Panic{val: fmt.Errorf("unsupported Go package: %v", s.Name)})
+			}
 		}
 		p.Cur = &Scope{
 			Parent:   p.Cur,
 			VarName:  s.Name,
-			Var:      reflect.ValueOf(gopkg),
+			Var:      reflect.ValueOf(pkg),
 			Implicit: true,
 		}
 		return nil

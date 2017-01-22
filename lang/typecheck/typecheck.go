@@ -6,18 +6,25 @@
 package typecheck
 
 import (
+	"bufio"
 	"fmt"
 	"go/constant"
 	goimporter "go/importer"
 	gotoken "go/token"
 	gotypes "go/types"
 	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"neugram.io/lang/expr"
 	"neugram.io/lang/format"
 	"neugram.io/lang/stmt"
 	"neugram.io/lang/tipe"
 	"neugram.io/lang/token"
+	"neugram.io/parser"
 )
 
 type Checker struct {
@@ -27,6 +34,7 @@ type Checker struct {
 	Types         map[expr.Expr]tipe.Type
 	Defs          map[*expr.Ident]*Obj
 	Values        map[expr.Expr]constant.Value
+	NgPkgs        map[string]*tipe.Package // abs file path -> pkg
 	GoPkgs        map[string]*tipe.Package // path -> pkg
 	GoTypes       map[gotypes.Type]tipe.Type
 	GoTypesToFill map[gotypes.Type]tipe.Type
@@ -35,17 +43,23 @@ type Checker struct {
 	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
 	Errs    []error
 
+	importWalk []string // in-process pkgs, used to detect cycles
+
 	cur *Scope
 
 	memory *tipe.Memory
 }
 
-func New() *Checker {
+func New(initPkg string) *Checker {
+	if initPkg == "" {
+		initPkg = "main"
+	}
 	return &Checker{
 		ImportGo:      goimporter.Default().Import,
 		Types:         make(map[expr.Expr]tipe.Type),
 		Defs:          make(map[*expr.Ident]*Obj),
 		Values:        make(map[expr.Expr]constant.Value),
+		NgPkgs:        make(map[string]*tipe.Package),
 		GoPkgs:        make(map[string]*tipe.Package),
 		GoTypes:       make(map[gotypes.Type]tipe.Type),
 		GoTypesToFill: make(map[gotypes.Type]tipe.Type),
@@ -54,7 +68,8 @@ func New() *Checker {
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
-		memory: tipe.NewMemory(),
+		importWalk: []string{initPkg},
+		memory:     tipe.NewMemory(),
 	}
 }
 
@@ -552,20 +567,118 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 }
 
 func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
-	return nil, fmt.Errorf("ng package TODO")
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(c.importWalk[len(c.importWalk)-1]), path)
+		var err error
+		path, err = filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("ng package import: %v", err)
+		}
+	}
+	for i, p := range c.importWalk {
+		if p == path {
+			cycle := c.importWalk[i]
+			for _, p := range c.importWalk[i+1:] {
+				cycle += "-> " + p
+			}
+			cycle += "-> " + path
+			return nil, fmt.Errorf("package import cycle: %s", cycle)
+		}
+	}
+	if pkg := c.NgPkgs[path]; pkg != nil {
+		return pkg, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("ng package import: %v", err)
+	}
+	c.importWalk = append(c.importWalk, path)
+	oldcur := c.cur
+	defer func() {
+		f.Close()
+		c.importWalk = c.importWalk[:len(c.importWalk)-1]
+		c.cur = oldcur
+	}()
+
+	c.cur = &Scope{
+		Parent: Universe,
+		Objs:   make(map[string]*Obj),
+	}
+	if err := c.parseFile(f); err != nil {
+		return nil, fmt.Errorf("ng import parse: %v", err)
+	}
+	pkg := &tipe.Package{
+		Path:    path,
+		Exports: make(map[string]tipe.Type),
+	}
+	c.NgPkgs[path] = pkg
+	for c.cur != Universe {
+		for name, obj := range c.cur.Objs {
+			if !isExported(name) {
+				continue
+			}
+			if _, exists := pkg.Exports[name]; exists {
+				continue
+			}
+			pkg.Exports[name] = obj.Type
+			fmt.Printf("package exports %q\n", name)
+		}
+		c.cur = c.cur.Parent
+	}
+	return pkg, nil
+}
+
+func isExported(name string) bool {
+	ch, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(ch)
+}
+
+func (c *Checker) parseFile(f *os.File) error {
+	p := parser.New()
+
+	scanner := bufio.NewScanner(f)
+	for i := 0; scanner.Scan(); i++ {
+		line := scanner.Bytes()
+		res := p.ParseLine(line)
+		if len(res.Errs) > 0 {
+			return fmt.Errorf("%d: %v", i+1, res.Errs[0]) // TODO: position information
+		}
+		for _, s := range res.Stmts {
+			c.Add(s)
+			if len(c.Errs) > 0 {
+				return fmt.Errorf("%d: typecheck: %v\n", i+1, c.Errs[0])
+			}
+		}
+	}
+	return scanner.Err()
 }
 
 func (c *Checker) checkImport(s *stmt.Import) {
-	pkg, err := c.goPkg(s.Path)
-	if err != nil {
+	if strings.HasPrefix(s.Path, "/") {
+		c.errorf("imports do not support absolute paths: %q", s.Path)
+		return
+	}
+	var pkg *tipe.Package
+	var err error
+	if strings.HasSuffix(s.Path, ".ng") {
 		pkg, err = c.ngPkg(s.Path)
 		if err != nil {
-			c.errorf("importing of go/ng package failed: %v", err)
+			c.errorf("importing of ng package failed: %v", err)
 			return
 		}
-	}
-	if s.Name == "" {
-		s.Name = pkg.GoPkg.(*gotypes.Package).Name()
+		if s.Name == "" {
+			s.Name = strings.TrimSuffix(filepath.Base(s.Path), ".ng")
+		}
+	} else {
+		pkg, err = c.goPkg(s.Path)
+		if err != nil {
+			c.errorf("importing of go package failed: %v", err)
+			return
+		}
+		if s.Name == "" {
+			s.Name = pkg.GoPkg.(*gotypes.Package).Name()
+		}
 	}
 	obj := &Obj{
 		Kind: ObjPkg,

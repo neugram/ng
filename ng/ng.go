@@ -135,8 +135,16 @@ func ps1(env *environ.Environ) string {
 }
 
 func loop() {
+	// TODO: support starting via a shebang: #!/bin/ng.
+	// When doing so, path = os.Args[0]
+	path, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	path = filepath.Join(path, "ng-interactive")
+
 	p := parser.New()
-	prg = eval.New()
+	prg = eval.New(path)
 	shell.Env = prg.Environ()
 	shell.Alias = prg.Alias()
 

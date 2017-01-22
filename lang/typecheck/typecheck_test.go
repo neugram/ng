@@ -193,7 +193,7 @@ func TestBasic(t *testing.T) {
 			stmts = append(stmts, s)
 		}
 
-		c := New()
+		c := New("")
 		for si, s := range stmts {
 			c.Add(s)
 			if len(c.Errs) > 0 {
