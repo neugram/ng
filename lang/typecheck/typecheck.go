@@ -1529,7 +1529,11 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			}
 		}
 
-		switch lt := tipe.Underlying(left.typ).(type) {
+		lt := tipe.Underlying(left.typ)
+		if t, isPtr := lt.(*tipe.Pointer); isPtr {
+			lt = t.Elem
+		}
+		switch lt := lt.(type) {
 		case *tipe.Struct:
 			for i, name := range lt.FieldNames {
 				if name == right {

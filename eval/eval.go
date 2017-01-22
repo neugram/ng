@@ -826,10 +826,16 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			p.pushScope()
 			defer p.popScope()
 			for i, name := range e.ParamNames {
+				// A function argument defines an addressable value,
+				// but the reflect.Value args passed to a MakeFunc
+				// implementation are not addressable.
+				// So we copy them here.
+				arg := reflect.New(args[i].Type()).Elem()
+				arg.Set(args[i])
 				p.Cur = &Scope{
 					Parent:   p.Cur,
 					VarName:  name,
-					Var:      args[i],
+					Var:      arg,
 					Implicit: true,
 				}
 			}
@@ -916,11 +922,16 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{pkg.Exports[name]}
 		}
 		v := lhs.MethodByName(e.Right.Name)
-		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr {
+		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr && lhs.CanAddr() {
 			v = lhs.Addr().MethodByName(e.Right.Name)
 		}
 		if v == (reflect.Value{}) && lhs.Kind() == reflect.Struct {
 			v = lhs.FieldByName(e.Right.Name)
+		}
+		if v == (reflect.Value{}) && lhs.Kind() == reflect.Ptr {
+			if lhs := lhs.Elem(); lhs.Kind() == reflect.Struct {
+				v = lhs.FieldByName(e.Right.Name)
+			}
 		}
 		return []reflect.Value{v}
 	case *expr.Shell:

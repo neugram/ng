@@ -16,7 +16,10 @@ func Add(m, n Vector3) Vector3 {
 }
 
 func Sub(m, n Vector3) Vector3 {
-	return Vector3{m.X - n.X, m.Y - n.Y, m.Z - n.Z}
+	m2 := &m
+	y := m2.Y
+	y -= n.Y
+	return Vector3{m.X - n.X, y, m.Z - n.Z}
 }
 
 func Dot(m, n Vector3) float64 {
@@ -24,12 +27,10 @@ func Dot(m, n Vector3) float64 {
 }
 
 OK := true
-/* TODO
-if got := vec.Sub(vec.One, vec.One); got != vec.Zero {
+if got := Sub(One, One); got != Zero {
 	OK = false
-	printf("vec.One - vec.One = %v", got)
+	printf("Sub(One, One)=%v, want Zero", got)
 }
-*/
 
 X := "initx"
 
