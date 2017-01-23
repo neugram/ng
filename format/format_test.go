@@ -3,10 +3,10 @@ package format_test
 import (
 	"testing"
 
-	"neugram.io/lang/expr"
-	"neugram.io/lang/format"
-	"neugram.io/lang/stmt"
-	"neugram.io/parser"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/format"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/parser"
 )
 
 var roundTripTests = []string{

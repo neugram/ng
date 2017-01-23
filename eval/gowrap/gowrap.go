@@ -33,7 +33,7 @@
 //go:generate go run genwrap.go fmt
 //go:generate go run genwrap.go time
 
-package gowrap // import "neugram.io/eval/gowrap"
+package gowrap // import "neugram.io/ng/eval/gowrap"
 import "reflect"
 
 var Pkgs = make(map[string]*Pkg)

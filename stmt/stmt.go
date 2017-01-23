@@ -6,8 +6,8 @@
 package stmt
 
 import (
-	"neugram.io/lang/expr"
-	"neugram.io/lang/tipe"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/tipe"
 )
 
 type Stmt interface {

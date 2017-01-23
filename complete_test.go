@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"testing"
 
-	"neugram.io/eval/environ"
-	"neugram.io/eval/shell"
+	"neugram.io/ng/eval/environ"
+	"neugram.io/ng/eval/shell"
 )
 
 type file struct {

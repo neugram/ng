@@ -19,12 +19,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"neugram.io/lang/expr"
-	"neugram.io/lang/format"
-	"neugram.io/lang/stmt"
-	"neugram.io/lang/tipe"
-	"neugram.io/lang/token"
-	"neugram.io/parser"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/format"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/token"
+	"neugram.io/ng/parser"
 )
 
 type Checker struct {

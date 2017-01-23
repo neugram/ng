@@ -6,8 +6,8 @@
 package expr
 
 import (
-	"neugram.io/lang/tipe"
-	"neugram.io/lang/token"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/token"
 )
 
 type Expr interface {

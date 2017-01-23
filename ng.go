@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"neugram.io/eval"
-	"neugram.io/eval/environ"
-	"neugram.io/eval/shell"
-	"neugram.io/lang/tipe"
-	"neugram.io/parser"
+	"neugram.io/ng/eval"
+	"neugram.io/ng/eval/environ"
+	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/parser"
 
 	"github.com/kr/pretty"
 	"github.com/peterh/liner"

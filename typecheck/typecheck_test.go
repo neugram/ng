@@ -7,9 +7,9 @@ package typecheck
 import (
 	"testing"
 
-	"neugram.io/lang/stmt"
-	"neugram.io/lang/tipe"
-	"neugram.io/parser"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/parser"
 )
 
 type identType struct {

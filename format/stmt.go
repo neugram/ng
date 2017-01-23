@@ -7,7 +7,7 @@ package format
 import (
 	"bytes"
 
-	"neugram.io/lang/stmt"
+	"neugram.io/ng/stmt"
 )
 
 func (p *printer) stmt(s stmt.Stmt) {

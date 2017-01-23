@@ -7,7 +7,7 @@ package parser
 import (
 	"math/big"
 
-	"neugram.io/lang/token"
+	"neugram.io/ng/token"
 )
 
 type scannerTest struct {

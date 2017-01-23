@@ -15,16 +15,16 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"neugram.io/eval/environ"
-	"neugram.io/eval/gowrap"
-	"neugram.io/eval/shell"
-	"neugram.io/lang/expr"
-	"neugram.io/lang/format"
-	"neugram.io/lang/stmt"
-	"neugram.io/lang/tipe"
-	"neugram.io/lang/token"
-	"neugram.io/lang/typecheck"
-	"neugram.io/parser"
+	"neugram.io/ng/eval/environ"
+	"neugram.io/ng/eval/gowrap"
+	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/format"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/token"
+	"neugram.io/ng/typecheck"
+	"neugram.io/ng/parser"
 )
 
 type Scope struct {

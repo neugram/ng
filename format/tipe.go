@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"sort"
 
-	"neugram.io/lang/tipe"
+	"neugram.io/ng/tipe"
 )
 
 func (p *printer) tipe(t tipe.Type) {

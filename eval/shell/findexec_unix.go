@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"neugram.io/eval/environ"
+	"neugram.io/ng/eval/environ"
 )
 
 func findExec(name string) error {

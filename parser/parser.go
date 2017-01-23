@@ -12,11 +12,11 @@ import (
 	"runtime/debug"
 	"strconv"
 
-	"neugram.io/lang/expr"
-	"neugram.io/lang/format"
-	"neugram.io/lang/stmt"
-	"neugram.io/lang/tipe"
-	"neugram.io/lang/token"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/format"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/tipe"
+	"neugram.io/ng/token"
 )
 
 func New() *Parser {

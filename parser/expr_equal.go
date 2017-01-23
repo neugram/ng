@@ -9,9 +9,9 @@ import (
 	"math/big"
 	"reflect"
 
-	"neugram.io/lang/expr"
-	"neugram.io/lang/stmt"
-	"neugram.io/lang/tipe"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/tipe"
 )
 
 func EqualExpr(x, y expr.Expr) bool {

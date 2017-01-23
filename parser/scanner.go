@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"neugram.io/lang/token"
+	"neugram.io/ng/token"
 )
 
 const bom = 0xFEFF // byte order marker

@@ -15,10 +15,10 @@ import (
 
 	"github.com/kr/pretty"
 
-	"neugram.io/eval/environ"
-	"neugram.io/eval/shell"
-	"neugram.io/lang/stmt"
-	"neugram.io/parser"
+	"neugram.io/ng/eval/environ"
+	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/stmt"
+	"neugram.io/ng/parser"
 )
 
 var exprTests = []struct {

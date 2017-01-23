@@ -15,10 +15,10 @@ import (
 	"sync"
 	"syscall"
 
-	"neugram.io/eval/environ"
-	"neugram.io/lang/expr"
-	"neugram.io/lang/format"
-	"neugram.io/lang/token"
+	"neugram.io/ng/eval/environ"
+	"neugram.io/ng/expr"
+	"neugram.io/ng/format"
+	"neugram.io/ng/token"
 )
 
 var (
