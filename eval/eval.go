@@ -627,6 +627,8 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.Set(reflect.ValueOf(int(val.Int64())))
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 			ret.SetUint(val.Uint64())
+		case reflect.Float32, reflect.Float64:
+			ret.SetFloat(float64(val.Int64()))
 		default:
 			ret.SetInt(val.Int64())
 		}

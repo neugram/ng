@@ -7,9 +7,9 @@ type Vector3 struct {
 	// TODO: X, Y, Z float64
 }
 
+one := float64(1)
+One := Vector3{X: one, Y: 1.0, Z: 1}
 Zero := Vector3{}
-One := Vector3{X: 1.0, Y: 1.0, Z: 1.0}
-// TODO: One := Vector3{X: 1, Y: 1, Z: 1}
 
 func Add(m, n Vector3) Vector3 {
 	return Vector3{m.X + n.X, m.Y + n.Y, m.Z + n.Z}
