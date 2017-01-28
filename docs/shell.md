@@ -141,7 +141,7 @@ The first word is the command to execute. The command can be specified
 either as a name, a relative path, or an absolute path. An unadorned
 name is resolved using the PATH variable.
 
-Command     | 
+Command     | Resolution
 ------------|--------------
 ls          | Unadorned command, resolved via PATH to /usr/bin/ls
 ../bin/ls   | Relative path
