@@ -5,21 +5,20 @@ f := func() {
 {
 	four := 3
 
-	/* TODO methodik obj struct {} {
-		func (a) NumberFour() num {
+	methodik obj struct{} {
+		func (a) Read([]byte) (int, error) {
+			func N4() int { return four }
+			four := 6
+			return N4(), nil
 		}
-	}*/
-	func NumberFour() int {
-		func N4() int { return four }
-		four := 6
-		return N4()
 	}
+	o := obj{}
 
 	four++
 
 	f = func() {
 		four := 5 // check we use the correctly scoped four
-		if NumberFour() == 4 {
+		if v, _ := o.Read([]byte{3, 4}); v == 4 {
 			print("OK")
 		}
 	}

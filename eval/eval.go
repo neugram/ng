@@ -20,11 +20,11 @@ import (
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
 	"neugram.io/ng/token"
 	"neugram.io/ng/typecheck"
-	"neugram.io/ng/parser"
 )
 
 type Scope struct {
@@ -568,6 +568,35 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 	case *stmt.TypeDecl:
 		return nil
 	case *stmt.MethodikDecl:
+		t := s.Type
+		r := p.reflector
+
+		// Hack. See the file comment in methodpool.go.
+		st, isStruct := t.Type.(*tipe.Struct)
+		if !isStruct {
+			panic("eval only supports methodik on struct types")
+		}
+		var methodFuncs []reflect.Type
+		for _, m := range t.Methods {
+			methodFuncs = append(methodFuncs, r.ToRType(m))
+		}
+		var fields []reflect.StructField
+		for i, name := range t.MethodNames {
+			funcType := r.ToRType(t.Methods[i])
+			funcImpl := p.evalFuncLiteral(s.Methods[i], t)
+
+			fields = append(fields, reflect.StructField{
+				Type: methodPoolAssign(name, funcType, funcImpl),
+			})
+		}
+		for i, f := range st.Fields {
+			fields = append(fields, reflect.StructField{
+				Name: st.FieldNames[i],
+				Type: r.ToRType(f),
+			})
+		}
+		rtype := reflect.StructOf(fields)
+		r.fwd[t] = rtype
 		return nil
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %s", format.Stmt(s)))
@@ -805,50 +834,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			panic("TODO CompLiteral map")
 		}
 	case *expr.FuncLiteral:
-		s := &Scope{
-			Parent: p.Universe,
-		}
-		for _, name := range e.Type.FreeVars {
-			if s.VarName != "" {
-				s = &Scope{Parent: s}
-			}
-			s.VarName = name
-			s.Var = p.Cur.Lookup(name)
-		}
-		// TODO for _, mdik := range e.Type.FreeMdik
-
-		t := p.reflector.ToRType(e.Type)
-		fn := reflect.MakeFunc(t, func(args []reflect.Value) (results []reflect.Value) {
-			p := &Program{
-				Universe:  p.Universe,
-				Types:     p.Types, // TODO race cond, clone type list
-				Cur:       s,
-				reflector: p.reflector,
-			}
-			p.pushScope()
-			defer p.popScope()
-			for i, name := range e.ParamNames {
-				// A function argument defines an addressable value,
-				// but the reflect.Value args passed to a MakeFunc
-				// implementation are not addressable.
-				// So we copy them here.
-				arg := reflect.New(args[i].Type()).Elem()
-				arg.Set(args[i])
-				p.Cur = &Scope{
-					Parent:   p.Cur,
-					VarName:  name,
-					Var:      arg,
-					Implicit: true,
-				}
-			}
-			res := p.evalStmt(e.Body.(*stmt.Block))
-			return res
-		})
-		return []reflect.Value{fn}
+		return []reflect.Value{p.evalFuncLiteral(e, nil)}
 	case *expr.Ident:
 		if e.Name == "nil" { // TODO: make sure it's the Universe nil
 			t := p.reflector.ToRType(p.Types.Types[e])
-			fmt.Printf("nil has type %v (from %s)\n", t, p.Types.Types[e])
 			return []reflect.Value{reflect.New(t).Elem()}
 		}
 		if v := p.Cur.Lookup(e.Name); v != (reflect.Value{}) {
@@ -1048,6 +1037,60 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{convert(v, t)}
 	}
 	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", format.Expr(e), e)})
+}
+
+func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Methodik) reflect.Value {
+	s := &Scope{
+		Parent: p.Universe,
+	}
+	for _, name := range e.Type.FreeVars {
+		if s.VarName != "" {
+			s = &Scope{Parent: s}
+		}
+		s.VarName = name
+		s.Var = p.Cur.Lookup(name)
+	}
+	// TODO for _, mdik := range e.Type.FreeMdik
+
+	funct := *e.Type
+	if recvt != nil {
+		params := make([]tipe.Type, 1+len(funct.Params.Elems))
+		copy(params[1:], funct.Params.Elems)
+		params[0] = &tipe.Interface{} // not recvt, breaking cycle
+		funct.Params = &tipe.Tuple{params}
+	}
+	rt := p.reflector.ToRType(&funct)
+	fn := reflect.MakeFunc(rt, func(args []reflect.Value) (results []reflect.Value) {
+		p := &Program{
+			Universe:  p.Universe,
+			Types:     p.Types, // TODO race cond, clone type list
+			Cur:       s,
+			reflector: p.reflector,
+		}
+		p.pushScope()
+		defer p.popScope()
+		if recvt != nil {
+			// TODO args[0]
+			args = args[1:]
+		}
+		for i, name := range e.ParamNames {
+			// A function argument defines an addressable value,
+			// but the reflect.Value args passed to a MakeFunc
+			// implementation are not addressable.
+			// So we copy them here.
+			arg := reflect.New(args[i].Type()).Elem()
+			arg.Set(args[i])
+			p.Cur = &Scope{
+				Parent:   p.Cur,
+				VarName:  name,
+				Var:      arg,
+				Implicit: true,
+			}
+		}
+		res := p.evalStmt(e.Body.(*stmt.Block))
+		return res
+	})
+	return fn
 }
 
 // TODO make thread safe
