@@ -7,4 +7,9 @@ wg.Wait()
 
 import "fmt"
 
-fmt.Println("\n", "OK")
+f := func() {
+	// fmt is a free variable that needs to be captured
+	fmt.Println("\n", "OK")
+}
+fmt := "shadow fmt"
+f()

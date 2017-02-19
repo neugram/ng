@@ -21,10 +21,10 @@ import (
 
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
 	"neugram.io/ng/token"
-	"neugram.io/ng/parser"
 )
 
 type Checker struct {
@@ -2027,7 +2027,7 @@ func (s *Scope) LookupRec(name string) *Obj {
 	if o == nil {
 		return nil
 	}
-	if s.foundInParent != nil && o.Kind == ObjVar {
+	if s.foundInParent != nil && (o.Kind == ObjVar || o.Kind == ObjPkg) {
 		s.foundInParent[name] = true
 	}
 	if s.foundMdikInParent != nil && o.Kind == ObjType {
