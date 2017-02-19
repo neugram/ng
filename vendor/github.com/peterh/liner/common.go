@@ -33,6 +33,7 @@ type commonState struct {
 	cursorRows        int
 	maxRows           int
 	shouldRestart     ShouldRestart
+	needRefresh       bool
 }
 
 // TabStyle is used to select how tab completions are displayed.
@@ -59,7 +60,12 @@ var ErrPromptAborted = errors.New("prompt aborted")
 // platform is normally supported, but stdout has been redirected
 var ErrNotTerminalOutput = errors.New("standard output is not a terminal")
 
-// Max elements to save on the killring
+// ErrInvalidPrompt is returned from Prompt or PasswordPrompt if the
+// prompt contains any unprintable runes (including substrings that could
+// be colour codes on some platforms).
+var ErrInvalidPrompt = errors.New("invalid prompt")
+
+// KillRingMax is the max number of elements to save on the killring.
 const KillRingMax = 60
 
 // HistoryLimit is the maximum number of entries saved in the scrollback history.
@@ -142,6 +148,13 @@ func (s *State) AppendHistory(mode, item string) {
 		s.history = make(map[string][]string)
 	}
 	s.history[mode] = history
+}
+
+// ClearHistory clears the scroollback history.
+func (s *State) ClearHistory() {
+	s.historyMutex.Lock()
+	defer s.historyMutex.Unlock()
+	s.history = nil
 }
 
 func (s *State) SetMode(mode string) {
