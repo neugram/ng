@@ -17,8 +17,8 @@ import (
 
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
-	"neugram.io/ng/stmt"
 	"neugram.io/ng/parser"
+	"neugram.io/ng/stmt"
 )
 
 var exprTests = []struct {
@@ -78,13 +78,13 @@ var exprTests = []struct {
 
 func mkBasicProgram() (*Program, error) {
 	p := New("basic")
-	if _, err := p.Eval(mustParse("x := 4")); err != nil {
+	if _, err := p.Eval(mustParse("x := 4"), nil); err != nil {
 		return nil, err
 	}
-	if _, err := p.Eval(mustParse("y := 5")); err != nil {
+	if _, err := p.Eval(mustParse("y := 5"), nil); err != nil {
 		return nil, err
 	}
-	if _, err := p.Eval(mustParse("z := 7")); err != nil {
+	if _, err := p.Eval(mustParse("z := 7"), nil); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -97,7 +97,7 @@ func TestExprs(t *testing.T) {
 			t.Fatalf("mkBasicProgram: %v", err)
 		}
 		s := mustParse(test.stmt)
-		res, err := p.Eval(s)
+		res, err := p.Eval(s, nil)
 		if err != nil {
 			t.Errorf("Eval(%s) error: %v", pretty.Sprint(s), err)
 		}

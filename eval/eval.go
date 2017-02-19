@@ -54,6 +54,9 @@ type Program struct {
 	Path      string
 	reflector *reflector
 
+	sigint     <-chan os.Signal
+	sigintSeen bool
+
 	Returning bool
 	Breaking  bool
 
@@ -152,7 +155,7 @@ func (p *Program) evalFile() error {
 			return fmt.Errorf("%d: %v", i+1, res.Errs[0])
 		}
 		for _, s := range res.Stmts {
-			if _, err := p.Eval(s); err != nil {
+			if _, err := p.Eval(s, p.sigint); err != nil {
 				if _, isPanic := err.(Panic); isPanic {
 					return err
 				}
@@ -256,8 +259,30 @@ func (p *Program) Set(name, value string) {
 	p.Cur = s
 }
 
-func (p *Program) Eval(s stmt.Stmt) (res []reflect.Value, err error) {
+func (p *Program) interrupted() bool {
+	if p.sigintSeen {
+		return true
+	}
+	select {
+	case <-p.sigint:
+		p.sigintSeen = true
+		return true
+	default:
+		return false
+	}
+}
+
+var nosig = (<-chan os.Signal)(make(chan os.Signal))
+
+func (p *Program) Eval(s stmt.Stmt, sigint <-chan os.Signal) (res []reflect.Value, err error) {
+	if sigint != nil {
+		p.sigint = sigint
+	} else {
+		p.sigint = nosig
+	}
 	defer func() {
+		p.sigint = nosig
+		p.sigintSeen = false
 		x := recover()
 		if x == nil {
 			return
@@ -377,7 +402,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		defer p.popScope()
 		for _, s := range s.Stmts {
 			res := p.evalStmt(s)
-			if p.Returning || p.Breaking {
+			if p.Returning || p.Breaking || p.interrupted() {
 				return res
 			}
 		}
@@ -401,6 +426,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			}
 			if p.Breaking {
 				p.Breaking = false // TODO: break label
+				break
+			}
+			if p.interrupted() {
 				break
 			}
 			if s.Post != nil {
@@ -521,6 +549,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 					p.Breaking = false // TODO: break label
 					break
 				}
+				if p.interrupted() {
+					break
+				}
 			}
 		case reflect.Map:
 			keys := src.MapKeys()
@@ -534,6 +565,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				}
 				if p.Breaking {
 					p.Breaking = false // TODO: break label
+					break
+				}
+				if p.interrupted() {
 					break
 				}
 			}

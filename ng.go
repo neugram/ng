@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -19,8 +20,8 @@ import (
 	"neugram.io/ng/eval"
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
-	"neugram.io/ng/tipe"
 	"neugram.io/ng/parser"
+	"neugram.io/ng/tipe"
 
 	"github.com/kr/pretty"
 	"github.com/peterh/liner"
@@ -177,6 +178,7 @@ func loop() {
 	}
 	go historyWriter(historyNgFile, historyNg)
 
+	sigint := make(chan os.Signal, 1)
 	state := parser.StateStmt
 	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
@@ -184,7 +186,7 @@ func loop() {
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				res := p.ParseLine(scanner.Bytes())
-				handleResult(res)
+				handleResult(res, sigint)
 				state = res.State
 			}
 			if err := scanner.Err(); err != nil {
@@ -197,10 +199,13 @@ func loop() {
 			exitf(".ngshinit: ends in a partial statement")
 		case parser.StateStmt:
 			res := p.ParseLine([]byte("$$"))
-			handleResult(res)
+			handleResult(res, sigint)
 			state = res.State
 		}
 	}
+
+	signal.Notify(sigint, os.Interrupt)
+	lineNg.SetCtrlCAborts(true)
 
 	for {
 		var (
@@ -224,7 +229,14 @@ func loop() {
 		}
 		lineNg.SetMode(mode)
 		data, err := lineNg.Prompt(prompt)
-		if err != nil {
+		if err == liner.ErrPromptAborted {
+			switch state {
+			case parser.StateStmtPartial:
+				fmt.Printf("TODO interrupt partial statement\n")
+			case parser.StateCmdPartial:
+				fmt.Printf("TODO interrupt partial command\n")
+			}
+		} else if err != nil {
 			if err == io.EOF {
 				exit(0)
 			}
@@ -235,15 +247,19 @@ func loop() {
 		}
 		lineNg.AppendHistory(mode, data)
 		history <- data
+		select { // drain sigint
+		case <-sigint:
+		default:
+		}
 		res := p.ParseLine([]byte(data))
-		handleResult(res)
+		handleResult(res, sigint)
 		state = res.State
 	}
 }
 
-func handleResult(res parser.Result) {
+func handleResult(res parser.Result, sigint <-chan os.Signal) {
 	for _, s := range res.Stmts {
-		v, err := prg.Eval(s)
+		v, err := prg.Eval(s, sigint)
 		if err != nil {
 			fmt.Printf("ng: %v\n", err)
 			continue
