@@ -43,12 +43,14 @@ var (
 )
 
 func exit(code int) {
-	lineNg.Close()
+	if lineNg != nil {
+		lineNg.Close()
+	}
 	os.Exit(code)
 }
 
 func exitf(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "ng: "+format, args...)
+	fmt.Fprintf(os.Stderr, "ng: "+format+"\n", args...)
 	exit(1)
 }
 
@@ -92,6 +94,23 @@ func main() {
 		initProgram(filepath.Join(cwd, "ng-arg"))
 		res := p.ParseLine([]byte(*e))
 		handleResult(res)
+		return
+	}
+	if args := flag.Args(); len(args) > 0 {
+		// TODO: plumb through the rest of the args
+		path := args[0]
+		initProgram(path)
+		f, err := os.Open(path)
+		if err != nil {
+			exitf("%v", err)
+		}
+		state, err := runFile(f)
+		if err != nil {
+			exitf("%v", err)
+		}
+		if state == parser.StateCmd {
+			exitf("%s: ends in an unclosed shell statement", args[0])
+		}
 		return
 	}
 
@@ -201,9 +220,30 @@ func initProgram(path string) {
 	signal.Notify(sigint, os.Interrupt)
 }
 
+func runFile(f *os.File) (parser.ParserState, error) {
+	state := parser.StateStmt
+	scanner := bufio.NewScanner(f)
+	for i := 0; scanner.Scan(); i++ {
+		b := scanner.Bytes()
+		if i == 0 && len(b) > 2 && b[0] == '#' && b[1] == '!' { // shebang
+			continue
+		}
+		res := p.ParseLine(b)
+		handleResult(res)
+		state = res.State
+	}
+	if err := scanner.Err(); err != nil {
+		return state, fmt.Errorf("%s: %v", f.Name(), err)
+	}
+	switch state {
+	case parser.StateStmtPartial, parser.StateCmdPartial:
+		return state, fmt.Errorf("%s: ends in a partial statement", f.Name())
+	default:
+		return state, nil
+	}
+}
+
 func loop() {
-	// TODO: support starting via a shebang: #!/bin/ng.
-	// When doing so, path = os.Args[0]
 	path := filepath.Join(cwd, "ng-interactive")
 	initProgram(path)
 
@@ -211,21 +251,14 @@ func loop() {
 	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
 		if f, err := os.Open(initFile); err == nil {
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				res := p.ParseLine(scanner.Bytes())
-				handleResult(res)
-				state = res.State
-			}
-			if err := scanner.Err(); err != nil {
-				exitf(".ngshinit: %v", err)
-			}
+			var err error
+			state, err = runFile(f)
 			f.Close()
+			if err != nil {
+				exitf("%v", err)
+			}
 		}
-		switch state {
-		case parser.StateStmtPartial, parser.StateCmdPartial:
-			exitf(".ngshinit: ends in a partial statement")
-		case parser.StateStmt:
+		if state == parser.StateStmt {
 			res := p.ParseLine([]byte("$$"))
 			handleResult(res)
 			state = res.State
