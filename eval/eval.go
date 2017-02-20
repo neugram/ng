@@ -35,6 +35,8 @@ type Scope struct {
 	// Implicit is set if the Scope was created mid block and should be
 	// unrolled when block ends.
 	Implicit bool
+
+	Label bool
 }
 
 func (s *Scope) Lookup(name string) reflect.Value {
@@ -57,14 +59,26 @@ type Program struct {
 	sigint     <-chan os.Signal
 	sigintSeen bool
 
-	Returning bool
-	Breaking  bool
+	branchType      branchType
+	branchLabel     string
+	mostRecentLabel string
 
 	// builtinCalled is set by any builtin function that has
 	// a generic return type. The intepreter has to unbox the
 	// return type.
 	builtinCalled bool
 }
+
+type branchType int
+
+const (
+	brNone = branchType(iota)
+	brBreak
+	brContinue
+	brGoto
+	brFallthrough
+	brReturn
+)
 
 type evalMap interface {
 	GetVal(key interface{}) interface{}
@@ -309,7 +323,8 @@ func (p *Program) Eval(s stmt.Stmt, sigint <-chan os.Signal) (res []reflect.Valu
 		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
 	}
 
-	p.Returning = false
+	p.branchType = brNone
+	p.branchLabel = ""
 	res = p.evalStmt(s)
 	return res, nil
 }
@@ -328,6 +343,8 @@ func (p *Program) popScope() {
 }
 
 func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
+	mostRecentLabel := p.mostRecentLabel
+	p.mostRecentLabel = ""
 	switch s := s.(type) {
 	case *stmt.Assign:
 		types := make([]tipe.Type, 0, len(s.Left))
@@ -402,17 +419,19 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		defer p.popScope()
 		for _, s := range s.Stmts {
 			res := p.evalStmt(s)
-			if p.Returning || p.Breaking || p.interrupted() {
+			if p.branchType != brNone || p.interrupted() {
 				return res
 			}
 		}
 		return nil
 	case *stmt.For:
+		// mostRecentLabel
 		if s.Init != nil {
 			p.pushScope()
 			defer p.popScope()
 			p.evalStmt(s.Init)
 		}
+	loop:
 		for {
 			if s.Cond != nil {
 				cond := p.evalExprOne(s.Cond)
@@ -421,15 +440,31 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				}
 			}
 			p.evalStmt(s.Body)
-			if p.Returning {
-				break
-			}
-			if p.Breaking {
-				p.Breaking = false // TODO: break label
-				break
-			}
+			// Note there are three extremely similar loops:
+			//	*stmt.For, *stmt.Range (slice, and map)
 			if p.interrupted() {
 				break
+			}
+			switch p.branchType {
+			default:
+				break loop
+			case brNone:
+			case brBreak:
+				if p.branchLabel == mostRecentLabel {
+					p.branchType = brNone
+					p.branchLabel = ""
+				}
+				break loop
+			case brContinue:
+				if p.branchLabel == mostRecentLabel {
+					p.branchType = brNone
+					p.branchLabel = ""
+					if s.Post != nil {
+						p.evalStmt(s.Post)
+					}
+					continue loop
+				}
+				break loop
 			}
 			if s.Post != nil {
 				p.evalStmt(s.Post)
@@ -536,39 +571,63 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		switch src.Kind() {
 		case reflect.Slice:
 			slen := src.Len()
+		sliceLoop:
 			for i := 0; i < slen; i++ {
 				key.SetInt(int64(i))
 				if val != (reflect.Value{}) {
 					val.Set(src.Index(i))
 				}
 				p.evalStmt(s.Body)
-				if p.Returning {
-					break
-				}
-				if p.Breaking {
-					p.Breaking = false // TODO: break label
-					break
-				}
 				if p.interrupted() {
 					break
+				}
+				switch p.branchType {
+				default:
+					break sliceLoop
+				case brNone:
+				case brBreak:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+					}
+					break sliceLoop
+				case brContinue:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+						continue sliceLoop
+					}
+					break sliceLoop
 				}
 			}
 		case reflect.Map:
 			keys := src.MapKeys()
+		mapLoop:
 			for _, k := range keys {
 				key.Set(k)
 				v := src.MapIndex(key)
 				val.Set(v)
 				p.evalStmt(s.Body)
-				if p.Returning {
-					break
-				}
-				if p.Breaking {
-					p.Breaking = false // TODO: break label
-					break
-				}
 				if p.interrupted() {
 					break
+				}
+				switch p.branchType {
+				default:
+					break mapLoop
+				case brNone:
+				case brBreak:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+					}
+					break mapLoop
+				case brContinue:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+						continue mapLoop
+					}
+					break mapLoop
 				}
 			}
 		default:
@@ -580,7 +639,8 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		for _, expr := range s.Exprs {
 			res = append(res, p.evalExpr(expr)...)
 		}
-		p.Returning = true
+		p.branchType = brReturn
+		p.branchLabel = ""
 		return res
 	case *stmt.Simple:
 		res := p.evalExpr(s.Expr)
@@ -631,6 +691,30 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 		rtype := reflect.StructOf(fields)
 		r.fwd[t] = rtype
+		return nil
+	case *stmt.Labeled:
+		p.Cur = &Scope{
+			Parent:  p.Cur,
+			VarName: s.Label,
+			Label:   true,
+		}
+		defer p.popScope()
+		p.mostRecentLabel = s.Label
+		return p.evalStmt(s.Stmt)
+	case *stmt.Branch:
+		p.branchLabel = s.Label
+		switch s.Type {
+		case token.Continue:
+			p.branchType = brContinue
+		case token.Break:
+			p.branchType = brBreak
+		case token.Goto:
+			p.branchType = brGoto
+		case token.Fallthrough:
+			p.branchType = brFallthrough
+		default:
+			panic("bad branch type: " + s.Type.String())
+		}
 		return nil
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %s", format.Stmt(s)))

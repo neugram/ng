@@ -750,6 +750,39 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualExpr(x.Expr, y.Expr) {
 			return false
 		}
+	case *stmt.Send:
+		y, ok := y.(*stmt.Send)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Chan, y.Chan) {
+			return false
+		}
+		if !EqualExpr(x.Value, y.Value) {
+			return false
+		}
+	case *stmt.Branch:
+		y, ok := y.(*stmt.Branch)
+		if !ok {
+			return false
+		}
+		if x.Type != y.Type {
+			return false
+		}
+		if x.Label != y.Label {
+			return false
+		}
+	case *stmt.Labeled:
+		y, ok := y.(*stmt.Labeled)
+		if !ok {
+			return false
+		}
+		if x.Label != y.Label {
+			return false
+		}
+		if !EqualStmt(x.Stmt, y.Stmt) {
+			return false
+		}
 	default:
 		panic(fmt.Sprintf("unknown stmt type %T: %#+v", x, x))
 	}

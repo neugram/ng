@@ -717,6 +717,13 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			Left:  exprs,
 			Right: right,
 		}
+	}
+
+	if len(exprs) != 1 {
+		p.error("expected one expression")
+	}
+
+	switch p.s.Token {
 	case token.Inc, token.Dec:
 		// TODO: do we want to introduce a specialized statement for this?
 		op := token.Add
@@ -738,6 +745,17 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			Chan:  exprs[0],
 			Value: p.parseExpr(),
 		}
+	case token.Colon:
+		p.next()
+		// TODO: we can be stricter here, sometimes it is invalid to declare a label.
+		if lhs, isIdent := exprs[0].(*expr.Ident); isIdent {
+			return &stmt.Labeled{
+				Label: lhs.Name,
+				Stmt:  p.parseStmt(),
+			}
+		}
+		p.error("bad label declaration")
+		return &stmt.Bad{}
 	}
 
 	// TODO len==1
@@ -871,8 +889,24 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		p.next()
 		p.expectSemi()
 		return s
+	case token.Continue, token.Break, token.Goto, token.Fallthrough:
+		s := p.parseBranch()
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *Parser) parseBranch() *stmt.Branch {
+	s := &stmt.Branch{
+		Type: p.s.Token,
+	}
+	p.next()
+	if p.s.Token == token.Ident {
+		s.Label = p.s.Literal.(string)
+		p.next()
+	}
+	return s
 }
 
 func (p *Parser) parseGo() stmt.Stmt {

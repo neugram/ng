@@ -8,6 +8,7 @@ package stmt
 import (
 	"neugram.io/ng/expr"
 	"neugram.io/ng/tipe"
+	"neugram.io/ng/token"
 )
 
 type Stmt interface {
@@ -88,6 +89,19 @@ type Send struct {
 	Value expr.Expr
 }
 
+type Branch struct {
+	Type  token.Token // Continue, Break, Goto, or Fallthrough
+	Label string
+}
+
+type Labeled struct {
+	Label string
+	Stmt  Stmt
+}
+
+type Bad struct {
+}
+
 func (s Import) stmt()       {}
 func (s TypeDecl) stmt()     {}
 func (s MethodikDecl) stmt() {}
@@ -101,3 +115,6 @@ func (s Range) stmt()        {}
 func (s Return) stmt()       {}
 func (s Simple) stmt()       {}
 func (s Send) stmt()         {}
+func (s Branch) stmt()       {}
+func (s Labeled) stmt()      {}
+func (s Bad) stmt()          {}

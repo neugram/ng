@@ -1,0 +1,55 @@
+ok := true
+
+innerBroke := false
+for {
+	k := 0
+	for {
+		k++
+		if k < 3 {
+			continue
+		}
+		break
+	}
+	if k != 3 {
+		print("want k=3, got k=", k)
+		ok = false
+	}
+	innerBroke = true
+	break
+}
+if !innerBroke {
+	print("innerBroke is false")
+	ok = false
+}
+
+loop:
+for i := 0; i < 6; i++ {
+	if i == 4 {
+		// loop should eventually exit as continue
+		// statement should run i++
+		continue loop
+	}
+}
+
+i := 0
+outer:
+for {
+	i++
+	inner:
+	for {
+		if i < 3 {
+			continue outer
+		} else {
+			break outer
+		}
+		continue inner
+	}
+}
+if i != 3 {
+	print("want i=3, got i=", i)
+	ok = false
+}
+
+if ok {
+	print("OK")
+}

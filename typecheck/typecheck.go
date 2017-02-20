@@ -199,7 +199,9 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			defer c.popScope()
 			c.stmt(s.Init, retType)
 		}
-		c.expr(s.Cond)
+		if s.Cond != nil {
+			c.expr(s.Cond)
+		}
 		if s.Post != nil {
 			c.stmt(s.Post, retType)
 		}
@@ -368,6 +370,14 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if p.mode == modeInvalid {
 			c.errorf("cannot send %s to %s", format.Type(p.typ), format.Type(cht))
 		}
+		return nil
+
+	case *stmt.Branch:
+		// TODO: make sure the branch is valid
+		return nil
+
+	case *stmt.Labeled:
+		c.stmt(s.Stmt, retType)
 		return nil
 
 	default:
