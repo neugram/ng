@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +36,9 @@ var (
 	historyNg     = make(chan string, 1)
 	historyShFile = ""
 	historySh     = make(chan string, 1)
+	sigint        = make(chan os.Signal, 1)
 
+	p   *parser.Parser
 	prg *eval.Program
 )
 
@@ -57,8 +60,40 @@ func mode() liner.ModeApplier {
 	return m
 }
 
+const usageLine = "ng [programfile | -e cmd] [arguments]"
+
+func usage() {
+	fmt.Fprintf(os.Stderr, `ng - neugram scripting language and shell
+
+Usage:
+	%s
+
+Options:
+`, usageLine)
+	flag.PrintDefaults()
+}
+
 func main() {
 	shell.Init()
+
+	help := flag.Bool("h", false, "display help message and exit")
+	e := flag.String("e", "", "program passed as a string")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: %s\n", usageLine)
+		os.Exit(1)
+	}
+	flag.Parse()
+
+	if *help {
+		usage()
+		os.Exit(0)
+	}
+	if *e != "" {
+		initProgram(filepath.Join(cwd, "ng-arg"))
+		res := p.ParseLine([]byte(*e))
+		handleResult(res)
+		return
+	}
 
 	origMode = mode()
 	lineNg = liner.NewLiner()
@@ -135,16 +170,18 @@ func ps1(env *environ.Environ) string {
 	return string(buf)
 }
 
-func loop() {
-	// TODO: support starting via a shebang: #!/bin/ng.
-	// When doing so, path = os.Args[0]
-	path, err := os.Getwd()
+var cwd string
+
+func init() {
+	var err error
+	cwd, err = os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	path = filepath.Join(path, "ng-interactive")
+}
 
-	p := parser.New()
+func initProgram(path string) {
+	p = parser.New()
 	prg = eval.New(path)
 	shell.Env = prg.Environ()
 	shell.Alias = prg.Alias()
@@ -161,8 +198,43 @@ func loop() {
 	}
 	//setWindowSize(env)
 
+	signal.Notify(sigint, os.Interrupt)
+}
+
+func loop() {
+	// TODO: support starting via a shebang: #!/bin/ng.
+	// When doing so, path = os.Args[0]
+	path := filepath.Join(cwd, "ng-interactive")
+	initProgram(path)
+
+	state := parser.StateStmt
+	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
+		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
+		if f, err := os.Open(initFile); err == nil {
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				res := p.ParseLine(scanner.Bytes())
+				handleResult(res)
+				state = res.State
+			}
+			if err := scanner.Err(); err != nil {
+				exitf(".ngshinit: %v", err)
+			}
+			f.Close()
+		}
+		switch state {
+		case parser.StateStmtPartial, parser.StateCmdPartial:
+			exitf(".ngshinit: ends in a partial statement")
+		case parser.StateStmt:
+			res := p.ParseLine([]byte("$$"))
+			handleResult(res)
+			state = res.State
+		}
+	}
+
 	lineNg.SetTabCompletionStyle(liner.TabPrints)
 	lineNg.SetWordCompleter(completer)
+	lineNg.SetCtrlCAborts(true)
 
 	if f, err := os.Open(historyShFile); err == nil {
 		lineNg.SetMode("sh")
@@ -178,35 +250,6 @@ func loop() {
 	}
 	go historyWriter(historyNgFile, historyNg)
 
-	sigint := make(chan os.Signal, 1)
-	state := parser.StateStmt
-	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
-		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
-		if f, err := os.Open(initFile); err == nil {
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				res := p.ParseLine(scanner.Bytes())
-				handleResult(res, sigint)
-				state = res.State
-			}
-			if err := scanner.Err(); err != nil {
-				exitf(".ngshinit: %v", err)
-			}
-			f.Close()
-		}
-		switch state {
-		case parser.StateStmtPartial, parser.StateCmdPartial:
-			exitf(".ngshinit: ends in a partial statement")
-		case parser.StateStmt:
-			res := p.ParseLine([]byte("$$"))
-			handleResult(res, sigint)
-			state = res.State
-		}
-	}
-
-	signal.Notify(sigint, os.Interrupt)
-	lineNg.SetCtrlCAborts(true)
-
 	for {
 		var (
 			mode    string
@@ -221,7 +264,7 @@ func loop() {
 		case parser.StateStmtPartial:
 			mode, prompt, history = "ng", "..> ", historyNg
 		case parser.StateCmd:
-			mode, prompt, history = "sh", ps1(env), historySh
+			mode, prompt, history = "sh", ps1(prg.Environ()), historySh
 		case parser.StateCmdPartial:
 			mode, prompt, history = "sh", "..$ ", historySh
 		default:
@@ -252,12 +295,12 @@ func loop() {
 		default:
 		}
 		res := p.ParseLine([]byte(data))
-		handleResult(res, sigint)
+		handleResult(res)
 		state = res.State
 	}
 }
 
-func handleResult(res parser.Result, sigint <-chan os.Signal) {
+func handleResult(res parser.Result) {
 	for _, s := range res.Stmts {
 		v, err := prg.Eval(s, sigint)
 		if err != nil {
