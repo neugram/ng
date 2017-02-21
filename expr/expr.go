@@ -94,8 +94,9 @@ type Ident struct {
 }
 
 type Call struct {
-	Func Expr
-	Args []Expr
+	Func       Expr
+	Args       []Expr
+	ElideError bool
 }
 
 type Range struct {

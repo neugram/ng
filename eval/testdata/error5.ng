@@ -1,0 +1,6 @@
+import "os"
+f := os.Open("/tmp")
+f.Close()
+if err := f.Close(); err != nil {
+	print("OK")
+}

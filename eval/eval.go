@@ -352,8 +352,8 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		for _, rhs := range s.Right {
 			v := p.evalExpr(rhs)
 			t := p.Types.Types[rhs]
-			if len(v) > 1 {
-				types = append(types, t.(*tipe.Tuple).Elems...)
+			if tuple, isTuple := t.(*tipe.Tuple); isTuple {
+				types = append(types, tuple.Elems...)
 			} else {
 				types = append(types, t)
 			}
@@ -399,20 +399,6 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			}
 		}
 
-		// Dynamic elision of final error.
-		// TODO: move into Call case? Would miss Shell case.
-		// But we need to get g(elidedErrorFunc()).
-		isLastError := false
-		if len(s.Right) == 1 {
-			isLastError = isError(types[len(types)-1])
-		}
-		if isLastError && len(vars) == len(vals)-1 {
-			// last error is ignored, panic if non-nil
-			errVal := vals[len(vals)-1]
-			if errVal.IsValid() && errVal.Interface() != nil {
-				panic(Panic{val: errVal.Interface()})
-			}
-		}
 		return nil
 	case *stmt.Block:
 		p.pushScope()
@@ -425,7 +411,6 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 		return nil
 	case *stmt.For:
-		// mostRecentLabel
 		if s.Init != nil {
 			p.pushScope()
 			defer p.popScope()
@@ -917,8 +902,6 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		if t, isTypeConv := fn.Interface().(reflect.Type); isTypeConv {
 			return []reflect.Value{typeConv(t, args[0])}
 		}
-		// TODO: have typecheck do the error elision for us
-		// so we can insert the dynamic panic check once, right here.
 		res := fn.Call(args)
 		if p.builtinCalled {
 			p.builtinCalled = false
@@ -927,6 +910,17 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				// from an interface{} into a slice so it can
 				// be set.
 				res[i] = reflect.ValueOf(res[i].Interface())
+			}
+		}
+		if e.ElideError {
+			// Dynamic elision of final error.
+			errv := res[len(res)-1]
+			if errv.IsValid() && errv.CanInterface() && errv.Interface() != nil {
+				panic(Panic{val: errv.Interface()})
+			}
+			res = res[:len(res)-1]
+			if len(res) == 0 {
+				res = nil
 			}
 		}
 		return res

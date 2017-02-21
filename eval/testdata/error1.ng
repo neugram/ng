@@ -1,4 +1,5 @@
 func f() (int, error) { return 4, nil }
+f()
 x := f()
 if x != 4 {
 	panic("f should return 4")
@@ -11,6 +12,9 @@ x, err := g()
 if err == nil {
 	panic("g should return an error")
 }
+
+func h() error { return nil }
+h()
 
 y, err := f()
 z, _ := f()

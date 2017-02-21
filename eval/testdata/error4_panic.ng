@@ -1,0 +1,6 @@
+func g() error { return errorf("anError") }
+
+for {
+	g() // error becomes a panic
+	break
+}

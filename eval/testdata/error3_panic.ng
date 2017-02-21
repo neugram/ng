@@ -1,0 +1,3 @@
+func g() (int, error) { return 5, errorf("anError") }
+
+g() // error becomes a panic

@@ -120,9 +120,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			}
 			partials = append(partials, c.expr(rhs))
 		}
-		if len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
-			// func f() (T, error) { ... )
-			// x := f()
+		if len(s.Right) == 1 && len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
+			if c, isCall := s.Right[0].(*expr.Call); isCall {
+				// func f() (T, error) { ... )
+				// x := f()
+				c.ElideError = true
+			}
 			partials = partials[:len(partials)-1]
 		}
 
@@ -155,6 +158,19 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.Simple:
 		p := c.expr(s.Expr)
+		if c, isCall := s.Expr.(*expr.Call); isCall {
+			isError := IsError(p.typ)
+			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
+				if IsError(tuple.Elems[len(tuple.Elems)-1]) {
+					isError = true
+				}
+			}
+			if isError {
+				// func f() (..., error) { ... )
+				// f()
+				c.ElideError = true
+			}
+		}
 		if p.mode == modeFunc {
 			fn := p.expr.(*expr.FuncLiteral)
 			if fn.Name != "" {
