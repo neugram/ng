@@ -21,10 +21,10 @@ import (
 	"neugram.io/ng/eval"
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/tipe"
 
-	"github.com/kr/pretty"
 	"github.com/peterh/liner"
 )
 
@@ -349,8 +349,21 @@ func handleResult(res parser.Result) {
 			}
 			if val == (reflect.Value{}) {
 				fmt.Print("<nil>")
-			} else {
-				pretty.Print(val.Interface())
+				continue
+			}
+			switch v := val.Interface().(type) {
+			case eval.UntypedInt:
+				fmt.Print(v.String())
+			case eval.UntypedFloat:
+				fmt.Print(v.String())
+			case eval.UntypedString:
+				fmt.Print(v.String)
+			case eval.UntypedRune:
+				fmt.Print("%s", v.Rune)
+			case eval.UntypedBool:
+				fmt.Print(v.Bool)
+			default:
+				fmt.Print(format.Debug(v))
 			}
 		}
 		if len(v) > 1 {

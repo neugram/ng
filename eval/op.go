@@ -113,35 +113,35 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x + y, nil
 			}
-		case untypedInt:
+		case UntypedInt:
 			switch y := y.(type) {
-			case untypedFloat:
+			case UntypedFloat:
 				z := big.NewFloat(float64(x.Int.Int64()))
-				return untypedFloat{z.Add(z, y.Float)}, nil
-			case untypedInt:
+				return UntypedFloat{z.Add(z, y.Float)}, nil
+			case UntypedInt:
 				z := big.NewInt(0)
-				return untypedInt{z.Add(x.Int, y.Int)}, nil
+				return UntypedInt{z.Add(x.Int, y.Int)}, nil
 			}
-		case untypedFloat:
+		case UntypedFloat:
 			z := big.NewFloat(0)
 			switch y := y.(type) {
-			case untypedInt:
+			case UntypedInt:
 				z.SetInt(y.Int)
-				return untypedFloat{z.Add(z, x.Float)}, nil
-			case untypedFloat:
-				return untypedFloat{z.Add(x.Float, y.Float)}, nil
+				return UntypedFloat{z.Add(z, x.Float)}, nil
+			case UntypedFloat:
+				return UntypedFloat{z.Add(x.Float, y.Float)}, nil
 			}
-		case untypedString:
+		case UntypedString:
 			switch y := y.(type) {
-			case untypedString:
-				return untypedString{x.string + y.string}, nil
+			case UntypedString:
+				return UntypedString{x.String + y.String}, nil
 			case string:
-				return x.string + y, nil
+				return x.String + y, nil
 			}
 		case string:
 			switch y := y.(type) {
-			case untypedString:
-				return x + y.string, nil
+			case UntypedString:
+				return x + y.String, nil
 			case string:
 				return x + y, nil
 			}
@@ -208,25 +208,25 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x - y, nil
 			}
-		case untypedInt:
+		case UntypedInt:
 			switch y := y.(type) {
-			case untypedFloat:
+			case UntypedFloat:
 				z := big.NewFloat(0)
 				xf := big.NewFloat(float64(x.Int.Int64()))
-				return untypedFloat{z.Sub(xf, y.Float)}, nil
-			case untypedInt:
+				return UntypedFloat{z.Sub(xf, y.Float)}, nil
+			case UntypedInt:
 				z := big.NewInt(0)
-				return untypedInt{z.Sub(x.Int, y.Int)}, nil
+				return UntypedInt{z.Sub(x.Int, y.Int)}, nil
 			}
-		case untypedFloat:
+		case UntypedFloat:
 			z := big.NewFloat(0)
 			switch y := y.(type) {
-			case untypedInt:
+			case UntypedInt:
 				yf := big.NewFloat(0)
 				yf.SetInt(y.Int)
-				return untypedFloat{z.Sub(x.Float, yf)}, nil
-			case untypedFloat:
-				return untypedFloat{z.Sub(x.Float, y.Float)}, nil
+				return UntypedFloat{z.Sub(x.Float, yf)}, nil
+			case UntypedFloat:
+				return UntypedFloat{z.Sub(x.Float, y.Float)}, nil
 			}
 		}
 	case token.Mul:

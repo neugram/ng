@@ -713,27 +713,25 @@ func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
 	return v[0]
 }
 
-type (
-	untypedInt    struct{ *big.Int }
-	untypedFloat  struct{ *big.Float }
-	untypedString struct{ string }
-	untypedRune   struct{ rune }
-	untypedBool   struct{ bool }
-)
+type UntypedInt struct{ *big.Int }
+type UntypedFloat struct{ *big.Float }
+type UntypedString struct{ String string }
+type UntypedRune struct{ Rune rune }
+type UntypedBool struct{ Bool bool }
 
 func promoteUntyped(x interface{}) interface{} {
 	switch x := x.(type) {
-	case untypedInt:
+	case UntypedInt:
 		return int(x.Int64())
-	case untypedFloat:
+	case UntypedFloat:
 		f, _ := x.Float64()
 		return float64(f)
-	case untypedString:
-		return x.string
-	case untypedRune:
-		return x.rune
-	case untypedBool:
-		return x.bool
+	case UntypedString:
+		return x.String
+	case UntypedRune:
+		return x.Rune
+	case UntypedBool:
+		return x.Bool
 	default:
 		return x
 	}
@@ -747,9 +745,9 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 	switch val := v.Interface().(type) {
 	case reflect.Type:
 		return v // type conversion
-	case untypedInt:
-		if t == reflect.TypeOf(untypedFloat{}) {
-			res := untypedFloat{new(big.Float)}
+	case UntypedInt:
+		if t == reflect.TypeOf(UntypedFloat{}) {
+			res := UntypedFloat{new(big.Float)}
 			res.Float.SetInt64(val.Int64())
 			return reflect.ValueOf(res)
 		}
@@ -765,7 +763,7 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetInt(val.Int64())
 		}
 		return ret
-	case untypedFloat:
+	case UntypedFloat:
 		ret := reflect.New(t).Elem()
 		f, _ := val.Float64()
 		if t.Kind() == reflect.Interface {
@@ -774,9 +772,9 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetFloat(f)
 		}
 		return ret
-	case untypedString:
+	case UntypedString:
 		ret := reflect.New(t).Elem()
-		s := val.string
+		s := val.String
 		if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
 			ret.Set(reflect.ValueOf([]byte(s)))
 		} else if t.Kind() == reflect.Interface {
@@ -785,18 +783,18 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetString(s)
 		}
 		return ret
-	case untypedRune:
+	case UntypedRune:
 		ret := reflect.New(t).Elem()
-		r := val.rune
+		r := val.Rune
 		if t.Kind() == reflect.Interface {
 			ret.Set(reflect.ValueOf(r))
 		} else {
 			ret.SetInt(int64(r))
 		}
 		return ret
-	case untypedBool:
+	case UntypedBool:
 		ret := reflect.New(t).Elem()
-		b := val.bool
+		b := val.Bool
 		if t.Kind() == reflect.Interface {
 			ret.Set(reflect.ValueOf(b))
 		} else {
@@ -841,15 +839,15 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		var v reflect.Value
 		switch val := e.Value.(type) {
 		case *big.Int:
-			v = reflect.ValueOf(untypedInt{val})
+			v = reflect.ValueOf(UntypedInt{val})
 		case *big.Float:
-			v = reflect.ValueOf(untypedFloat{val})
+			v = reflect.ValueOf(UntypedFloat{val})
 		case string:
-			v = reflect.ValueOf(untypedString{val})
+			v = reflect.ValueOf(UntypedString{val})
 		case rune:
-			v = reflect.ValueOf(untypedRune{val})
+			v = reflect.ValueOf(UntypedRune{val})
 		case bool:
-			v = reflect.ValueOf(untypedBool{val})
+			v = reflect.ValueOf(UntypedBool{val})
 		default:
 			v = reflect.ValueOf(val)
 		}
@@ -1129,10 +1127,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				lhs = float32(0)
 			case float64:
 				lhs = float64(0)
-			case untypedInt:
-				lhs = untypedInt{big.NewInt(0)}
-			case untypedFloat:
-				lhs = untypedFloat{big.NewFloat(0)}
+			case UntypedInt:
+				lhs = UntypedInt{big.NewInt(0)}
+			case UntypedFloat:
+				lhs = UntypedFloat{big.NewFloat(0)}
 			}
 			res, err := binOp(token.Sub, lhs, rhs.Interface())
 			if err != nil {
@@ -1282,15 +1280,15 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		case tipe.UntypedNil:
 			panic("TODO UntypedNil")
 		case tipe.UntypedInteger:
-			rtype = reflect.TypeOf(untypedInt{})
+			rtype = reflect.TypeOf(UntypedInt{})
 		case tipe.UntypedFloat:
-			rtype = reflect.TypeOf(untypedFloat{})
+			rtype = reflect.TypeOf(UntypedFloat{})
 		case tipe.UntypedString:
-			rtype = reflect.TypeOf(untypedString{})
+			rtype = reflect.TypeOf(UntypedString{})
 		case tipe.UntypedRune:
-			rtype = reflect.TypeOf(untypedRune{})
+			rtype = reflect.TypeOf(UntypedRune{})
 		case tipe.UntypedBool:
-			rtype = reflect.TypeOf(untypedBool{})
+			rtype = reflect.TypeOf(UntypedBool{})
 		case tipe.UntypedComplex:
 			panic("TODO Untyped Complex")
 		}
