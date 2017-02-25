@@ -664,8 +664,11 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			funcType := r.ToRType(t.Methods[i])
 			funcImpl := p.evalFuncLiteral(s.Methods[i], t)
 
+			embType := methodPoolAssign(name, funcType, funcImpl)
 			fields = append(fields, reflect.StructField{
-				Type: methodPoolAssign(name, funcType, funcImpl),
+				Name:      embType.Name(),
+				Type:      embType,
+				Anonymous: true,
 			})
 		}
 		for i, f := range st.Fields {

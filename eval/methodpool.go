@@ -43,14 +43,14 @@ var methodPool = struct {
 	used: make(map[reflect.Type]methodMap),
 	unused: map[string][]reflect.Type{
 		"Read": {
-			reflect.TypeOf(methodPoolRead1{}),
-			reflect.TypeOf(methodPoolRead2{}),
-			reflect.TypeOf(methodPoolRead3{}),
+			reflect.TypeOf(MethodPoolRead1{}),
+			reflect.TypeOf(MethodPoolRead2{}),
+			reflect.TypeOf(MethodPoolRead3{}),
 		},
 		"Write": {
-			reflect.TypeOf(methodPoolWrite1{}),
-			reflect.TypeOf(methodPoolWrite2{}),
-			reflect.TypeOf(methodPoolWrite3{}),
+			reflect.TypeOf(MethodPoolWrite1{}),
+			reflect.TypeOf(MethodPoolWrite2{}),
+			reflect.TypeOf(MethodPoolWrite3{}),
 		},
 	},
 }
@@ -103,30 +103,30 @@ func callWrite(m unsafe.Pointer, embType reflect.Type, b []byte) (n int, err err
 
 }
 
-type methodPoolRead1 struct{}
-type methodPoolRead2 struct{}
-type methodPoolRead3 struct{}
+type MethodPoolRead1 struct{}
+type MethodPoolRead2 struct{}
+type MethodPoolRead3 struct{}
 
-func (m methodPoolRead1) Read(b []byte) (n int, err error) {
+func (m MethodPoolRead1) Read(b []byte) (n int, err error) {
 	return callRead(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
-func (m methodPoolRead2) Read(b []byte) (n int, err error) {
+func (m MethodPoolRead2) Read(b []byte) (n int, err error) {
 	return callRead(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
-func (m methodPoolRead3) Read(b []byte) (n int, err error) {
+func (m MethodPoolRead3) Read(b []byte) (n int, err error) {
 	return callRead(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
 
-type methodPoolWrite1 struct{}
-type methodPoolWrite2 struct{}
-type methodPoolWrite3 struct{}
+type MethodPoolWrite1 struct{}
+type MethodPoolWrite2 struct{}
+type MethodPoolWrite3 struct{}
 
-func (m methodPoolWrite1) Write(b []byte) (n int, err error) {
+func (m MethodPoolWrite1) Write(b []byte) (n int, err error) {
 	return callWrite(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
-func (m methodPoolWrite2) Write(b []byte) (n int, err error) {
+func (m MethodPoolWrite2) Write(b []byte) (n int, err error) {
 	return callWrite(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
-func (m methodPoolWrite3) Write(b []byte) (n int, err error) {
+func (m MethodPoolWrite3) Write(b []byte) (n int, err error) {
 	return callWrite(unsafe.Pointer(&m), reflect.TypeOf(m), b)
 }
