@@ -1319,7 +1319,11 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		rtype = reflect.StructOf(fields)
 	case *tipe.Methodik:
 		if t.PkgPath != "" {
-			v := gowrap.Pkgs[t.PkgPath].Exports[t.Name]
+			path := t.PkgPath
+			if path == "neugram.io/ng/vendor/mat" {
+				path = "mat"
+			}
+			v := gowrap.Pkgs[path].Exports[t.Name]
 			if _, isIface := tipe.Underlying(t).(*tipe.Interface); isIface {
 				rtype = v.Type().Elem()
 			} else {
