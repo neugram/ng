@@ -1,0 +1,28 @@
+ok := true
+
+import "mat"
+
+m1 := mat.New(3, 3)
+m1.Set(0, 0, 1.1) // TODO: m1[0,0] = 1.1
+m1.Set(1, 2, 2.2)
+m1.Set(2, 1, 3.3)
+
+m2 := mat.New(3, 3)
+m2.Set(0, 0, 1.0)
+m2.Set(2, 1, 0.1)
+
+m3 := m1 + m2
+
+want := mat.New(3, 3)
+want.Set(0, 0, 2.1)
+want.Set(1, 2, 2.2)
+want.Set(2, 1, 3.4)
+
+if m3.Equal(want) == false {
+	printf("%v + %v = %v, want %v", m1, m2, m3, want)
+	ok = false
+}
+
+if ok {
+	print("OK")
+}

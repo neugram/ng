@@ -145,6 +145,11 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case string:
 				return x + y, nil
 			}
+		default:
+			xv := reflect.ValueOf(x)
+			yv := reflect.ValueOf(y)
+			res := xv.MethodByName("Add").Call([]reflect.Value{yv})
+			return res[0].Interface(), nil
 		}
 	case token.Sub:
 		switch x := x.(type) {

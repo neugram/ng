@@ -11,6 +11,7 @@ type Matrix interface {
 	At(i, j int) float64
 	Set(i, j int, v float64)
 	Add(m Matrix) Matrix
+	Equal(m Matrix) bool
 }
 
 func New(i, j int) Matrix {
@@ -42,4 +43,17 @@ func (m *memMatrix) Add(m2 Matrix) Matrix {
 		}
 	}
 	return m3
+}
+func (m *memMatrix) Equal(m2 Matrix) bool {
+	if m.Rows != m2.(*memMatrix).Rows || m.Cols != m2.(*memMatrix).Cols {
+		return false
+	}
+	for i := 0; i < m.Rows; i++ {
+		for j := 0; j < m.Cols; j++ {
+			if m.At(i, j) != m2.At(i, j) {
+				return false
+			}
+		}
+	}
+	return true
 }

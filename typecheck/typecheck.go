@@ -1535,6 +1535,13 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			left.val = constant.BinaryOp(left.val, convGoOp(e.Op), right.val)
 			// TODO check rounding
 			// TODO check for comparison, result is untyped bool
+			return left
+		}
+
+		if !tipe.Equal(left.typ, right.typ) {
+			c.errorf("inoperable types %s and %s", format.Type(left.typ), format.Type(right.typ))
+			left.mode = modeInvalid
+			return left
 		}
 		return left
 	case *expr.Call:

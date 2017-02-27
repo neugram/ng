@@ -804,9 +804,10 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetBool(b)
 		}
 		return ret
-
 	default:
-		panic(fmt.Sprintf("TODO convert(%v (%T), %s)", v, val, t))
+		ret := reflect.New(t).Elem()
+		ret.Set(v)
+		return ret
 	}
 }
 
