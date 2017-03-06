@@ -1598,7 +1598,8 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		if left.mode == modeInvalid {
 			return left
 		}
-		switch lt := tipe.Underlying(left.typ).(type) {
+		lt := tipe.Underlying(left.typ)
+		switch lt := lt.(type) {
 		case *tipe.Map:
 			if len(e.Indicies) != 1 {
 				p.mode = modeInvalid
@@ -1663,8 +1664,29 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 			c.errorf("TODO table slicing support")
 			return p
 		}
+		if atTyp := c.memory.Method(lt, "At"); atTyp != nil {
+			want := "At(i, j int) T"
+			if len(e.Indicies) == 1 {
+				want = "At(i int) T"
+			}
+			if dim := len(atTyp.Params.Elems); dim == 0 || dim > 2 || dim != len(e.Indicies) ||
+				atTyp.Params.Elems[0] != tipe.Int || (dim == 2 && atTyp.Params.Elems[1] != tipe.Int) ||
+				len(atTyp.Results.Elems) != 1 {
+				p.mode = modeInvalid
+				c.errorf("cannot slice type %s, expecting method %q but type has %q", left.typ, want, format.Type(atTyp))
+				return p
+			}
+			p.mode = modeVar
+			p.typ = atTyp.Results.Elems[0]
+			return p
+		}
+		if setTyp := c.memory.Method(lt, "Set"); setTyp != nil {
+			p.mode = modeInvalid
+			c.errorf("TODO Set index")
+			return p
+		}
 
-		panic(fmt.Sprintf("typecheck.expr TODO Index: %s", format.Debug(e)))
+		panic(fmt.Sprintf("typecheck.expr TODO Index: %s, %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
 	case *expr.Shell:
 		p.mode = modeVar
 		p.typ = &tipe.Tuple{Elems: []tipe.Type{

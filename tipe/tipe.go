@@ -531,7 +531,7 @@ func NewMemory() *Memory {
 	}
 }
 
-func (m *Memory) Methods(t Type) ([]string, []Type) {
+func (m *Memory) Methods(t Type) ([]string, []Type) { // TODO: ([]string, []*Func)
 	names := m.methodNames[t]
 	if names != nil {
 		return names, m.methods[t]
@@ -550,6 +550,15 @@ func (m *Memory) Methods(t Type) ([]string, []Type) {
 	m.methodNames[t] = names
 	m.methods[t] = methods
 	return names, methods
+}
+
+func (m *Memory) Method(t Type, name string) *Func {
+	names, types := m.Methods(t)
+	i := sort.Search(len(names), func(i int) bool { return names[i] >= name })
+	if names[i] == name {
+		return types[i].(*Func)
+	}
+	return nil
 }
 
 func methods(t Type, methodset map[string]Type, pointersRemoved int) {
