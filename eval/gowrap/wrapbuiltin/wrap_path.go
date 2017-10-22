@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	path "path"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	path "path"
 )
 
-var wrap_path = &Pkg{
+var wrap_path = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"Base":          reflect.ValueOf(path.Base),
@@ -23,5 +26,5 @@ var wrap_path = &Pkg{
 }
 
 func init() {
-	Pkgs["path"] = wrap_path
+	gowrap.Pkgs["path"] = wrap_path
 }

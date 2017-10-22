@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	unicode "unicode"
 )
 
-var wrap_unicode = &Pkg{
+var wrap_unicode = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"ASCII_Hex_Digit":       reflect.ValueOf(unicode.ASCII_Hex_Digit),
@@ -278,5 +281,5 @@ var wrap_unicode = &Pkg{
 }
 
 func init() {
-	Pkgs["unicode"] = wrap_unicode
+	gowrap.Pkgs["unicode"] = wrap_unicode
 }

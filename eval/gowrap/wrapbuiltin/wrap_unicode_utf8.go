@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	unicode_utf8 "unicode/utf8"
 )
 
-var wrap_unicode_utf8 = &Pkg{
+var wrap_unicode_utf8 = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"DecodeLastRune":         reflect.ValueOf(unicode_utf8.DecodeLastRune),
@@ -32,5 +35,5 @@ var wrap_unicode_utf8 = &Pkg{
 }
 
 func init() {
-	Pkgs["unicode/utf8"] = wrap_unicode_utf8
+	gowrap.Pkgs["unicode/utf8"] = wrap_unicode_utf8
 }

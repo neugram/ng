@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	strings "strings"
 )
 
-var wrap_strings = &Pkg{
+var wrap_strings = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"Compare":        reflect.ValueOf(strings.Compare),
@@ -61,5 +64,5 @@ var wrap_strings = &Pkg{
 }
 
 func init() {
-	Pkgs["strings"] = wrap_strings
+	gowrap.Pkgs["strings"] = wrap_strings
 }

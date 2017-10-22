@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	time "time"
 )
 
-var wrap_time = &Pkg{
+var wrap_time = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"ANSIC":           reflect.ValueOf(time.ANSIC),
@@ -80,5 +83,5 @@ var wrap_time = &Pkg{
 }
 
 func init() {
-	Pkgs["time"] = wrap_time
+	gowrap.Pkgs["time"] = wrap_time
 }

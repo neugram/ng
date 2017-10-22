@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	runtime "runtime"
 )
 
-var wrap_runtime = &Pkg{
+var wrap_runtime = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"BlockProfile":            reflect.ValueOf(runtime.BlockProfile),
@@ -60,5 +63,5 @@ var wrap_runtime = &Pkg{
 }
 
 func init() {
-	Pkgs["runtime"] = wrap_runtime
+	gowrap.Pkgs["runtime"] = wrap_runtime
 }

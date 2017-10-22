@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	sync_atomic "sync/atomic"
 )
 
-var wrap_sync_atomic = &Pkg{
+var wrap_sync_atomic = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"AddInt32":              reflect.ValueOf(sync_atomic.AddInt32),
@@ -44,5 +47,5 @@ var wrap_sync_atomic = &Pkg{
 }
 
 func init() {
-	Pkgs["sync/atomic"] = wrap_sync_atomic
+	gowrap.Pkgs["sync/atomic"] = wrap_sync_atomic
 }

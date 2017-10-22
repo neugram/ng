@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	encoding_base64 "encoding/base64"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	encoding_base64 "encoding/base64"
 )
 
-var wrap_encoding_base64 = &Pkg{
+var wrap_encoding_base64 = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"CorruptInputError": reflect.ValueOf(encoding_base64.CorruptInputError(0)),
@@ -25,5 +28,5 @@ var wrap_encoding_base64 = &Pkg{
 }
 
 func init() {
-	Pkgs["encoding/base64"] = wrap_encoding_base64
+	gowrap.Pkgs["encoding/base64"] = wrap_encoding_base64
 }

@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	io "io"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	io "io"
 )
 
-var wrap_io = &Pkg{
+var wrap_io = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"ByteReader":       reflect.ValueOf((*io.ByteReader)(nil)),
@@ -59,5 +62,5 @@ var wrap_io = &Pkg{
 }
 
 func init() {
-	Pkgs["io"] = wrap_io
+	gowrap.Pkgs["io"] = wrap_io
 }

@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	math "math"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	math "math"
 )
 
-var wrap_math = &Pkg{
+var wrap_math = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"Abs":             reflect.ValueOf(math.Abs),
@@ -27,6 +30,8 @@ var wrap_math = &Pkg{
 		"E":               reflect.ValueOf(math.E),
 		"Erf":             reflect.ValueOf(math.Erf),
 		"Erfc":            reflect.ValueOf(math.Erfc),
+		"Erfcinv":         reflect.ValueOf(math.Erfcinv),
+		"Erfinv":          reflect.ValueOf(math.Erfinv),
 		"Exp":             reflect.ValueOf(math.Exp),
 		"Exp2":            reflect.ValueOf(math.Exp2),
 		"Expm1":           reflect.ValueOf(math.Expm1),
@@ -65,7 +70,6 @@ var wrap_math = &Pkg{
 		"MaxInt8":         reflect.ValueOf(math.MaxInt8),
 		"MaxUint16":       reflect.ValueOf(math.MaxUint16),
 		"MaxUint32":       reflect.ValueOf(math.MaxUint32),
-		"MaxUint64":       reflect.ValueOf(uint64(math.MaxUint64)),
 		"MaxUint8":        reflect.ValueOf(math.MaxUint8),
 		"Min":             reflect.ValueOf(math.Min),
 		"MinInt16":        reflect.ValueOf(math.MinInt16),
@@ -82,6 +86,7 @@ var wrap_math = &Pkg{
 		"Pow":             reflect.ValueOf(math.Pow),
 		"Pow10":           reflect.ValueOf(math.Pow10),
 		"Remainder":       reflect.ValueOf(math.Remainder),
+		"Round":           reflect.ValueOf(math.Round),
 		"Signbit":         reflect.ValueOf(math.Signbit),
 		"Sin":             reflect.ValueOf(math.Sin),
 		"Sincos":          reflect.ValueOf(math.Sincos),
@@ -103,5 +108,5 @@ var wrap_math = &Pkg{
 }
 
 func init() {
-	Pkgs["math"] = wrap_math
+	gowrap.Pkgs["math"] = wrap_math
 }

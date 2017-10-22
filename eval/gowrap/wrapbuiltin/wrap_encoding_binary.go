@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	encoding_binary "encoding/binary"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	encoding_binary "encoding/binary"
 )
 
-var wrap_encoding_binary = &Pkg{
+var wrap_encoding_binary = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"BigEndian":      reflect.ValueOf(encoding_binary.BigEndian),
@@ -29,5 +32,5 @@ var wrap_encoding_binary = &Pkg{
 }
 
 func init() {
-	Pkgs["encoding/binary"] = wrap_encoding_binary
+	gowrap.Pkgs["encoding/binary"] = wrap_encoding_binary
 }

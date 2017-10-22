@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	fmt "fmt"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	fmt "fmt"
 )
 
-var wrap_fmt = &Pkg{
+var wrap_fmt = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"Errorf":     reflect.ValueOf(fmt.Errorf),
@@ -39,5 +42,5 @@ var wrap_fmt = &Pkg{
 }
 
 func init() {
-	Pkgs["fmt"] = wrap_fmt
+	gowrap.Pkgs["fmt"] = wrap_fmt
 }

@@ -10,13 +10,17 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"plugin"
 	"reflect"
 	"runtime/debug"
 	"strings"
 
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/gowrap"
+	"neugram.io/ng/eval/gowrap/genwrap"
+	_ "neugram.io/ng/eval/gowrap/wrapbuiltin" // registers with gowrap
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
@@ -67,6 +71,8 @@ type Program struct {
 	// a generic return type. The intepreter has to unbox the
 	// return type.
 	builtinCalled bool
+
+	tempdir string
 }
 
 type branchType int
@@ -513,7 +519,36 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			// TODO: try plugin.Open if available
 			pkg = gowrap.Pkgs[s.Path]
 			if pkg == nil {
-				panic(Panic{val: fmt.Errorf("unsupported Go package: %v", s.Name)})
+				src, err := genwrap.GenGo(s.Path, "main")
+				if err != nil {
+					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
+				}
+				if p.tempdir == "" {
+					p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
+					if err != nil {
+						panic(Panic{val: err})
+					}
+				}
+				name := "ng-plugin-" + strings.Replace(s.Path, "/", "_", -1) + ".go"
+				err = ioutil.WriteFile(filepath.Join(p.tempdir, name), src, 0666)
+				if err != nil {
+					panic(Panic{val: err})
+				}
+				cmd := exec.Command("go", "build", "-buildmode=plugin", "-i", name)
+				cmd.Dir = p.tempdir
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					panic(Panic{val: fmt.Errorf("plugin: building wrapper failed for Go package %q: %v\n%s", s.Name, err, out)})
+				}
+				pluginName := name[:len(name)-3] + ".so"
+				_, err = plugin.Open(filepath.Join(p.tempdir, pluginName))
+				if err != nil {
+					panic(Panic{val: fmt.Errorf("plugin: failed to open Go package %q: %v", s.Name, err)})
+				}
+				pkg = gowrap.Pkgs[s.Path]
+				if pkg == nil {
+					panic(Panic{val: fmt.Errorf("plugin: contents missing from Go package %q", s.Name)})
+				}
 			}
 		}
 		p.Cur = &Scope{

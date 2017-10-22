@@ -34,6 +34,7 @@
 //go:generate go run genwrap.go time
 
 package gowrap // import "neugram.io/ng/eval/gowrap"
+
 import "reflect"
 
 var Pkgs = make(map[string]*Pkg)

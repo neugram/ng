@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
-	errors "errors"
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
+	errors "errors"
 )
 
-var wrap_errors = &Pkg{
+var wrap_errors = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"New": reflect.ValueOf(errors.New),
@@ -15,5 +18,5 @@ var wrap_errors = &Pkg{
 }
 
 func init() {
-	Pkgs["errors"] = wrap_errors
+	gowrap.Pkgs["errors"] = wrap_errors
 }

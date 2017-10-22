@@ -1,13 +1,16 @@
 // Generated file, do not edit.
 
-package gowrap
+package wrapbuiltin
 
 import (
 	"reflect"
+
+	"neugram.io/ng/eval/gowrap"
+
 	strconv "strconv"
 )
 
-var wrap_strconv = &Pkg{
+var wrap_strconv = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"AppendBool":               reflect.ValueOf(strconv.AppendBool),
@@ -49,5 +52,5 @@ var wrap_strconv = &Pkg{
 }
 
 func init() {
-	Pkgs["strconv"] = wrap_strconv
+	gowrap.Pkgs["strconv"] = wrap_strconv
 }
