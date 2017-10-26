@@ -1123,6 +1123,13 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			out.Close()
 		}
 		str := reflect.ValueOf(<-res)
+		if e.ElideError {
+			// Dynamic elision of final error.
+			if err != nil {
+				panic(Panic{val: err})
+			}
+			return []reflect.Value{str}
+		}
 		if err != nil {
 			return []reflect.Value{str, reflect.ValueOf(err)}
 		}

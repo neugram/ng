@@ -73,6 +73,13 @@ func New(initPkg string) *Checker {
 	}
 }
 
+type typeHint int
+
+const (
+	hintNone typeHint = iota
+	hintElideErr
+)
+
 type partialMode int
 
 const (
@@ -101,7 +108,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	case *stmt.Assign:
 		var partials []partial
 		for _, rhs := range s.Right {
-			p := c.expr(rhs)
+			p := c.exprNoElide(rhs)
 			if p.mode == modeInvalid {
 				return nil
 			}
@@ -118,7 +125,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				}
 				continue
 			}
-			partials = append(partials, c.expr(rhs))
+			partials = append(partials, c.exprNoElide(rhs))
 		}
 		if len(s.Right) == 1 && len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
 			if c, isCall := s.Right[0].(*expr.Call); isCall {
@@ -157,7 +164,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.Simple:
-		p := c.expr(s.Expr)
+		p := c.exprNoElide(s.Expr)
 		if c, isCall := s.Expr.(*expr.Call); isCall {
 			isError := IsError(p.typ)
 			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
@@ -716,7 +723,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 
 func (c *Checker) expr(e expr.Expr) (p partial) {
 	// TODO more mode adjustment
-	p = c.exprPartial(e)
+	p = c.exprPartial(e, hintElideErr)
 	if p.mode == modeTypeExpr {
 		p.mode = modeInvalid
 		c.errorf("type %s is not an expression", format.Type(p.typ))
@@ -724,8 +731,17 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 	return p
 }
 
+func (c *Checker) exprNoElide(e expr.Expr) (p partial) {
+	p = c.exprPartial(e, hintNone)
+	// TODO: dedup with expr()
+	if p.mode == modeTypeExpr {
+		p.mode = modeInvalid
+		c.errorf("type %s is not an expression", format.Type(p.typ))
+	}
+	return p
+}
 func (c *Checker) exprType(e expr.Expr) tipe.Type {
-	p := c.exprPartial(e)
+	p := c.exprPartial(e, hintNone)
 	if p.mode == modeTypeExpr {
 		return p.typ
 	}
@@ -1030,7 +1046,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 }
 
 func (c *Checker) exprPartialCall(e *expr.Call) partial {
-	p := c.exprPartial(e.Func)
+	p := c.exprPartial(e.Func, hintElideErr)
 	switch p.mode {
 	default:
 		panic(fmt.Sprintf("unreachable, unknown call mode: %v", p.mode))
@@ -1102,7 +1118,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		vart := params[len(params)-1].(*tipe.Slice).Elem
 		varargs := e.Args[len(params)-1:]
 		for _, arg := range varargs {
-			argp := c.expr(arg)
+			argp := c.exprPartial(arg, hintNone)
+			if argp.mode == modeTypeExpr {
+				p.mode = modeInvalid
+				c.errorf("type %s is not an expression", format.Type(p.typ))
+				return p
+			}
 			c.convert(&argp, vart)
 			if argp.mode == modeInvalid {
 				p.mode = modeInvalid
@@ -1121,7 +1142,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	for i, arg := range e.Args {
 		t := params[i]
 		argp := c.expr(arg)
-		fmt.Printf("argp i=%d: %#+v (arg=%#+v)\n", i, argp, arg)
+		//fmt.Printf("argp i=%d: %#+v (arg=%#+v)\n", i, argp, arg)
 		c.convert(&argp, t)
 		if argp.mode == modeInvalid {
 			p.mode = modeInvalid
@@ -1133,7 +1154,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	return p
 }
 
-func (c *Checker) exprPartial(e expr.Expr) (p partial) {
+func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	defer func() {
 		if p.mode == modeConst {
 			c.Values[p.expr] = p.val
@@ -1435,7 +1456,7 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 	case *expr.Unary:
 		switch e.Op {
 		case token.LeftParen, token.Not, token.Sub:
-			sub := c.exprPartial(e.Expr)
+			sub := c.exprPartial(e.Expr, hintElideErr)
 			p.mode = sub.mode
 			p.typ = sub.typ
 			return p
@@ -1545,7 +1566,17 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		}
 		return left
 	case *expr.Call:
-		return c.exprPartialCall(e)
+		p := c.exprPartialCall(e)
+		if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple && hint == hintElideErr {
+			if IsError(tuple.Elems[len(tuple.Elems)-1]) {
+				tuple.Elems = tuple.Elems[:len(tuple.Elems)-1]
+				if len(tuple.Elems) == 1 {
+					p.typ = tuple.Elems[0]
+				}
+				e.ElideError = true
+			}
+		}
+		return p
 	case *expr.Selector:
 		right := e.Right.Name
 		left := c.expr(e.Left)
@@ -1697,9 +1728,14 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		panic(fmt.Sprintf("typecheck.expr TODO Index: %s, %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
 	case *expr.Shell:
 		p.mode = modeVar
-		p.typ = &tipe.Tuple{Elems: []tipe.Type{
-			tipe.String, Universe.Objs["error"].Type,
-		}}
+		if hint == hintElideErr {
+			p.typ = tipe.String
+			e.ElideError = true
+		} else {
+			p.typ = &tipe.Tuple{Elems: []tipe.Type{
+				tipe.String, Universe.Objs["error"].Type,
+			}}
+		}
 		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %s", format.Debug(e)))

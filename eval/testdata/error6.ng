@@ -1,0 +1,27 @@
+func f() (string, error) { return "f", nil}
+
+count := 0
+
+func g(x string) {
+	count += len(x)
+}
+
+g("g")
+g(f())
+g(f() + f())
+g($$ echo hello $$)
+
+/* TODO
+func both(x string, err error) {
+	if err != nil {
+		panic(err)
+	}
+	count += len(x)
+}
+
+both(f())
+*/
+
+if count == 10 {
+	print("OK")
+}
