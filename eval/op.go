@@ -480,11 +480,28 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 	if v.Type() == t {
 		return v
 	}
-	if v.Kind() == reflect.Chan && t.Kind() == reflect.Chan {
-		// bidirectional channel restricting to send/recv-only
-		ret := reflect.New(t).Elem()
-		ret.Set(v)
-		return ret
+	if v.Kind() == t.Kind() {
+		// named type conversion
+		res = reflect.New(t).Elem()
+		switch v.Kind() {
+		case reflect.Bool:
+			res.SetBool(v.Bool())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			res.SetInt(v.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			res.SetUint(v.Uint())
+		case reflect.Float32, reflect.Float64:
+			res.SetFloat(v.Float())
+		case reflect.Complex64, reflect.Complex128:
+			res.SetComplex(v.Complex())
+		case reflect.String:
+			res.SetString(v.String())
+		case reflect.Chan:
+			res.Set(v)
+		default:
+			panic(interpPanic{fmt.Errorf("TODO typeConv same kind: %v", v.Kind())})
+		}
+		return res
 	}
 	switch t.Kind() {
 	case reflect.Int:
@@ -578,6 +595,11 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 			return reflect.ValueOf(uint64(v.Float()))
 		}
 	case reflect.Float64:
+		if v.Kind() == reflect.Float64 {
+			res = reflect.New(t).Elem()
+			res.SetFloat(v.Float())
+			return res
+		}
 		return reflect.ValueOf(float64(v.Int()))
 	case reflect.Interface:
 		return reflect.ValueOf(v.Interface())

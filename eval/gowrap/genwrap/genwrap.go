@@ -33,9 +33,9 @@ func GenGo(pkgName, outPkgName string) ([]byte, error) {
 		switch obj.(type) {
 		case *types.TypeName:
 			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
-				exports[name] = "reflect.ValueOf((*" + quotedPkgName + "." + name + ")(nil))"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgName + "." + name + ")(nil)).Elem())"
 			} else {
-				exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + ")"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + "))"
 			}
 		case *types.Var, *types.Func, *types.Const:
 			exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + ")"
@@ -72,7 +72,7 @@ func nilexpr(t types.Type) string {
 		return "(0)"
 	case *types.Struct:
 		return "{}"
-	case *types.Interface, *types.Map, *types.Pointer, *types.Slice:
+	case *types.Interface, *types.Map, *types.Pointer, *types.Slice, *types.Signature:
 		return "(nil)"
 	default:
 		return fmt.Sprintf("(unexpected type: %T)", t)

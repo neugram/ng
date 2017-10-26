@@ -1360,7 +1360,9 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 				path = "mat"
 			}
 			v := gowrap.Pkgs[path].Exports[t.Name]
-			if _, isIface := tipe.Underlying(t).(*tipe.Interface); isIface {
+			if typ, isType := v.Interface().(reflect.Type); isType {
+				rtype = typ
+			} else if _, isIface := tipe.Underlying(t).(*tipe.Interface); isIface {
 				rtype = v.Type().Elem()
 			} else {
 				rtype = v.Type()

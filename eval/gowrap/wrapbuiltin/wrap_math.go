@@ -70,6 +70,7 @@ var wrap_math = &gowrap.Pkg{
 		"MaxInt8":         reflect.ValueOf(math.MaxInt8),
 		"MaxUint16":       reflect.ValueOf(math.MaxUint16),
 		"MaxUint32":       reflect.ValueOf(math.MaxUint32),
+		"MaxUint64":       reflect.ValueOf(uint64(math.MaxUint64)),
 		"MaxUint8":        reflect.ValueOf(math.MaxUint8),
 		"Min":             reflect.ValueOf(math.Min),
 		"MinInt16":        reflect.ValueOf(math.MinInt16),

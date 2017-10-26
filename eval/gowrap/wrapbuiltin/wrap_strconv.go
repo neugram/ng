@@ -35,7 +35,7 @@ var wrap_strconv = &gowrap.Pkg{
 		"IsGraphic":                reflect.ValueOf(strconv.IsGraphic),
 		"IsPrint":                  reflect.ValueOf(strconv.IsPrint),
 		"Itoa":                     reflect.ValueOf(strconv.Itoa),
-		"NumError":                 reflect.ValueOf(strconv.NumError{}),
+		"NumError":                 reflect.ValueOf(reflect.TypeOf(strconv.NumError{})),
 		"ParseBool":                reflect.ValueOf(strconv.ParseBool),
 		"ParseFloat":               reflect.ValueOf(strconv.ParseFloat),
 		"ParseInt":                 reflect.ValueOf(strconv.ParseInt),

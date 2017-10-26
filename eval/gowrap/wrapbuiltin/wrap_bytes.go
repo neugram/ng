@@ -13,7 +13,7 @@ import (
 var wrap_bytes = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"Buffer":          reflect.ValueOf(bytes.Buffer{}),
+		"Buffer":          reflect.ValueOf(reflect.TypeOf(bytes.Buffer{})),
 		"Compare":         reflect.ValueOf(bytes.Compare),
 		"Contains":        reflect.ValueOf(bytes.Contains),
 		"ContainsAny":     reflect.ValueOf(bytes.ContainsAny),
@@ -41,7 +41,7 @@ var wrap_bytes = &gowrap.Pkg{
 		"NewBuffer":       reflect.ValueOf(bytes.NewBuffer),
 		"NewBufferString": reflect.ValueOf(bytes.NewBufferString),
 		"NewReader":       reflect.ValueOf(bytes.NewReader),
-		"Reader":          reflect.ValueOf(bytes.Reader{}),
+		"Reader":          reflect.ValueOf(reflect.TypeOf(bytes.Reader{})),
 		"Repeat":          reflect.ValueOf(bytes.Repeat),
 		"Replace":         reflect.ValueOf(bytes.Replace),
 		"Runes":           reflect.ValueOf(bytes.Runes),

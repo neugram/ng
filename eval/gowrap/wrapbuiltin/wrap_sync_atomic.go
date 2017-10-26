@@ -42,7 +42,7 @@ var wrap_sync_atomic = &gowrap.Pkg{
 		"SwapUint32":            reflect.ValueOf(sync_atomic.SwapUint32),
 		"SwapUint64":            reflect.ValueOf(sync_atomic.SwapUint64),
 		"SwapUintptr":           reflect.ValueOf(sync_atomic.SwapUintptr),
-		"Value":                 reflect.ValueOf(sync_atomic.Value{}),
+		"Value":                 reflect.ValueOf(reflect.TypeOf(sync_atomic.Value{})),
 	},
 }
 

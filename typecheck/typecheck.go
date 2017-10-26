@@ -1581,8 +1581,16 @@ func (c *Checker) exprPartial(e expr.Expr) (p partial) {
 		case *tipe.Package:
 			for name, t := range lt.Exports {
 				if name == e.Right.Name {
-					p.mode = modeVar // TODO modeFunc?
 					p.typ = t
+					if lt.GoPkg != nil {
+						s := lt.GoPkg.(*gotypes.Package).Scope()
+						obj := s.Lookup(name)
+						if _, isAType := obj.Type().(*gotypes.Named); isAType {
+							p.mode = modeTypeExpr
+							return p
+						}
+					}
+					p.mode = modeVar // TODO modeFunc?
 					return p
 				}
 			}
@@ -1791,6 +1799,9 @@ func isString(t tipe.Type) bool {
 
 func (c *Checker) convertible(dst, src tipe.Type) bool {
 	if c.assignable(dst, src) {
+		return true
+	}
+	if tipe.Equal(tipe.Underlying(dst), tipe.Underlying(src)) {
 		return true
 	}
 	// numerics can be converted to one another

@@ -13,8 +13,8 @@ import (
 var wrap_encoding_base64 = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"CorruptInputError": reflect.ValueOf(encoding_base64.CorruptInputError(0)),
-		"Encoding":          reflect.ValueOf(encoding_base64.Encoding{}),
+		"CorruptInputError": reflect.ValueOf(reflect.TypeOf(encoding_base64.CorruptInputError(0))),
+		"Encoding":          reflect.ValueOf(reflect.TypeOf(encoding_base64.Encoding{})),
 		"NewDecoder":        reflect.ValueOf(encoding_base64.NewDecoder),
 		"NewEncoder":        reflect.ValueOf(encoding_base64.NewEncoder),
 		"NewEncoding":       reflect.ValueOf(encoding_base64.NewEncoding),

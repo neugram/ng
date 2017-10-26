@@ -1,0 +1,14 @@
+import "net/http" // uses plugins to load
+
+// Type http.Dir is a string with a method. Test conversions.
+dir := http.Dir("/constant")
+str := "/variable"
+dir = http.Dir(str)
+
+_, err := dir.Open("/non-exist")
+
+import "os"
+
+if os.IsNotExist(err) {
+	print("OK")
+}

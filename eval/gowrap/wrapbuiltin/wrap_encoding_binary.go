@@ -14,7 +14,7 @@ var wrap_encoding_binary = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
 		"BigEndian":      reflect.ValueOf(encoding_binary.BigEndian),
-		"ByteOrder":      reflect.ValueOf((*encoding_binary.ByteOrder)(nil)),
+		"ByteOrder":      reflect.ValueOf(reflect.TypeOf((*encoding_binary.ByteOrder)(nil)).Elem()),
 		"LittleEndian":   reflect.ValueOf(encoding_binary.LittleEndian),
 		"MaxVarintLen16": reflect.ValueOf(encoding_binary.MaxVarintLen16),
 		"MaxVarintLen32": reflect.ValueOf(encoding_binary.MaxVarintLen32),
