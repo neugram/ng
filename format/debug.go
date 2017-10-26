@@ -31,7 +31,11 @@ func (p *debugPrinter) collectPtrs(v reflect.Value) {
 			p.collectPtrs(v.Elem())
 		}
 	case reflect.Interface:
-		p.collectPtrs(v.Elem())
+		if repack := reflect.ValueOf(v.Interface()); repack.Kind() == reflect.Ptr {
+			p.collectPtrs(repack)
+		} else {
+			p.collectPtrs(v.Elem())
+		}
 	case reflect.Map:
 		for _, key := range v.MapKeys() {
 			p.collectPtrs(key)
@@ -108,13 +112,18 @@ func (p *debugPrinter) printv(v reflect.Value) {
 		if p.ptrdone[ptr] {
 			p.printf("%p", ptr)
 		} else if p.ptrseen[ptr] > 1 {
-			p.printv(v.Elem())
+			// TODO: p.printv(v.Elem())
+			p.printf(" (TODO type %T)", ptr)
 			p.ptrdone[ptr] = true
 			p.printf(" (ptr %p)", ptr)
 		} else {
 			p.printv(v.Elem())
 		}
 	case reflect.Interface:
+		if repack := reflect.ValueOf(v.Interface()); repack.Kind() == reflect.Ptr {
+			p.printv(repack)
+			return
+		}
 		p.printv(v.Elem())
 	case reflect.Map:
 		p.printf("%s{", v.Type())
