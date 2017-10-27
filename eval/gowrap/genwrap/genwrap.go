@@ -16,6 +16,36 @@ import (
 	"text/template"
 )
 
+func buildDataPkg(pkg *types.Package) DataPkg {
+	quotedPkgName := strings.Replace(pkg.Path(), "/", "_", -1)
+	scope := pkg.Scope()
+	exports := map[string]string{}
+	for _, name := range scope.Names() {
+		if !ast.IsExported(name) {
+			continue
+		}
+		obj := scope.Lookup(name)
+		switch obj.(type) {
+		case *types.TypeName:
+			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
+				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgName + "." + name + ")(nil)).Elem())"
+			} else {
+				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + "))"
+			}
+		case *types.Var, *types.Func, *types.Const:
+			exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + ")"
+		default:
+			log.Printf("genwrap: unexpected obj: %T\n", obj)
+		}
+	}
+
+	return DataPkg{
+		Name:       pkg.Path(),
+		QuotedName: quotedPkgName,
+		Exports:    exports,
+	}
+}
+
 func GenGo(pkgName, outPkgName string) ([]byte, error) {
 	quotedPkgName := strings.Replace(pkgName, "/", "_", -1)
 
@@ -23,6 +53,29 @@ func GenGo(pkgName, outPkgName string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	pkgs := make(map[string]DataPkg)
+	pkgs[pkg.Path()] = buildDataPkg(pkg)
+	imports := append([]*types.Package{}, pkg.Imports()...)
+importsLoop:
+	for i := 0; i < len(imports); i++ { // imports grows as we loop
+		path := imports[i].Path()
+		if _, exists := pkgs[path]; exists {
+			continue
+		}
+		for _, dir := range strings.Split(path, "/") {
+			if dir == "internal" || dir == "vendor" {
+				continue importsLoop
+			}
+		}
+		pkgs[path] = buildDataPkg(imports[i])
+	}
+	data := Data{
+		OutPkgName: outPkgName,
+	}
+	for _, dataPkg := range pkgs {
+		data.Pkgs = append(data.Pkgs, dataPkg)
+	}
+
 	scope := pkg.Scope()
 	exports := map[string]string{}
 	for _, name := range scope.Names() {
@@ -45,12 +98,7 @@ func GenGo(pkgName, outPkgName string) ([]byte, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	err = tmpl.Execute(buf, data{
-		OutPkgName: outPkgName,
-		Name:       pkgName,
-		QuotedName: quotedPkgName,
-		Exports:    exports,
-	})
+	err = tmpl.Execute(buf, data)
 	if err != nil {
 		return nil, fmt.Errorf("genwrap: %v", err)
 	}
@@ -79,8 +127,12 @@ func nilexpr(t types.Type) string {
 	}
 }
 
-type data struct {
+type Data struct {
 	OutPkgName string
+	Pkgs       []DataPkg
+}
+
+type DataPkg struct {
 	Name       string
 	QuotedName string
 	Exports    map[string]string
@@ -96,9 +148,12 @@ import (
 
 	"neugram.io/ng/eval/gowrap"
 
+{{range .Pkgs}}
 	{{.QuotedName}} "{{.Name}}"
+{{end}}
 )
 
+{{range .Pkgs}}
 var wrap_{{.QuotedName}} = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 		{{with $data := .}}
@@ -107,8 +162,13 @@ var wrap_{{.QuotedName}} = &gowrap.Pkg{
 		{{end}}
 	},
 }
+{{end}}
 
+{{range .Pkgs}}
 func init() {
-	gowrap.Pkgs["{{.Name}}"] = wrap_{{.QuotedName}}
+	if gowrap.Pkgs["{{.Name}}"] == nil {
+		gowrap.Pkgs["{{.Name}}"] = wrap_{{.QuotedName}}
+	}
 }
+{{end}}
 `))

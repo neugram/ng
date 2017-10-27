@@ -521,9 +521,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				p.Pkgs[path] = pkg
 			}
 		} else {
-			// TODO: try plugin.Open if available
 			pkg = gowrap.Pkgs[s.Path]
 			if pkg == nil {
+				// TODO: go install pkg before genwrap for update importer?
 				src, err := genwrap.GenGo(s.Path, "main")
 				if err != nil {
 					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})

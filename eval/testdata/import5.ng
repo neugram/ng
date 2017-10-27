@@ -1,0 +1,9 @@
+import ("os"; "crypto/md5")
+
+h:= md5.New()
+h.Write([]byte("hello"))
+s := h.Sum(nil)
+
+if s[0] == 93 {
+	print("OK")
+}
