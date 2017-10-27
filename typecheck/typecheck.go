@@ -371,6 +371,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		return nil
 
+	case *stmt.ImportSet:
+		for _, imp := range s.Imports {
+			c.checkImport(imp)
+		}
+		return nil
+
 	case *stmt.Import:
 		c.checkImport(s)
 		return nil

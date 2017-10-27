@@ -484,6 +484,11 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			return p.evalStmt(s.Else)
 		}
 		return nil
+	case *stmt.ImportSet:
+		for _, imp := range s.Imports {
+			p.evalStmt(imp)
+		}
+		return nil
 	case *stmt.Import:
 		var pkg *gowrap.Pkg
 		if strings.HasSuffix(s.Path, ".ng") {

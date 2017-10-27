@@ -1,0 +1,12 @@
+import ()
+
+import ("bytes";"fmt")
+buf := new(bytes.Buffer)
+fmt.Fprintf(buf, "OK")
+
+import (
+	"io"
+	"io/ioutil"
+)
+r := (io.Reader)(buf)
+print(string(ioutil.ReadAll(r)))

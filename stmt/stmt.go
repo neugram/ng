@@ -20,6 +20,10 @@ type Import struct {
 	Path string
 }
 
+type ImportSet struct {
+	Imports []*Import
+}
+
 type TypeDecl struct {
 	Name string
 	Type tipe.Type
@@ -103,6 +107,7 @@ type Bad struct {
 }
 
 func (s Import) stmt()       {}
+func (s ImportSet) stmt()    {}
 func (s TypeDecl) stmt()     {}
 func (s MethodikDecl) stmt() {}
 func (s Const) stmt()        {}

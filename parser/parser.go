@@ -874,19 +874,21 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		return s
 	case token.Import:
 		p.next()
-		name := ""
-		if p.s.Token == token.Ident {
-			name = p.s.Literal.(string)
-			name = name[1 : len(name)-1]
+		if p.s.Token == token.LeftParen {
 			p.next()
+			s := &stmt.ImportSet{}
+			for p.s.Token > 0 && p.s.Token != token.RightParen {
+				s.Imports = append(s.Imports, p.parseImport())
+				if p.s.Token == token.Semicolon {
+					p.next()
+				}
+			}
+			p.expect(token.RightParen)
+			p.next()
+			p.expectSemi()
+			return s
 		}
-		p.expect(token.String)
-		path := p.s.Literal.(string)
-		s := &stmt.Import{
-			Name: name,
-			Path: path[1 : len(path)-1],
-		}
-		p.next()
+		s := p.parseImport()
 		p.expectSemi()
 		return s
 	case token.Continue, token.Break, token.Goto, token.Fallthrough:
@@ -895,6 +897,26 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
+}
+
+func (p *Parser) parseImport() (s *stmt.Import) {
+	name := ""
+	if p.s.Token == token.Ident {
+		name = p.s.Literal.(string)
+		name = name[1 : len(name)-1]
+		p.next()
+	}
+	if !p.expect(token.String) {
+		p.next()
+		return &stmt.Import{}
+	}
+	path := p.s.Literal.(string)
+	s = &stmt.Import{
+		Name: name,
+		Path: path[1 : len(path)-1],
+	}
+	p.next()
+	return s
 }
 
 func (p *Parser) parseBranch() *stmt.Branch {

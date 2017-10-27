@@ -615,6 +615,19 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Path != y.Path {
 			return false
 		}
+	case *stmt.ImportSet:
+		y, ok := y.(*stmt.ImportSet)
+		if !ok {
+			return false
+		}
+		if len(x.Imports) != len(y.Imports) {
+			return false
+		}
+		for i := range x.Imports {
+			if !EqualStmt(x.Imports[i], y.Imports[i]) {
+				return false
+			}
+		}
 	case *stmt.MethodikDecl:
 		y, ok := y.(*stmt.MethodikDecl)
 		if !ok {
