@@ -6,6 +6,7 @@ package format
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
 
 	"neugram.io/ng/tipe"
@@ -56,6 +57,13 @@ func (p *printer) tipe(t tipe.Type) {
 			p.buf.WriteByte('.')
 		}
 		p.buf.WriteString(t.Name)
+	case *tipe.Array:
+		if t.Ellipsis {
+			p.buf.WriteString("[...]")
+		} else {
+			fmt.Fprintf(p.buf, "[%d]", t.Len)
+		}
+		p.tipe(t.Elem)
 	case *tipe.Slice:
 		p.buf.WriteString("[]")
 		p.tipe(t.Elem)

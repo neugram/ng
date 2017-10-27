@@ -527,6 +527,20 @@ func equalType(t0, t1 tipe.Type) bool {
 				return false
 			}
 		}
+	case *tipe.Array:
+		t1, ok := t1.(*tipe.Array)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if t0.Len != t1.Len {
+			return false
+		}
+		if !equalType(t0.Elem, t1.Elem) {
+			return false
+		}
 	case *tipe.Slice:
 		t1, ok := t1.(*tipe.Slice)
 		if !ok {

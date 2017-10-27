@@ -238,6 +238,9 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		p := c.expr(s.Expr)
 		var kt, vt tipe.Type
 		switch t := p.typ.(type) {
+		case *tipe.Array:
+			kt = tipe.Int
+			vt = t.Elem
 		case *tipe.Slice:
 			kt = tipe.Int
 			vt = t.Elem
@@ -480,6 +483,8 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return Universe.Objs["error"].Type
 		}
 		return new(tipe.Methodik)
+	case *gotypes.Array:
+		return &tipe.Array{}
 	case *gotypes.Slice:
 		return &tipe.Slice{}
 	case *gotypes.Chan:
@@ -518,6 +523,10 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 			mdik.MethodNames = append(mdik.MethodNames, m.Name())
 			mdik.Methods = append(mdik.Methods, c.fromGoType(m.Type()).(*tipe.Func))
 		}
+	case *gotypes.Array:
+		a := res.(*tipe.Array)
+		a.Len = t.Len()
+		a.Elem = c.fromGoType(t.Elem())
 	case *gotypes.Slice:
 		res.(*tipe.Slice).Elem = c.fromGoType(t.Elem())
 	case *gotypes.Chan:
@@ -797,6 +806,9 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	case *tipe.Pointer:
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
+	case *tipe.Array:
+		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
 	case *tipe.Slice:
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
@@ -970,7 +982,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		arg0 := c.expr(e.Args[0])
 		switch t := tipe.Underlying(arg0.typ).(type) {
-		case *tipe.Slice, *tipe.Map: // TODO Chan, Array
+		case *tipe.Array, *tipe.Slice, *tipe.Map, *tipe.Chan:
 			return p
 		case tipe.Basic:
 			if t == tipe.String {
@@ -1661,6 +1673,23 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 			p.mode = modeVar // TODO not really? because not addressable
 			p.typ = lt.Value
+			return p
+		case *tipe.Array:
+			if len(e.Indicies) != 1 {
+				p.mode = modeInvalid
+				c.errorf("cannot table slice %s (type %s)", e.Left, format.Type(left.typ))
+				return p
+			}
+			ind := c.expr(e.Indicies[0])
+			if ind.mode == modeInvalid {
+				return ind
+			}
+			c.assign(&ind, tipe.Int)
+			if ind.mode == modeInvalid {
+				return ind
+			}
+			p.mode = modeVar
+			p.typ = lt.Elem
 			return p
 		case *tipe.Slice:
 			if len(e.Indicies) != 1 {

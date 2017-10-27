@@ -1,0 +1,12 @@
+import "crypto/md5"
+
+res := md5.Sum([]byte{1}) // res is a [16]byte
+
+x := 0
+for _, v := range res {
+	x += int(v)
+}
+
+if res[0] == 85 && res[15] == 65 && x == 1600 {
+	print("OK")
+}

@@ -48,6 +48,12 @@ type Methodik struct {
 	Methods     []*Func
 }
 
+type Array struct {
+	Len      int64
+	Elem     Type
+	Ellipsis bool // array was defined as [...]T
+}
+
 type Slice struct {
 	Elem Type
 }
@@ -182,6 +188,7 @@ var (
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
 	_ = Type((*Methodik)(nil))
+	_ = Type((*Array)(nil))
 	_ = Type((*Slice)(nil))
 	_ = Type((*Table)(nil))
 	_ = Type((*Tuple)(nil))
@@ -199,6 +206,7 @@ func (t Builtin) tipe()     {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
 func (t *Methodik) tipe()   {}
+func (t *Array) tipe()      {}
 func (t *Slice) tipe()      {}
 func (t *Table) tipe()      {}
 func (t *Tuple) tipe()      {}
@@ -256,6 +264,10 @@ func UsesNum(t Type) bool {
 			if UsesNum(t) {
 				return true
 			}
+		}
+	case *Array:
+		if UsesNum(t.Elem) {
+			return true
 		}
 	case *Slice:
 		if UsesNum(t.Elem) {
@@ -369,6 +381,18 @@ func Equal(x, y Type) bool {
 			}
 		}
 		return true
+	case *Array:
+		y, ok := y.(*Array)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if x.Len != y.Len {
+			return false
+		}
+		return Equal(x.Elem, y.Elem)
 	case *Slice:
 		y, ok := y.(*Slice)
 		if !ok {

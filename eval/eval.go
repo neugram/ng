@@ -594,7 +594,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		}
 		src := p.evalExprOne(s.Expr)
 		switch src.Kind() {
-		case reflect.Slice:
+		case reflect.Array, reflect.Slice:
 			slen := src.Len()
 		sliceLoop:
 			for i := 0; i < slen; i++ {
@@ -1028,7 +1028,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{reflect.ValueOf(env.GetVal(k.String()))}
 		}
 		switch container.Kind() {
-		case reflect.Slice, reflect.String:
+		case reflect.Array, reflect.Slice, reflect.String:
 			i := int(k.Int())
 			if int64(i) != k.Int() {
 				panic(interpPanic{fmt.Errorf("eval: index too big: %d", k.Int())})
@@ -1382,6 +1382,8 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		} else {
 			panic("TODO unnamed Methodik")
 		}
+	case *tipe.Array:
+		rtype = reflect.ArrayOf(int(t.Len), r.ToRType(t.Elem))
 	case *tipe.Slice:
 		rtype = reflect.SliceOf(r.ToRType(t.Elem))
 	// TODO case *Table:
