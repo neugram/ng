@@ -579,6 +579,9 @@ func (m *Memory) Methods(t Type) ([]string, []Type) { // TODO: ([]string, []*Fun
 func (m *Memory) Method(t Type, name string) *Func {
 	names, types := m.Methods(t)
 	i := sort.Search(len(names), func(i int) bool { return names[i] >= name })
+	if i == len(names) {
+		return nil
+	}
 	if names[i] == name {
 		return types[i].(*Func)
 	}
