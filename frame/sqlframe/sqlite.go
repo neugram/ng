@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"neugram.io/frame"
+	"neugram.io/ng/frame"
 )
 
 func sqliteLoad(db *sql.DB, table string) (frame.Frame, error) {

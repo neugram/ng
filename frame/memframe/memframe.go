@@ -10,7 +10,7 @@ import (
 	"io"
 	"math/big"
 
-	"neugram.io/frame"
+	"neugram.io/ng/frame"
 )
 
 /*

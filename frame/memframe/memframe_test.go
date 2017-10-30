@@ -7,9 +7,9 @@ package memframe_test
 import (
 	"testing"
 
-	"neugram.io/frame"
-	"neugram.io/frame/internal/frametest"
-	"neugram.io/frame/memframe"
+	"neugram.io/ng/frame"
+	"neugram.io/ng/frame/internal/frametest"
+	"neugram.io/ng/frame/memframe"
 )
 
 func TestLoadPresidents(t *testing.T) {

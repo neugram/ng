@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"neugram.io/frame/internal/frametest"
+	"neugram.io/ng/frame/internal/frametest"
 )
 
 func createDB(t *testing.T) (db *sql.DB, cleanup func()) {

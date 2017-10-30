@@ -11,7 +11,7 @@ import (
 	"io"
 	"strings"
 
-	"neugram.io/frame"
+	"neugram.io/ng/frame"
 )
 
 /*

@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
-	"neugram.io/frame"
-	"neugram.io/frame/memframe"
+	"neugram.io/ng/frame"
+	"neugram.io/ng/frame/memframe"
 )
 
 var memPresidents = memframe.NewLiteral(
