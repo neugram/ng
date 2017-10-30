@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"neugram.io/ng/eval/shell"
@@ -149,5 +150,6 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 			res = append(res, p)
 		}
 	}
+	sort.Strings(res)
 	return dirPrefix, res
 }
