@@ -66,7 +66,7 @@ if x := $$ echo -n "$v" $$; x != "vee2" {
 	print("did not expand quoted param:", x)
 	ok = false
 }
-if x := $$ VAL=v3 env | grep VAL $$; x != "VAL=v3\n" {
+if x := $$ VAL=v3 env | grep VAL=v3 $$; x != "VAL=v3\n" {
 	print("bad env:", x)
 	ok = false
 }
