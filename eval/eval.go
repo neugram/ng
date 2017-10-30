@@ -116,8 +116,12 @@ func New(path string) *Program {
 	addUniverse("env", (evalMap)(environ.New()))
 	addUniverse("alias", (evalMap)(environ.New()))
 	addUniverse("nil", nil)
-	addUniverse("print", fmt.Println)
-	addUniverse("printf", fmt.Printf)
+	addUniverse("print", func(val ...interface{}) {
+		fmt.Println(val...)
+	})
+	addUniverse("printf", func(format string, val ...interface{}) {
+		fmt.Printf(format, val...)
+	})
 	addUniverse("errorf", fmt.Errorf)
 	addUniverse("len", func(c interface{}) int {
 		if c == nil {
