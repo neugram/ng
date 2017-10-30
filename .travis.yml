@@ -1,0 +1,7 @@
+language: go
+go_import_path: neugram.io/ng
+go:
+  - 1.9.x
+  - master
+os:
+  - linux
