@@ -261,7 +261,8 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case UntypedComplex:
 				re := big.NewFloat(0)
 				xf := big.NewFloat(float64(x.Int.Int64()))
-				return UntypedComplex{re.Sub(xf, y.Real), big.NewFloat(0)}, nil
+				im := big.NewFloat(0)
+				return UntypedComplex{re.Sub(xf, y.Real), im.Sub(im, y.Imag)}, nil
 			}
 		case UntypedFloat:
 			z := big.NewFloat(0)
