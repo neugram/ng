@@ -35,13 +35,18 @@ func completerNg(line string, pos int) (prefix string, completions []string, suf
 		return line, nil, ""
 	}
 	// TODO match on word not line.
-	// TODO walk the scope for possible names.
 	var res []string
 	for keyword := range token.Keywords {
 		if strings.HasPrefix(keyword, line) {
 			res = append(res, keyword)
 		}
 	}
+	for scope := prg.Cur; scope != nil; scope = scope.Parent {
+		if strings.HasPrefix(scope.VarName, line) {
+			res = append(res, scope.VarName)
+		}
+	}
+	// TODO add type matches ? (e.g. float64, int, ...)
 	return "", res, ""
 }
 
