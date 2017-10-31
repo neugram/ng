@@ -72,6 +72,9 @@ var universeObjs = map[string]*Obj{
 	"new":     &Obj{Kind: ObjVar, Type: tipe.New},
 	"panic":   &Obj{Kind: ObjVar, Type: tipe.Panic},
 	"recover": &Obj{Kind: ObjVar, Type: tipe.Recover},
+	"complex": &Obj{Kind: ObjVar, Type: tipe.ComplexFunc},
+	"real":    &Obj{Kind: ObjVar, Type: tipe.Real},
+	"imag":    &Obj{Kind: ObjVar, Type: tipe.Imag},
 }
 
 func init() {

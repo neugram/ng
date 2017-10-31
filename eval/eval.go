@@ -768,6 +768,7 @@ func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
 
 type UntypedInt struct{ *big.Int }
 type UntypedFloat struct{ *big.Float }
+type UntypedComplex struct{ Real, Imag *big.Float }
 type UntypedString struct{ String string }
 type UntypedRune struct{ Rune rune }
 type UntypedBool struct{ Bool bool }
@@ -779,6 +780,10 @@ func promoteUntyped(x interface{}) interface{} {
 	case UntypedFloat:
 		f, _ := x.Float64()
 		return float64(f)
+	case UntypedComplex:
+		r, _ := x.Real.Float64()
+		i, _ := x.Imag.Float64()
+		return complex(r, i)
 	case UntypedString:
 		return x.String
 	case UntypedRune:
@@ -812,6 +817,8 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.SetUint(val.Uint64())
 		case reflect.Float32, reflect.Float64:
 			ret.SetFloat(float64(val.Int64()))
+		case reflect.Complex64, reflect.Complex128:
+			ret.SetComplex(complex(float64(val.Int64()), 0))
 		default:
 			ret.SetInt(val.Int64())
 		}
@@ -823,6 +830,16 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			ret.Set(reflect.ValueOf(float64(f)))
 		} else {
 			ret.SetFloat(f)
+		}
+		return ret
+	case UntypedComplex:
+		ret := reflect.New(t).Elem()
+		r, _ := val.Real.Float64()
+		i, _ := val.Imag.Float64()
+		if t.Kind() == reflect.Interface {
+			ret.Set(reflect.ValueOf(complex(r, i)))
+		} else {
+			ret.SetComplex(complex(r, i))
 		}
 		return ret
 	case UntypedString:
@@ -1196,6 +1213,8 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				lhs = UntypedInt{big.NewInt(0)}
 			case UntypedFloat:
 				lhs = UntypedFloat{big.NewFloat(0)}
+			case UntypedComplex:
+				lhs = UntypedComplex{Real: big.NewFloat(0), Imag: big.NewFloat(0)}
 			}
 			res, err := binOp(token.Sub, lhs, rhs.Interface())
 			if err != nil {
@@ -1352,14 +1371,14 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			rtype = reflect.TypeOf(UntypedInt{})
 		case tipe.UntypedFloat:
 			rtype = reflect.TypeOf(UntypedFloat{})
+		case tipe.UntypedComplex:
+			rtype = reflect.TypeOf(UntypedComplex{})
 		case tipe.UntypedString:
 			rtype = reflect.TypeOf(UntypedString{})
 		case tipe.UntypedRune:
 			rtype = reflect.TypeOf(UntypedRune{})
 		case tipe.UntypedBool:
 			rtype = reflect.TypeOf(UntypedBool{})
-		case tipe.UntypedComplex:
-			panic("TODO Untyped Complex")
 		}
 	case *tipe.Func:
 		var in, out []reflect.Type

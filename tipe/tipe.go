@@ -167,16 +167,19 @@ const (
 type Builtin string
 
 const (
-	Append  Builtin = "builtin append"
-	Cap     Builtin = "builtin cap"
-	Close   Builtin = "builtin close"
-	Copy    Builtin = "builtin copy"
-	Delete  Builtin = "builtin delete"
-	Len     Builtin = "builtin len"
-	Make    Builtin = "builtin make"
-	New     Builtin = "builtin new"
-	Panic   Builtin = "builtin panic"
-	Recover Builtin = "builtin recover"
+	Append      Builtin = "builtin append"
+	Cap         Builtin = "builtin cap"
+	Close       Builtin = "builtin close"
+	ComplexFunc Builtin = "builtin complex"
+	Copy        Builtin = "builtin copy"
+	Delete      Builtin = "builtin delete"
+	Imag        Builtin = "builtin imag"
+	Len         Builtin = "builtin len"
+	Make        Builtin = "builtin make"
+	New         Builtin = "builtin new"
+	Panic       Builtin = "builtin panic"
+	Real        Builtin = "builtin real"
+	Recover     Builtin = "builtin recover"
 	// TODO Real Complex, Imaginary, Print
 )
 
