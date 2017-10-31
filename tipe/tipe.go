@@ -313,7 +313,15 @@ func Equal(x, y Type) bool {
 		if !ok {
 			return false
 		}
-		return x == y
+		switch {
+		case x == Float && (y == Float32 || y == Float64):
+			// handle floatXX <- float
+			return true
+		case x == Complex && (y == Complex64 || y == Complex128):
+			return true
+		default:
+			return x == y
+		}
 	case Builtin:
 		y, ok := y.(Builtin)
 		if !ok {

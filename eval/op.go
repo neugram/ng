@@ -693,14 +693,16 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 		}
 		return reflect.ValueOf(float64(v.Int()))
 	case reflect.Complex64:
-		if v.Kind() == reflect.Complex64 {
+		switch v.Kind() {
+		case reflect.Complex64, reflect.Complex128:
 			res = reflect.New(t).Elem()
 			res.SetComplex(v.Complex())
 			return res
 		}
 		return reflect.ValueOf(complex(float32(v.Int()), 0))
 	case reflect.Complex128:
-		if v.Kind() == reflect.Complex128 {
+		switch v.Kind() {
+		case reflect.Complex64, reflect.Complex128:
 			res = reflect.New(t).Elem()
 			res.SetComplex(v.Complex())
 			return res
