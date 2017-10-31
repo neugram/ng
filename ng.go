@@ -46,6 +46,7 @@ func exit(code int) {
 	if lineNg != nil {
 		lineNg.Close()
 	}
+	fmt.Fprintf(os.Stderr, "\n")
 	os.Exit(code)
 }
 
