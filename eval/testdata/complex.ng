@@ -1,5 +1,21 @@
+complex(1, 2)
+complex(1, 2.2)
+complex(1, float32(2))
+complex(1, float64(2))
+
+complex(1.1, 2)
+complex(1.1, 2.2)
+complex(1.1, float32(2))
+complex(1.1, float64(2))
+
+complex(float32(2), float32(3))
+
+complex(float64(2), float64(3))
+
 // TODO: c := complex128(0) + complex128(complex64(3.5))
 // TODO: real(1 + 2i) == 1.0
 // TODO: imag(1 + 2i) == 2.0
+
+complex(real(complex(1, 2)), imag(complex(1, 2)))
 
 print("OK")
