@@ -1,5 +1,7 @@
 ## Neugram
 
+[![Build Status](https://secure.travis-ci.org/neugram/ng.png)](http://travis-ci.org/neugram/ng)
+
 Neugram is a scripting language and shell.
 
 It is an early-stage experimental hobby project.
