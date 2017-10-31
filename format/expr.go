@@ -22,6 +22,45 @@ type printer struct {
 
 func (p *printer) expr(e expr.Expr) {
 	switch e := e.(type) {
+	case *expr.Binary:
+		WriteExpr(p.buf, e.Left)
+		p.buf.WriteString(e.Op.String())
+		WriteExpr(p.buf, e.Right)
+	case *expr.Unary:
+		p.buf.WriteString(e.Op.String())
+		WriteExpr(p.buf, e.Expr)
+	case *expr.Bad:
+		panic("not implemented")
+	case *expr.Selector:
+		panic("not implemented")
+	case *expr.Slice:
+		panic("not implemented")
+	case *expr.BasicLiteral:
+		p.buf.WriteString(fmt.Sprintf("%v", e.Value))
+	case *expr.FuncLiteral:
+		panic("not implemented")
+	case *expr.CompLiteral:
+		panic("not implemented")
+	case *expr.MapLiteral:
+		panic("not implemented")
+	case *expr.SliceLiteral:
+		panic("not implemented")
+	case *expr.TableLiteral:
+		panic("not implemented")
+	case *expr.Type:
+		panic("not implemented")
+	case *expr.Ident:
+		p.buf.WriteString(e.Name)
+	case *expr.Call:
+		WriteExpr(p.buf, e.Func)
+		p.buf.WriteString("(")
+		for i, arg := range e.Args {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			WriteExpr(p.buf, arg)
+		}
+		p.buf.WriteString(")")
 	case *expr.Shell:
 		if len(e.Cmds) == 1 {
 			p.buf.WriteString("$$ ")
