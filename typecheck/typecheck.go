@@ -782,6 +782,7 @@ func (c *Checker) exprNoElide(e expr.Expr) (p partial) {
 	}
 	return p
 }
+
 func (c *Checker) exprType(e expr.Expr) tipe.Type {
 	p := c.exprPartial(e, hintNone)
 	if p.mode == modeTypeExpr {
@@ -946,6 +947,70 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		return p
 	case tipe.Close:
 		p.typ = nil
+	case tipe.ComplexFunc:
+		p.typ = tipe.Complex
+		if len(e.Args) != 2 {
+			p.mode = modeInvalid
+			c.errorf("complex takes two arguments, got %d", len(e.Args))
+			return p
+		}
+		arg0 := c.expr(e.Args[0])
+		arg1 := c.expr(e.Args[1])
+		switch arg0.typ {
+		case tipe.UntypedInteger:
+			switch arg1.typ {
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			default:
+				p.mode = modeInvalid
+				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				return p
+			}
+		case tipe.UntypedFloat:
+			switch arg1.typ {
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			default:
+				p.mode = modeInvalid
+				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				return p
+			}
+		case tipe.Float:
+			switch arg1.typ {
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			default:
+				p.mode = modeInvalid
+				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				return p
+			}
+		case tipe.Float32:
+			switch arg1.typ {
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32:
+			case tipe.Float64:
+				p.mode = modeInvalid
+				c.errorf("invalid operation: complex(%s, %s) (mismatched types float32 and float64)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				return p
+			default:
+				p.mode = modeInvalid
+				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				return p
+			}
+		case tipe.Float64:
+			switch arg1.typ {
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float64:
+			case tipe.Float32:
+				p.mode = modeInvalid
+				c.errorf("invalid operation: complex(%s, %s) (mismatched types float64 and float32)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				return p
+			default:
+				p.mode = modeInvalid
+				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				return p
+			}
+		default:
+			p.mode = modeInvalid
+			c.errorf("first argument to complex must be a float, got %s", format.Type(arg0.typ))
+			return p
+		}
+		return p
 	case tipe.Copy:
 		p.typ = tipe.Int
 		if len(e.Args) != 2 {
@@ -997,6 +1062,22 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		if !c.convertible(keyType, arg1.typ) {
 			p.mode = modeInvalid
 			c.errorf("second argument to delete must match the key type %s, got type %s", format.Type(keyType), format.Type(arg1.typ))
+			return p
+		}
+		return p
+	case tipe.Imag:
+		p.typ = tipe.Float
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("imag takes exactly 1 argument, got %d", len(e.Args))
+			return p
+		}
+		arg := c.expr(e.Args[0])
+		switch arg.typ {
+		case tipe.Complex, tipe.Complex64, tipe.Complex128, tipe.UntypedComplex:
+		default:
+			p.mode = modeInvalid
+			c.errorf("argument to imag must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
 			return p
 		}
 		return p
@@ -1080,6 +1161,22 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		if arg0 := c.expr(e.Args[0]); arg0.mode == modeInvalid {
 			p.mode = modeInvalid
+			return p
+		}
+		return p
+	case tipe.Real:
+		p.typ = tipe.Float
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("real takes exactly 1 argument, got %d", len(e.Args))
+			return p
+		}
+		arg := c.expr(e.Args[0])
+		switch arg.typ {
+		case tipe.Complex, tipe.Complex64, tipe.Complex128, tipe.UntypedComplex:
+		default:
+			p.mode = modeInvalid
+			c.errorf("argument to real must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
 			return p
 		}
 		return p

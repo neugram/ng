@@ -133,7 +133,7 @@ const (
 	Bool    Basic = "bool"
 	Integer Basic = "integer"
 	Float   Basic = "float"
-	Complex Basic = "complex"
+	Complex Basic = "cmplx"
 	String  Basic = "string"
 
 	Int   Basic = "int"
@@ -180,7 +180,7 @@ const (
 	Panic       Builtin = "builtin panic"
 	Real        Builtin = "builtin real"
 	Recover     Builtin = "builtin recover"
-	// TODO Real Complex, Imaginary, Print
+	// TODO Print
 )
 
 type Unresolved struct {

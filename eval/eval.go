@@ -150,6 +150,90 @@ func New(path string) *Program {
 	})
 	addUniverse("make", p.builtinMake)
 	addUniverse("new", p.builtinNew)
+	addUniverse("complex", func(re, im interface{}) interface{} {
+		switch re := re.(type) {
+		case UntypedInt:
+			switch im := im.(type) {
+			case UntypedInt:
+				return complex(float64(re.Int64()), float64(im.Int64()))
+			case UntypedFloat:
+				f, _ := im.Float64()
+				return complex(float64(re.Int64()), f)
+			case float32:
+				return complex(float32(re.Int64()), im)
+			case float64:
+				return complex(float64(re.Int64()), im)
+			}
+		case UntypedFloat:
+			switch im := im.(type) {
+			case UntypedInt:
+				fre, _ := re.Float64()
+				fim := float64(im.Int64())
+				return complex(fre, fim)
+			case UntypedFloat:
+				fre, _ := re.Float64()
+				fim, _ := im.Float64()
+				return complex(fre, fim)
+			case float32:
+				fre, _ := re.Float64()
+				return complex(float32(fre), float32(im))
+			case float64:
+				fre, _ := re.Float64()
+				return complex(fre, im)
+			}
+		case float32:
+			switch im := im.(type) {
+			case UntypedInt:
+				fim := float32(im.Int64())
+				return complex(re, fim)
+			case UntypedFloat:
+				fim, _ := im.Float64()
+				return complex(re, float32(fim))
+			case float32:
+				return complex(re, im)
+			case float64:
+				panic("impossible")
+			}
+		case float64:
+			switch im := im.(type) {
+			case UntypedInt:
+				fim := float64(im.Int64())
+				return complex(re, fim)
+			case UntypedFloat:
+				fim, _ := im.Float64()
+				return complex(re, fim)
+			case float32:
+				panic("impossible")
+			case float64:
+				return complex(re, im)
+			}
+		}
+		panic(fmt.Errorf("invalid types %T,%T", re, im))
+	})
+	addUniverse("real", func(v interface{}) interface{} {
+		switch v := v.(type) {
+		case UntypedComplex:
+			re, _ := v.Real.Float64()
+			return big.NewFloat(re)
+		case complex64:
+			return real(v)
+		case complex128:
+			return real(v)
+		}
+		panic(fmt.Errorf("invalid type real(%T)", v))
+	})
+	addUniverse("imag", func(v interface{}) interface{} {
+		switch v := v.(type) {
+		case UntypedComplex:
+			im, _ := v.Imag.Float64()
+			return big.NewFloat(im)
+		case complex64:
+			return imag(v)
+		case complex128:
+			return imag(v)
+		}
+		panic(fmt.Errorf("invalid type imag(%T)", v))
+	})
 	return p
 }
 
