@@ -1,0 +1,13 @@
+_ = 4
+_ = "string"
+_ = interface{}(nil)
+_ = []byte{1}
+
+x, _ := 4, 5
+
+func f(_ string) {
+	_ = 4 // _ does not take the argument type
+	print("OK")
+}
+
+f("string")

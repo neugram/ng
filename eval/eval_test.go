@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -142,6 +143,8 @@ func mustParse(src string) stmt.Stmt {
 	return expr
 }
 
+var errRE = regexp.MustCompile(`ERROR: (.*)`)
+
 func TestPrograms(t *testing.T) {
 	files, err := filepath.Glob("testdata/*.ng")
 	if err != nil {
@@ -184,6 +187,24 @@ func TestPrograms(t *testing.T) {
 				t.Errorf("%s: expect panic, got: %v", file, err)
 				continue
 			}
+		} else if strings.HasSuffix(file, "_error.ng") {
+			// TODO: support multiple errors
+			// TODO: check line numbers
+			b, ferr := ioutil.ReadFile(file)
+			if ferr != nil {
+				t.Error(ferr)
+				continue
+			}
+			match := errRE.FindStringSubmatch(string(b))
+			if match == nil {
+				t.Errorf("%s: file has _error suffix but no ERROR directive", file)
+				continue
+			}
+			wantStr := match[1]
+			if !strings.Contains(err.Error(), wantStr) {
+				t.Errorf("%s: want %q, got: %v", file, wantStr, err.Error())
+			}
+			continue
 		} else if err != nil {
 			t.Errorf("%s:%v", file, err)
 			continue

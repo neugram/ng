@@ -374,6 +374,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		vars := make([]reflect.Value, len(s.Left))
 		if s.Decl {
 			for i, lhs := range s.Left {
+				if lhs.(*expr.Ident).Name == "_" {
+					continue
+				}
 				t := p.reflector.ToRType(types[i])
 				s := &Scope{
 					Parent:   p.Cur,
@@ -386,6 +389,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			}
 		} else {
 			for i, lhs := range s.Left {
+				if e, isIdent := lhs.(*expr.Ident); isIdent && e.Name == "_" {
+					continue
+				}
 				if e, isIndex := lhs.(*expr.Index); isIndex {
 					if _, isMap := tipe.Underlying(p.Types.Types[e.Left]).(*tipe.Map); isMap {
 						container := p.evalExprOne(e.Left)

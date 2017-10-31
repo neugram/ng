@@ -148,6 +148,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				if isUntyped(p.typ) {
 					c.constrainUntyped(&p, defaultType(p.typ))
 				}
+				if lhs.(*expr.Ident).Name == "_" {
+					if len(s.Left) == 1 {
+						c.errorf("no new variables in declaration")
+						return nil
+					}
+					continue
+				}
 				obj := &Obj{
 					Kind: ObjVar,
 					Type: p.typ,
@@ -158,6 +165,10 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		} else {
 			for i, lhs := range s.Left {
 				p := partials[i]
+				if ident, isIdent := lhs.(*expr.Ident); isIdent && ident.Name == "_" {
+					// "_" takes value of any type and drops it.
+					continue
+				}
 				lhsP := c.expr(lhs)
 				c.assign(&p, lhsP.typ)
 			}
@@ -1198,6 +1209,11 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	p.expr = e
 	switch e := e.(type) {
 	case *expr.Ident:
+		if e.Name == "_" {
+			p.mode = modeInvalid
+			c.errorf("cannot use _ as a value")
+			return p
+		}
 		obj := c.cur.LookupRec(e.Name)
 		if obj == nil {
 			p.mode = modeInvalid
