@@ -22,6 +22,7 @@ import (
 
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
@@ -948,7 +949,6 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 	case tipe.Close:
 		p.typ = nil
 	case tipe.ComplexFunc:
-		p.typ = tipe.Complex
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
 			c.errorf("complex takes two arguments, got %d", len(e.Args))
@@ -959,7 +959,15 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		switch arg0.typ {
 		case tipe.UntypedInteger:
 			switch arg1.typ {
-			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			case tipe.UntypedInteger, tipe.UntypedFloat:
+				// FIXME: return UntypedComplex
+				p.typ = tipe.Complex128
+			case tipe.Float:
+				p.typ = tipe.Complex
+			case tipe.Float32:
+				p.typ = tipe.Complex64
+			case tipe.Float64:
+				p.typ = tipe.Complex128
 			default:
 				p.mode = modeInvalid
 				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
@@ -967,7 +975,15 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			}
 		case tipe.UntypedFloat:
 			switch arg1.typ {
-			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			case tipe.UntypedInteger, tipe.UntypedFloat:
+				// FIXME: return UntypedComplex
+				p.typ = tipe.Complex128
+			case tipe.Float:
+				p.typ = tipe.Complex
+			case tipe.Float32:
+				p.typ = tipe.Complex64
+			case tipe.Float64:
+				p.typ = tipe.Complex128
 			default:
 				p.mode = modeInvalid
 				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
@@ -975,7 +991,8 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			}
 		case tipe.Float:
 			switch arg1.typ {
-			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32, tipe.Float64:
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float:
+				p.typ = tipe.Complex
 			default:
 				p.mode = modeInvalid
 				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
@@ -983,26 +1000,36 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			}
 		case tipe.Float32:
 			switch arg1.typ {
-			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float32:
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float32:
+				p.typ = tipe.Complex64
+			case tipe.Float:
+				p.mode = modeInvalid
+				c.errorf("invalid operation: complex(%s, %s) (mismatched types float32 and float)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				return p
 			case tipe.Float64:
 				p.mode = modeInvalid
 				c.errorf("invalid operation: complex(%s, %s) (mismatched types float32 and float64)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
 				return p
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				c.errorf("second argument to complex must be a float32, got %s", format.Type(arg1.typ))
 				return p
 			}
 		case tipe.Float64:
 			switch arg1.typ {
-			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float, tipe.Float64:
+			case tipe.UntypedInteger, tipe.UntypedFloat, tipe.Float64:
+				p.typ = tipe.Complex128
+			case tipe.Float:
+				p.mode = modeInvalid
+				c.errorf("invalid operation: complex(%s, %s) (mismatched types float64 and float)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				return p
 			case tipe.Float32:
 				p.mode = modeInvalid
 				c.errorf("invalid operation: complex(%s, %s) (mismatched types float64 and float32)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
 				return p
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				c.errorf("second argument to complex must be a float64, got %s", format.Type(arg1.typ))
 				return p
 			}
 		default:
@@ -1066,7 +1093,6 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		return p
 	case tipe.Imag:
-		p.typ = tipe.Float
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
 			c.errorf("imag takes exactly 1 argument, got %d", len(e.Args))
@@ -1074,7 +1100,15 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		arg := c.expr(e.Args[0])
 		switch arg.typ {
-		case tipe.Complex, tipe.Complex64, tipe.Complex128, tipe.UntypedComplex:
+		case tipe.Complex:
+			p.typ = tipe.Float
+		case tipe.UntypedComplex:
+			// FIXME: return UntypedFloat instead.
+			p.typ = tipe.Float64
+		case tipe.Complex64:
+			p.typ = tipe.Float32
+		case tipe.Complex128:
+			p.typ = tipe.Float64
 		default:
 			p.mode = modeInvalid
 			c.errorf("argument to imag must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
@@ -1165,7 +1199,6 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		return p
 	case tipe.Real:
-		p.typ = tipe.Float
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
 			c.errorf("real takes exactly 1 argument, got %d", len(e.Args))
@@ -1173,7 +1206,15 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		arg := c.expr(e.Args[0])
 		switch arg.typ {
-		case tipe.Complex, tipe.Complex64, tipe.Complex128, tipe.UntypedComplex:
+		case tipe.Complex:
+			p.typ = tipe.Float
+		case tipe.UntypedComplex:
+			// FIXME: return UntypedFloat instead.
+			p.typ = tipe.Float64
+		case tipe.Complex64:
+			p.typ = tipe.Float32
+		case tipe.Complex128:
+			p.typ = tipe.Float64
 		default:
 			p.mode = modeInvalid
 			c.errorf("argument to real must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
@@ -1346,6 +1387,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeConst
 			p.typ = tipe.UntypedFloat
 			p.val = constant.MakeFromLiteral(v.String(), gotoken.FLOAT, 0)
+		case *bigcplx.Complex:
+			p.mode = modeConst
+			p.typ = tipe.UntypedComplex
+			p.val = constant.MakeFromLiteral(v.String(), gotoken.IMAG, 0)
 		case string:
 			p.mode = modeConst
 			p.typ = tipe.UntypedString
@@ -2040,7 +2085,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 		case t == tipe.Num && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
 			// promote untyped int or float to num type parameter
 		case t != p.typ:
-			c.errorf("cannot convert %s to untyped %s", format.Type(p.typ), format.Type(t))
+			c.errorf("cannot convert %s to %s", format.Type(p.typ), format.Type(t))
 		}
 	} else {
 		switch t := tipe.Unalias(t).(type) {
@@ -2271,7 +2316,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 		}
 	case constant.Complex:
 		switch t {
-		case tipe.UntypedComplex:
+		case tipe.UntypedComplex, tipe.Complex:
 			return v
 		case tipe.Complex64:
 			re, _ := constant.Float32Val(constant.Real(v))

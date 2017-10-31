@@ -24,6 +24,7 @@ import (
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
@@ -152,10 +153,14 @@ func New(path string) *Program {
 	addUniverse("new", p.builtinNew)
 	addUniverse("complex", p.builtinComplex)
 	addUniverse("real", func(v interface{}) interface{} {
+		p.builtinCalled = true
 		switch v := v.(type) {
 		case UntypedComplex:
+			// FIXME: return UntypedFloat instead
+			// to handle: imag(1+2i) + float32(2.3)
+			// re := UntypedFloat{big.NewFloat(0).Set(v.Real)}
 			re, _ := v.Real.Float64()
-			return big.NewFloat(re)
+			return re
 		case complex64:
 			return real(v)
 		case complex128:
@@ -164,10 +169,14 @@ func New(path string) *Program {
 		panic(fmt.Errorf("invalid type real(%T)", v))
 	})
 	addUniverse("imag", func(v interface{}) interface{} {
+		p.builtinCalled = true
 		switch v := v.(type) {
 		case UntypedComplex:
+			// FIXME: return UntypedFloat instead.
+			// to handle: imag(1+2i) + float32(2.3)
+			// im := UntypedFloat{big.NewFloat(0).Set(v.Imag)}
 			im, _ := v.Imag.Float64()
-			return big.NewFloat(im)
+			return im
 		case complex64:
 			return imag(v)
 		case complex128:
@@ -277,6 +286,7 @@ func (p *Program) builtinMake(v ...interface{}) interface{} {
 }
 
 func (p *Program) builtinComplex(re, im interface{}) interface{} {
+	p.builtinCalled = true
 	switch re := re.(type) {
 	case UntypedInt:
 		switch im := im.(type) {
@@ -895,9 +905,14 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 	case reflect.Type:
 		return v // type conversion
 	case UntypedInt:
-		if t == reflect.TypeOf(UntypedFloat{}) {
+		switch t {
+		case reflect.TypeOf(UntypedFloat{}):
 			res := UntypedFloat{new(big.Float)}
 			res.Float.SetInt64(val.Int64())
+			return reflect.ValueOf(res)
+		case reflect.TypeOf(UntypedComplex{}):
+			res := UntypedComplex{new(big.Float), new(big.Float)}
+			res.Real.SetInt64(val.Int64())
 			return reflect.ValueOf(res)
 		}
 		ret := reflect.New(t).Elem()
@@ -915,11 +930,21 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 		}
 		return ret
 	case UntypedFloat:
+		switch t {
+		case reflect.TypeOf(UntypedComplex{}):
+			res := UntypedComplex{new(big.Float), new(big.Float)}
+			f, _ := val.Float64()
+			res.Real.SetFloat64(f)
+			return reflect.ValueOf(res)
+		}
 		ret := reflect.New(t).Elem()
 		f, _ := val.Float64()
-		if t.Kind() == reflect.Interface {
+		switch t.Kind() {
+		case reflect.Interface:
 			ret.Set(reflect.ValueOf(float64(f)))
-		} else {
+		case reflect.Complex64, reflect.Complex128:
+			ret.SetComplex(complex(float64(f), 0))
+		default:
 			ret.SetFloat(f)
 		}
 		return ret
@@ -1004,6 +1029,8 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			v = reflect.ValueOf(UntypedInt{val})
 		case *big.Float:
 			v = reflect.ValueOf(UntypedFloat{val})
+		case *bigcplx.Complex:
+			v = reflect.ValueOf(UntypedComplex{val.Real, val.Imag})
 		case string:
 			v = reflect.ValueOf(UntypedString{val})
 		case rune:

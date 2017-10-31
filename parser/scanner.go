@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/token"
 )
 
@@ -187,9 +188,12 @@ exponent:
 			tok = token.Unknown
 		}
 	case token.Imaginary:
+		str = str[:len(str)-1] // drop trailing 'i'
 		f, ok := big.NewFloat(0).SetString(str)
 		if ok {
-			value = f
+			cmplx := bigcplx.New(0)
+			cmplx.Imag = f
+			value = cmplx
 		} else {
 			s.errorf("bad complex literal: %q", str)
 			tok = token.Unknown
