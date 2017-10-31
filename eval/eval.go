@@ -416,6 +416,15 @@ func (p *Program) Eval(s stmt.Stmt, sigint <-chan os.Signal) (res []reflect.Valu
 	p.Types.Errs = p.Types.Errs[:0]
 	p.Types.Add(s)
 	if len(p.Types.Errs) > 0 {
+		// Friendly interactive shell error messages.
+		if s, isSimple := s.(*stmt.Simple); isSimple {
+			if e, isIdent := s.Expr.(*expr.Ident); isIdent && (e.Name == "exit" || e.Name == "logout") {
+				if p.Cur.Lookup(e.Name) == (reflect.Value{}) {
+					return nil, fmt.Errorf("use Ctrl-D to exit")
+				}
+			}
+		}
+
 		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
 	}
 

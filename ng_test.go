@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -44,5 +45,18 @@ func TestPrintf(t *testing.T) {
 	want := "2a"
 	if got != want {
 		t.Errorf("printf returned %q, want %q", got, want)
+	}
+}
+
+func TestExitMsg(t *testing.T) {
+	out, err := exec.Command(testng, "-e", `exit`).CombinedOutput()
+	// TODO: this should return an non-zero exit code
+	if err != nil {
+		t.Errorf("testng failed: %v\n%s", err, out)
+	}
+
+	got := string(out)
+	if !strings.Contains(got, "Ctrl-D") {
+		t.Errorf("exit error does not mention Ctrl-D: %q", got)
 	}
 }
