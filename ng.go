@@ -116,6 +116,8 @@ func main() {
 
 	origMode = mode()
 	lineNg = liner.NewLiner()
+	defer lineNg.Close()
+
 	loop()
 }
 
