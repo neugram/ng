@@ -187,7 +187,13 @@ exponent:
 			tok = token.Unknown
 		}
 	case token.Imaginary:
-		panic("TODO token.Imaginary")
+		f, ok := big.NewFloat(0).SetString(str)
+		if ok {
+			value = f
+		} else {
+			s.errorf("bad complex literal: %q", str)
+			tok = token.Unknown
+		}
 	}
 
 	return tok, value

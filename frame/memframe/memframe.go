@@ -113,6 +113,15 @@ func assign(dst, src interface{}) error {
 			dst.SetFloat64(src)
 			return nil
 		}
+	case complex128:
+		switch dst := dst.(type) {
+		case *complex128:
+			if dst == nil {
+				return errPtrNil
+			}
+			*dst = src
+			return nil
+		}
 	case *big.Int:
 		switch dst := dst.(type) {
 		case *big.Int:

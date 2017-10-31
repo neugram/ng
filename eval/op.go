@@ -141,6 +141,22 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case UntypedFloat:
 				return UntypedFloat{z.Add(x.Float, y.Float)}, nil
 			}
+		case UntypedComplex:
+			re := big.NewFloat(0)
+			im := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				re.SetInt(y.Int)
+				return UntypedComplex{Real: re.Add(re, x.Real), Imag: im}, nil
+			case UntypedFloat:
+				re.Set(y.Float)
+				return UntypedComplex{Real: re.Add(re, x.Real), Imag: im}, nil
+			case UntypedComplex:
+				return UntypedComplex{
+					Real: re.Add(x.Real, y.Real),
+					Imag: im.Add(x.Imag, y.Imag),
+				}, nil
+			}
 		case UntypedString:
 			switch y := y.(type) {
 			case UntypedString:
@@ -242,6 +258,10 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case UntypedInt:
 				z := big.NewInt(0)
 				return UntypedInt{z.Sub(x.Int, y.Int)}, nil
+			case UntypedComplex:
+				re := big.NewFloat(0)
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				return UntypedComplex{re.Sub(xf, y.Real), big.NewFloat(0)}, nil
 			}
 		case UntypedFloat:
 			z := big.NewFloat(0)
@@ -252,6 +272,26 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 				return UntypedFloat{z.Sub(x.Float, yf)}, nil
 			case UntypedFloat:
 				return UntypedFloat{z.Sub(x.Float, y.Float)}, nil
+			case UntypedComplex:
+				return UntypedComplex{z.Sub(x.Float, y.Real), big.NewFloat(0)}, nil
+			}
+		case UntypedComplex:
+			re := big.NewFloat(0)
+			im := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				yre := big.NewFloat(0)
+				yre.SetInt(y.Int)
+				return UntypedComplex{re.Sub(x.Real, yre), im}, nil
+			case UntypedFloat:
+				yre := big.NewFloat(0)
+				yre.Set(y.Float)
+				return UntypedComplex{re.Sub(x.Real, yre), im}, nil
+			case UntypedComplex:
+				return UntypedComplex{
+					re.Sub(x.Real, y.Real),
+					im.Sub(x.Imag, y.Imag),
+				}, nil
 			}
 		}
 	case token.Mul:
@@ -651,6 +691,20 @@ func typeConv(t reflect.Type, v reflect.Value) (res reflect.Value) {
 			return res
 		}
 		return reflect.ValueOf(float64(v.Int()))
+	case reflect.Complex64:
+		if v.Kind() == reflect.Complex64 {
+			res = reflect.New(t).Elem()
+			res.SetComplex(v.Complex())
+			return res
+		}
+		return reflect.ValueOf(complex(float32(v.Int()), 0))
+	case reflect.Complex128:
+		if v.Kind() == reflect.Complex128 {
+			res = reflect.New(t).Elem()
+			res.SetComplex(v.Complex())
+			return res
+		}
+		return reflect.ValueOf(complex(float64(v.Int()), 0))
 	case reflect.Interface:
 		return reflect.ValueOf(v.Interface())
 	case reflect.String:

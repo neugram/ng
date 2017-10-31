@@ -491,6 +491,8 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.UntypedInteger
 		case gotypes.UntypedFloat:
 			return tipe.UntypedFloat
+		case gotypes.UntypedComplex:
+			return tipe.UntypedComplex
 		case gotypes.UntypedRune:
 			return tipe.UntypedRune
 		}
@@ -2049,7 +2051,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 		switch t {
 		case tipe.Integer, tipe.UntypedInteger:
 			return v
-		case tipe.Float, tipe.UntypedFloat, tipe.UntypedComplex:
+		case tipe.Float, tipe.UntypedFloat, tipe.Complex, tipe.UntypedComplex:
 			return v
 		case tipe.Num:
 			return v
@@ -2144,6 +2146,12 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 		case tipe.Float64:
 			r, _ := constant.Float64Val(v)
 			return constant.MakeFloat64(float64(r))
+		case tipe.Complex64:
+			re, _ := constant.Float32Val(v)
+			return constant.ToComplex(constant.MakeFloat64(float64(re)))
+		case tipe.Complex128:
+			re, _ := constant.Float64Val(v)
+			return constant.ToComplex(constant.MakeFloat64(float64(re)))
 		}
 	case constant.Float:
 		switch t {
@@ -2155,8 +2163,35 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 		case tipe.Float64:
 			r, _ := constant.Float64Val(v)
 			return constant.MakeFloat64(float64(r))
+		case tipe.Complex64:
+			re, _ := constant.Float32Val(v)
+			return constant.ToComplex(constant.MakeFloat64(float64(re)))
+		case tipe.Complex128:
+			re, _ := constant.Float64Val(v)
+			return constant.ToComplex(constant.MakeFloat64(float64(re)))
 		case tipe.Num:
 			return v
+		}
+	case constant.Complex:
+		switch t {
+		case tipe.UntypedComplex:
+			return v
+		case tipe.Complex64:
+			re, _ := constant.Float32Val(constant.Real(v))
+			im, _ := constant.Float32Val(constant.Imag(v))
+			return constant.ToComplex(constant.BinaryOp(
+				constant.MakeFloat64(float64(re)),
+				gotoken.ADD,
+				constant.MakeFloat64(float64(im)),
+			))
+		case tipe.Complex128:
+			re, _ := constant.Float64Val(constant.Real(v))
+			im, _ := constant.Float64Val(constant.Imag(v))
+			return constant.ToComplex(constant.BinaryOp(
+				constant.MakeFloat64(float64(re)),
+				gotoken.ADD,
+				constant.MakeFloat64(float64(im)),
+			))
 		}
 	}
 	// TODO many more comparisons
@@ -2278,6 +2313,7 @@ func isOrdered(t tipe.Type) bool {
 		tipe.Int, tipe.Int8, tipe.Int16, tipe.Int32, tipe.Int64,
 		tipe.Uint, tipe.Uint8, tipe.Uint16, tipe.Uint32, tipe.Uint64,
 		tipe.Float32, tipe.Float64,
+		tipe.Complex64, tipe.Complex128,
 		tipe.UntypedInteger, tipe.UntypedFloat, tipe.UntypedComplex, tipe.UntypedString:
 		return true
 	default:
@@ -2309,6 +2345,8 @@ func defaultType(t tipe.Type) tipe.Type {
 		return tipe.Int // tipe.Num
 	case tipe.UntypedFloat:
 		return tipe.Float64 // tipe.Num
+	case tipe.UntypedComplex:
+		return tipe.Complex128 // tipe.Num
 	}
 	return t
 }
