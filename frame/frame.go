@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 
-	"neugram.io/ng/eval"
 	"neugram.io/ng/expr"
 )
 
@@ -166,6 +165,8 @@ func Len(f Frame) (int, error) {
 	return y, nil
 }
 
+/*
+TODO: no dependency on eval
 func Filter(f Frame, s *eval.Scope, e expr.Expr) (Frame, error) {
 	fr, ok := f.(interface {
 		Filter(s *eval.Scope, e expr.Expr) (Frame, error)
@@ -174,7 +175,7 @@ func Filter(f Frame, s *eval.Scope, e expr.Expr) (Frame, error) {
 		return fr.Filter(s, e)
 	}
 	panic("TODO Filter")
-}
+}*/
 
 // Want:
 // SQL-like powers over frames.

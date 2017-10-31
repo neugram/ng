@@ -14,6 +14,7 @@ import (
 	gotypes "go/types"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -587,7 +588,16 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 	if pkg := c.GoPkgs[path]; pkg != nil {
 		return pkg, nil
 	}
-	gopkg, err := c.ImportGo(path)
+	goPath := path
+	if path == "mat" {
+		goPath = "neugram.io/ng/vendor/mat" // TODO: remove "mat" exception
+	}
+	// Make sure our '.a' files are fresh.
+	out, err := exec.Command("go", "install", goPath).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("go install %s: %v\n%s", goPath, err, out)
+	}
+	gopkg, err := c.ImportGo(goPath)
 	if err != nil {
 		return nil, err
 	}

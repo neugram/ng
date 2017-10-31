@@ -1,0 +1,8 @@
+// Test imports containing '.'
+import "neugram.io/ng/frame"
+
+f := frame.Frame(nil)
+
+if f == nil {
+	print("OK")
+}

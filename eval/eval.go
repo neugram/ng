@@ -1373,7 +1373,7 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		if t.PkgPath != "" {
 			path := t.PkgPath
 			if path == "neugram.io/ng/vendor/mat" {
-				path = "mat"
+				path = "mat" // TODO: remove "mat" exception
 			}
 			v := gowrap.Pkgs[path].Exports[t.Name]
 			if typ, isType := v.Interface().(reflect.Type); isType {

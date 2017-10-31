@@ -16,8 +16,12 @@ import (
 	"text/template"
 )
 
-func buildDataPkg(pkg *types.Package) DataPkg {
-	quotedPkgName := strings.Replace(pkg.Path(), "/", "_", -1)
+func quotePkgPath(path string) string {
+	return "wrap_" + strings.NewReplacer("/", "_", ".", "_").Replace(path)
+}
+
+func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
+	quotedPkgPath := quotePkgPath(pkgPath)
 	scope := pkg.Scope()
 	exports := map[string]string{}
 	for _, name := range scope.Names() {
@@ -28,12 +32,12 @@ func buildDataPkg(pkg *types.Package) DataPkg {
 		switch obj.(type) {
 		case *types.TypeName:
 			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgName + "." + name + ")(nil)).Elem())"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgPath + "." + name + ")(nil)).Elem())"
 			} else {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + "))"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgPath + "." + name + nilexpr(obj.Type()) + "))"
 			}
 		case *types.Var, *types.Func, *types.Const:
-			exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + ")"
+			exports[name] = "reflect.ValueOf(" + quotedPkgPath + "." + name + ")"
 		default:
 			log.Printf("genwrap: unexpected obj: %T\n", obj)
 		}
@@ -41,20 +45,20 @@ func buildDataPkg(pkg *types.Package) DataPkg {
 
 	return DataPkg{
 		Name:       pkg.Path(),
-		QuotedName: quotedPkgName,
+		QuotedName: quotedPkgPath,
 		Exports:    exports,
 	}
 }
 
-func GenGo(pkgName, outPkgName string) ([]byte, error) {
-	quotedPkgName := strings.Replace(pkgName, "/", "_", -1)
+func GenGo(pkgPath, outPkgName string) ([]byte, error) {
+	quotedPkgPath := quotePkgPath(pkgPath)
 
-	pkg, err := importer.Default().Import(pkgName)
+	pkg, err := importer.Default().Import(pkgPath)
 	if err != nil {
 		return nil, err
 	}
 	pkgs := make(map[string]DataPkg)
-	pkgs[pkg.Path()] = buildDataPkg(pkg)
+	pkgs[pkgPath] = buildDataPkg(pkgPath, pkg)
 	imports := append([]*types.Package{}, pkg.Imports()...)
 importsLoop:
 	for i := 0; i < len(imports); i++ { // imports grows as we loop
@@ -67,7 +71,7 @@ importsLoop:
 				continue importsLoop
 			}
 		}
-		pkgs[path] = buildDataPkg(imports[i])
+		pkgs[path] = buildDataPkg(path, imports[i])
 	}
 	data := Data{
 		OutPkgName: outPkgName,
@@ -86,12 +90,12 @@ importsLoop:
 		switch obj.(type) {
 		case *types.TypeName:
 			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgName + "." + name + ")(nil)).Elem())"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgPath + "." + name + ")(nil)).Elem())"
 			} else {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgName + "." + name + nilexpr(obj.Type()) + "))"
+				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgPath + "." + name + nilexpr(obj.Type()) + "))"
 			}
 		case *types.Var, *types.Func, *types.Const:
-			exports[name] = "reflect.ValueOf(" + quotedPkgName + "." + name + ")"
+			exports[name] = "reflect.ValueOf(" + quotedPkgPath + "." + name + ")"
 		default:
 			log.Printf("genwrap: unexpected obj: %T\n", obj)
 		}
