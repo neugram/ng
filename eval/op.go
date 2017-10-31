@@ -113,6 +113,16 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x + y, nil
 			}
+		case complex64:
+			switch y := y.(type) {
+			case complex64:
+				return x + y, nil
+			}
+		case complex128:
+			switch y := y.(type) {
+			case complex128:
+				return x + y, nil
+			}
 		case UntypedInt:
 			switch y := y.(type) {
 			case UntypedFloat:
@@ -213,6 +223,16 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x - y, nil
 			}
+		case complex64:
+			switch y := y.(type) {
+			case complex64:
+				return x - y, nil
+			}
+		case complex128:
+			switch y := y.(type) {
+			case complex128:
+				return x - y, nil
+			}
 		case UntypedInt:
 			switch y := y.(type) {
 			case UntypedFloat:
@@ -296,6 +316,16 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			case float64:
 				return x * y, nil
 			}
+		case complex64:
+			switch y := y.(type) {
+			case complex64:
+				return x * y, nil
+			}
+		case complex128:
+			switch y := y.(type) {
+			case complex128:
+				return x * y, nil
+			}
 		case *big.Int:
 			switch y := y.(type) {
 			case *big.Int:
@@ -314,6 +344,26 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 		case int:
 			switch y := y.(type) {
 			case int:
+				return x / y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x / y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x / y, nil
+			}
+		case complex64:
+			switch y := y.(type) {
+			case complex64:
+				return x / y, nil
+			}
+		case complex128:
+			switch y := y.(type) {
+			case complex128:
 				return x / y, nil
 			}
 		}

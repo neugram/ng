@@ -152,6 +152,9 @@ const (
 	Float32 Basic = "float32"
 	Float64 Basic = "float64"
 
+	Complex64  Basic = "complex64"
+	Complex128 Basic = "complex128"
+
 	UntypedNil     Basic = "untyped nil" // nil pointer or nil interface
 	UntypedString  Basic = "untyped string"
 	UntypedBool    Basic = "untyped bool"
@@ -228,7 +231,7 @@ func IsNumeric(t Type) bool {
 	case Num, Integer, Float, Complex,
 		Int, Int8, Int16, Int32, Int64,
 		Uint8, Uint16, Uint32, Uint64,
-		Float32, Float64,
+		Float32, Float64, Complex64, Complex128,
 		UntypedInteger, UntypedFloat, UntypedComplex:
 		return true
 	}

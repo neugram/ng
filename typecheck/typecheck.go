@@ -468,6 +468,10 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.Float32
 		case gotypes.Float64:
 			return tipe.Float64
+		case gotypes.Complex64:
+			return tipe.Complex64
+		case gotypes.Complex128:
+			return tipe.Complex128
 		case gotypes.UntypedBool:
 			return tipe.UntypedBool
 		case gotypes.UntypedString:

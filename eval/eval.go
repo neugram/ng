@@ -1182,6 +1182,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				lhs = float32(0)
 			case float64:
 				lhs = float64(0)
+			case complex64:
+				lhs = complex64(0)
+			case complex128:
+				lhs = complex128(0)
 			case UntypedInt:
 				lhs = UntypedInt{big.NewInt(0)}
 			case UntypedFloat:
@@ -1332,6 +1336,10 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			rtype = reflect.TypeOf(float32(0))
 		case tipe.Float64:
 			rtype = reflect.TypeOf(float64(0))
+		case tipe.Complex64:
+			rtype = reflect.TypeOf(complex64(0))
+		case tipe.Complex128:
+			rtype = reflect.TypeOf(complex128(0))
 		case tipe.UntypedNil:
 			panic("TODO UntypedNil")
 		case tipe.UntypedInteger:

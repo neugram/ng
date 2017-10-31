@@ -121,7 +121,16 @@ func nilexpr(t types.Type) string {
 	t = t.Underlying()
 	switch t := t.(type) {
 	case *types.Basic:
-		return "(0)"
+		switch t.Kind() {
+		case types.Bool:
+			return "(false)"
+		case types.String:
+			return `("")`
+		case types.UnsafePointer:
+			return "(nil)"
+		default:
+			return "(0)"
+		}
 	case *types.Struct:
 		return "{}"
 	case *types.Interface, *types.Map, *types.Pointer, *types.Slice, *types.Signature:
