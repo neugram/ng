@@ -800,10 +800,6 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		if !isStruct {
 			panic("eval only supports methodik on struct types")
 		}
-		var methodFuncs []reflect.Type
-		for _, m := range t.Methods {
-			methodFuncs = append(methodFuncs, r.ToRType(m))
-		}
 		var fields []reflect.StructField
 		for i, name := range t.MethodNames {
 			funcType := r.ToRType(t.Methods[i])
