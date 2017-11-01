@@ -1,6 +1,6 @@
 ## Neugram
 
-[![Build Status](https://secure.travis-ci.org/neugram/ng.png)](http://travis-ci.org/neugram/ng)
+[![Build Status](https://travis-ci.org/neugram/ng.svg?branch=master)](https://travis-ci.org/neugram/ng)
 
 Neugram is a scripting language and shell.
 
