@@ -7,7 +7,7 @@ if x != 4 {
 
 func g() (int, error) { return 4, errorf("anError") }
 
-x, _ := g()
+x, _ = g()
 x, err := g()
 if err == nil {
 	panic("g should return an error")

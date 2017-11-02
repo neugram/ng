@@ -1,0 +1,2 @@
+x := 1
+x, _ := 2, "foo" // ERROR: no new variables
