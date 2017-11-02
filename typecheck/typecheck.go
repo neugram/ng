@@ -46,7 +46,7 @@ type Checker struct {
 
 	importWalk []string // in-process pkgs, used to detect cycles
 
-	cur *Scope
+	Cur *Scope
 
 	memory *tipe.Memory
 }
@@ -65,7 +65,7 @@ func New(initPkg string) *Checker {
 		GoTypes:       make(map[gotypes.Type]tipe.Type),
 		GoTypesToFill: make(map[gotypes.Type]tipe.Type),
 		GoEquiv:       make(map[tipe.Type]gotypes.Type), // TODO remove?
-		cur: &Scope{
+		Cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
@@ -160,7 +160,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Type: p.typ,
 				}
 				c.Defs[lhs.(*expr.Ident)] = obj
-				c.cur.Objs[lhs.(*expr.Ident).Name] = obj
+				c.Cur.Objs[lhs.(*expr.Ident).Name] = obj
 			}
 		} else {
 			for i, lhs := range s.Left {
@@ -198,7 +198,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Type: p.typ,
 				}
 				// TODO: c.Defs?
-				c.cur.Objs[fn.Name] = obj
+				c.Cur.Objs[fn.Name] = obj
 			}
 		}
 		return p.typ
@@ -266,13 +266,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if s.Key != nil {
 				obj := &Obj{Kind: ObjVar, Type: kt}
 				c.Defs[s.Key.(*expr.Ident)] = obj
-				c.cur.Objs[s.Key.(*expr.Ident).Name] = obj
+				c.Cur.Objs[s.Key.(*expr.Ident).Name] = obj
 				c.Types[s.Key] = kt
 			}
 			if s.Val != nil {
 				obj := &Obj{Kind: ObjVar, Type: vt}
 				c.Defs[s.Val.(*expr.Ident)] = obj
-				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
+				c.Cur.Objs[s.Val.(*expr.Ident).Name] = obj
 				c.Types[s.Val] = vt
 			}
 		} else {
@@ -299,7 +299,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			Type: s.Type,
 			Decl: s,
 		}
-		c.cur.Objs[s.Name] = obj
+		c.Cur.Objs[s.Name] = obj
 		return nil
 
 	case *stmt.MethodikDecl:
@@ -317,7 +317,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Kind: ObjVar,
 					Type: s.Type,
 				}
-				c.cur.Objs[m.ReceiverName] = obj
+				c.Cur.Objs[m.ReceiverName] = obj
 			}
 			c.expr(m)
 			// TODO: uses num inside a method
@@ -333,7 +333,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			Type: s.Type,
 			Decl: s,
 		}
-		c.cur.Objs[s.Name] = obj
+		c.Cur.Objs[s.Name] = obj
 		return nil
 
 	case *stmt.Return:
@@ -669,14 +669,14 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		return nil, fmt.Errorf("ng package import: %v", err)
 	}
 	c.importWalk = append(c.importWalk, path)
-	oldcur := c.cur
+	oldcur := c.Cur
 	defer func() {
 		f.Close()
 		c.importWalk = c.importWalk[:len(c.importWalk)-1]
-		c.cur = oldcur
+		c.Cur = oldcur
 	}()
 
-	c.cur = &Scope{
+	c.Cur = &Scope{
 		Parent: Universe,
 		Objs:   make(map[string]*Obj),
 	}
@@ -688,8 +688,8 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		Exports: make(map[string]tipe.Type),
 	}
 	c.NgPkgs[path] = pkg
-	for c.cur != Universe {
-		for name, obj := range c.cur.Objs {
+	for c.Cur != Universe {
+		for name, obj := range c.Cur.Objs {
 			if !isExported(name) {
 				continue
 			}
@@ -699,7 +699,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 			pkg.Exports[name] = obj.Type
 			fmt.Printf("package exports %q\n", name)
 		}
-		c.cur = c.cur.Parent
+		c.Cur = c.Cur.Parent
 	}
 	return pkg, nil
 }
@@ -760,7 +760,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 		Type: pkg,
 		// TODO Decl?
 	}
-	c.cur.Objs[s.Name] = obj
+	c.Cur.Objs[s.Name] = obj
 }
 
 func (c *Checker) expr(e expr.Expr) (p partial) {
@@ -878,7 +878,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 			}
 			return res, true
 		}
-		obj := c.cur.LookupRec(t.Name)
+		obj := c.Cur.LookupRec(t.Name)
 		if obj == nil {
 			c.errorf("type %s not declared", t.Name)
 			return t, false
@@ -896,7 +896,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 
 func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
 	name := pkgName + "." + sel
-	obj := c.cur.LookupRec(pkgName)
+	obj := c.Cur.LookupRec(pkgName)
 	if obj == nil {
 		c.errorf("undefined %s in %s", pkgName, name)
 		return nil
@@ -1313,7 +1313,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			c.errorf("cannot use _ as a value")
 			return p
 		}
-		obj := c.cur.LookupRec(e.Name)
+		obj := c.Cur.LookupRec(e.Name)
 		if obj == nil {
 			p.mode = modeInvalid
 			c.errorf("undeclared identifier: %s", e.Name)
@@ -1363,8 +1363,8 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	case *expr.FuncLiteral:
 		c.pushScope()
 		defer c.popScope()
-		c.cur.foundInParent = make(map[string]bool)
-		c.cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
+		c.Cur.foundInParent = make(map[string]bool)
+		c.Cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
 				t, _ = c.resolve(t)
@@ -1373,7 +1373,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 					Kind: ObjVar,
 					Type: t,
 				}
-				c.cur.Objs[e.ParamNames[i]] = obj
+				c.Cur.Objs[e.ParamNames[i]] = obj
 			}
 		}
 		if e.Type.Results != nil {
@@ -1382,10 +1382,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 		}
 		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
-		for name := range c.cur.foundInParent {
+		for name := range c.Cur.foundInParent {
 			e.Type.FreeVars = append(e.Type.FreeVars, name)
 		}
-		for mdik := range c.cur.foundMdikInParent {
+		for mdik := range c.Cur.foundMdikInParent {
 			e.Type.FreeMdik = append(e.Type.FreeMdik, mdik)
 		}
 		p.typ = e.Type
@@ -2097,13 +2097,13 @@ func (c *Checker) errorf(format string, args ...interface{}) {
 }
 
 func (c *Checker) pushScope() {
-	c.cur = &Scope{
-		Parent: c.cur,
+	c.Cur = &Scope{
+		Parent: c.Cur,
 		Objs:   make(map[string]*Obj),
 	}
 }
 func (c *Checker) popScope() {
-	c.cur = c.cur.Parent
+	c.Cur = c.Cur.Parent
 }
 
 func convGoOp(op token.Token) gotoken.Token {
@@ -2300,7 +2300,7 @@ func (c *Checker) Add(s stmt.Stmt) tipe.Type {
 }
 
 func (c *Checker) Lookup(name string) *Obj {
-	return c.cur.LookupRec(name)
+	return c.Cur.LookupRec(name)
 }
 
 type Scope struct {
