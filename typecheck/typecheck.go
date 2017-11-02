@@ -145,6 +145,22 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		if s.Decl {
+			// make sure at least one of the lhs hasn't been previously declared.
+			ndecls := 0
+			for _, lhs := range s.Left {
+				name := lhs.(*expr.Ident).Name
+				if name == "_" {
+					continue
+				}
+				if obj := c.Cur.Objs[name]; obj == nil || obj.Kind != ObjVar {
+					ndecls++
+				}
+			}
+			if ndecls == 0 {
+				c.errorf("no new variables on left side of :=")
+				return nil
+			}
+
 			for i, lhs := range s.Left {
 				p := partials[i]
 				if isUntyped(p.typ) {

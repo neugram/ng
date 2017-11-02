@@ -1,0 +1,6 @@
+x := 1
+{
+	x := 2
+	x++
+	x := 3 // ERROR: no new variables
+}
