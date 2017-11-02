@@ -7,9 +7,9 @@ package typecheck
 import (
 	"testing"
 
+	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
-	"neugram.io/ng/parser"
 )
 
 type identType struct {
@@ -203,7 +203,7 @@ func TestBasic(t *testing.T) {
 		//t.Logf("%s", c)
 
 		findDef := func(name string) *Obj {
-			return c.cur.Objs[name]
+			return c.Cur.Objs[name]
 		}
 
 		for _, want := range test.want {
