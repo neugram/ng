@@ -912,7 +912,7 @@ func convert(v reflect.Value, t reflect.Type) reflect.Value {
 			return reflect.ValueOf(res)
 		case reflect.TypeOf(UntypedComplex{}):
 			res := UntypedComplex{new(big.Float), new(big.Float)}
-			res.Real.SetInt64(val.Int64())
+			res.Real.SetInt(val.Int)
 			return reflect.ValueOf(res)
 		}
 		ret := reflect.New(t).Elem()
