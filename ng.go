@@ -364,7 +364,7 @@ func handleResult(res parser.Result) {
 			case eval.UntypedString:
 				fmt.Print(v.String)
 			case eval.UntypedRune:
-				fmt.Print("%s", v.Rune)
+				fmt.Printf("%v", v.Rune)
 			case eval.UntypedBool:
 				fmt.Print(v.Bool)
 			default:
