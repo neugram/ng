@@ -1230,9 +1230,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			if !exists {
 				v = reflect.Zero(container.Type().Elem())
 			}
-			if t, returnExists := p.Types.Type(e).(*tipe.Tuple); returnExists {
-				// TODO: type checker is not generating this tuple yet.
-				fmt.Printf("index t=%v\n", t)
+			if _, returnExists := p.Types.Type(e).(*tipe.Tuple); returnExists {
 				return []reflect.Value{v, reflect.ValueOf(exists)}
 			}
 			return []reflect.Value{v}
