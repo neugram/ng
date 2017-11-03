@@ -137,6 +137,15 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				// v, ok = <-ch
 				switch e.Op {
 				case token.ChanOp:
+					// the general case for a chan-receive is to only typecheck
+					// for the chan element.
+					// in the case of a chan-receive with a comma-ok, we need to
+					// also get the boolean indicating whether the value received
+					// corresponds to a send.
+					// so, replace the original tipe.Type with the tuple:
+					//   (tipe.Type,tipe.Bool)
+					// this way, the eval of that stmt.Assign will do the right thing.
+					// we still need to add the boolean to the partials, though.
 					typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
 					if curTyp := c.types[e]; curTyp != typ {
 						c.types[e] = typ
