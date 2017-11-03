@@ -1386,7 +1386,11 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		case token.ChanOp:
 			ch := p.evalExprOne(e.Expr)
 			res, ok := ch.Recv()
-			_ = ok // TODO
+			switch et := p.Types.Types[e].(type) {
+			case *tipe.Tuple:
+				t := p.reflector.ToRType(et.Elems[0])
+				return []reflect.Value{convert(res, t), reflect.ValueOf(ok)}
+			}
 			v = res
 		}
 		t := p.reflector.ToRType(p.Types.Types[e])

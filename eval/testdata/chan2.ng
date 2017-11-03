@@ -1,0 +1,31 @@
+ch := make(chan int)
+go func() {
+	ch <- 42
+	ch <- 43
+	close(ch)
+}()
+
+v, ok := <-ch
+if !ok {
+	panic("ERROR")
+}
+
+if v != 42 {
+	panic("ERROR")
+}
+
+v += <-ch
+if v != 85 {
+	panic("ERROR")
+}
+
+v, ok = <-ch
+if ok {
+	panic("ERROR")
+}
+if v != 0 {
+	panic("ERROR")
+}
+
+print("OK")
+
