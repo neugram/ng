@@ -470,7 +470,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		vals := make([]reflect.Value, 0, len(s.Left))
 		for _, rhs := range s.Right {
 			v := p.evalExpr(rhs)
-			t := p.Types.Types[rhs]
+			t := p.Types.Type(rhs)
 			if tuple, isTuple := t.(*tipe.Tuple); isTuple {
 				types = append(types, tuple.Elems...)
 			} else {
@@ -502,7 +502,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 					continue
 				}
 				if e, isIndex := lhs.(*expr.Index); isIndex {
-					if _, isMap := tipe.Underlying(p.Types.Types[e.Left]).(*tipe.Map); isMap {
+					if _, isMap := tipe.Underlying(p.Types.Type(e.Left)).(*tipe.Map); isMap {
 						container := p.evalExprOne(e.Left)
 						k := p.evalExprOne(e.Indicies[0])
 						if env, ok := container.Interface().(evalMap); ok {
@@ -620,14 +620,15 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				}
 				oldPath := p.Path
 				oldCur := p.Cur
+				oldTypes := p.Types
 				p.Path = path
 				p.Cur = p.Universe
-				p.Types.PushScope()
+				p.Types = oldTypes.NewScope()
 				func() {
 					defer func() {
 						p.Path = oldPath
 						p.Cur = oldCur
-						p.Types.PopScope()
+						p.Types = oldTypes
 					}()
 					if err := p.evalFile(); err != nil {
 						panic(Panic{val: fmt.Errorf("%s: %v", p.Path, err)})
@@ -690,7 +691,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		var key, val reflect.Value
 		if s.Decl {
 			if s.Key != nil {
-				key = reflect.New(p.reflector.ToRType(p.Types.Types[s.Key])).Elem()
+				key = reflect.New(p.reflector.ToRType(p.Types.Type(s.Key))).Elem()
 				name := s.Key.(*expr.Ident).Name
 				p.Cur = &Scope{
 					Parent:   p.Cur,
@@ -700,7 +701,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				}
 			}
 			if s.Val != nil {
-				val = reflect.New(p.reflector.ToRType(p.Types.Types[s.Val])).Elem()
+				val = reflect.New(p.reflector.ToRType(p.Types.Type(s.Val))).Elem()
 				name := s.Val.(*expr.Ident).Name
 				p.Cur = &Scope{
 					Parent:   p.Cur,
@@ -1084,7 +1085,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		default:
 			v = reflect.ValueOf(val)
 		}
-		t := p.reflector.ToRType(p.Types.Types[e])
+		t := p.reflector.ToRType(p.Types.Type(e))
 		return []reflect.Value{convert(v, t)}
 	case *expr.Binary:
 		lhs := p.evalExpr(e.Left)
@@ -1118,7 +1119,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				}
 				return []reflect.Value{reflect.ValueOf(v)}
 			}
-			panic("comparing uncomparable type " + format.Type(p.Types.Types[e.Left]))
+			panic("comparing uncomparable type " + format.Type(p.Types.Type(e.Left)))
 		}
 		x := lhs[0].Interface()
 		y := rhs[0].Interface()
@@ -1126,7 +1127,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		if err != nil {
 			panic(interpPanic{err})
 		}
-		t := p.reflector.ToRType(p.Types.Types[e])
+		t := p.reflector.ToRType(p.Types.Type(e))
 		return []reflect.Value{convert(reflect.ValueOf(v), t)}
 	case *expr.Call:
 		fn, args := p.prepCall(e)
@@ -1180,15 +1181,15 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{p.evalFuncLiteral(e, nil)}
 	case *expr.Ident:
 		if e.Name == "nil" { // TODO: make sure it's the Universe nil
-			t := p.reflector.ToRType(p.Types.Types[e])
+			t := p.reflector.ToRType(p.Types.Type(e))
 			return []reflect.Value{reflect.New(t).Elem()}
 		}
 		if v := p.Cur.Lookup(e.Name); v != (reflect.Value{}) {
 			return []reflect.Value{v}
 		}
-		t := p.Types.Types[e]
+		t := p.Types.Type(e)
 		if t != nil {
-			return []reflect.Value{reflect.ValueOf(p.reflector.ToRType(p.Types.Types[e]))}
+			return []reflect.Value{reflect.ValueOf(p.reflector.ToRType(p.Types.Type(e)))}
 		}
 		panic(interpPanic{fmt.Errorf("eval: undefined identifier: %q", e.Name)})
 	case *expr.Index:
@@ -1229,7 +1230,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			if !exists {
 				v = reflect.Zero(container.Type().Elem())
 			}
-			if t, returnExists := p.Types.Types[e].(*tipe.Tuple); returnExists {
+			if t, returnExists := p.Types.Type(e).(*tipe.Tuple); returnExists {
 				// TODO: type checker is not generating this tuple yet.
 				fmt.Printf("index t=%v\n", t)
 				return []reflect.Value{v, reflect.ValueOf(exists)}
@@ -1386,14 +1387,14 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		case token.ChanOp:
 			ch := p.evalExprOne(e.Expr)
 			res, ok := ch.Recv()
-			switch et := p.Types.Types[e].(type) {
+			switch et := p.Types.Type(e).(type) {
 			case *tipe.Tuple:
 				t := p.reflector.ToRType(et.Elems[0])
 				return []reflect.Value{convert(res, t), reflect.ValueOf(ok)}
 			}
 			v = res
 		}
-		t := p.reflector.ToRType(p.Types.Types[e])
+		t := p.reflector.ToRType(p.Types.Type(e))
 		return []reflect.Value{convert(v, t)}
 	}
 	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", format.Expr(e), e)})

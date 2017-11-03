@@ -203,7 +203,7 @@ func TestBasic(t *testing.T) {
 		//t.Logf("%s", c)
 
 		findDef := func(name string) *Obj {
-			return c.Cur.Objs[name]
+			return c.cur.Objs[name]
 		}
 
 		for _, want := range test.want {

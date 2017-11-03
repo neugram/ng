@@ -14,7 +14,6 @@ import (
 
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/token"
-	"neugram.io/ng/typecheck"
 )
 
 func completer(mode, line string, pos int) (prefix string, completions []string, suffix string) {
@@ -47,16 +46,8 @@ func completerNg(line string, pos int) (prefix string, completions []string, suf
 			res = append(res, scope.VarName)
 		}
 	}
-	for scope := prg.Types.Cur; scope != nil; scope = scope.Parent {
-		for k, obj := range scope.Objs {
-			if obj.Kind != typecheck.ObjType {
-				continue
-			}
-			if strings.HasPrefix(k, line) {
-				res = append(res, k)
-			}
-		}
-	}
+	res = append(res, prg.Types.TypesWithPrefix(line)...)
+
 	return "", res, ""
 }
 

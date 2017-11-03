@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -34,21 +35,21 @@ type Checker struct {
 	ImportGo func(path string) (*gotypes.Package, error)
 
 	// TODO: we could put these on our AST. Should we?
-	Types         map[expr.Expr]tipe.Type
-	Defs          map[*expr.Ident]*Obj
+	// TODO: unexport fields that should be guarded by mu
+	mu            *sync.Mutex
+	types         map[expr.Expr]tipe.Type
 	Values        map[expr.Expr]constant.Value
 	NgPkgs        map[string]*tipe.Package // abs file path -> pkg
 	GoPkgs        map[string]*tipe.Package // path -> pkg
 	GoTypes       map[gotypes.Type]tipe.Type
-	GoTypesToFill map[gotypes.Type]tipe.Type
+	goTypesToFill map[gotypes.Type]tipe.Type
 	// TODO: GoEquiv is tricky and deserving of docs. Particular type instance is associated with a Go type. That means EqualType(t1, t2)==true but t1 could have GoEquiv and t2 not.
-	GoEquiv map[tipe.Type]gotypes.Type
-	NumSpec map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
-	Errs    []error
-
+	GoEquiv    map[tipe.Type]gotypes.Type
+	NumSpec    map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
+	Errs       []error
 	importWalk []string // in-process pkgs, used to detect cycles
 
-	Cur *Scope
+	cur *Scope
 
 	memory *tipe.Memory
 }
@@ -58,16 +59,16 @@ func New(initPkg string) *Checker {
 		initPkg = "main"
 	}
 	return &Checker{
+		mu:            new(sync.Mutex),
+		types:         make(map[expr.Expr]tipe.Type),
 		ImportGo:      goimporter.Default().Import,
-		Types:         make(map[expr.Expr]tipe.Type),
-		Defs:          make(map[*expr.Ident]*Obj),
 		Values:        make(map[expr.Expr]constant.Value),
 		NgPkgs:        make(map[string]*tipe.Package),
 		GoPkgs:        make(map[string]*tipe.Package),
 		GoTypes:       make(map[gotypes.Type]tipe.Type),
-		GoTypesToFill: make(map[gotypes.Type]tipe.Type),
+		goTypesToFill: make(map[gotypes.Type]tipe.Type),
 		GoEquiv:       make(map[tipe.Type]gotypes.Type), // TODO remove?
-		Cur: &Scope{
+		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
@@ -137,7 +138,9 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				switch e.Op {
 				case token.ChanOp:
 					typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
-					c.Types[e] = typ
+					if curTyp := c.types[e]; curTyp != typ {
+						c.types[e] = typ
+					}
 					partials = append(partials, partial{
 						mode: modeVar,
 						typ:  tipe.Bool,
@@ -168,7 +171,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				if name == "_" {
 					continue
 				}
-				if obj := c.Cur.Objs[name]; obj == nil || obj.Kind != ObjVar {
+				if obj := c.cur.Objs[name]; obj == nil || obj.Kind != ObjVar {
 					ndecls++
 				}
 			}
@@ -193,8 +196,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Kind: ObjVar,
 					Type: p.typ,
 				}
-				c.Defs[lhs.(*expr.Ident)] = obj
-				c.Cur.Objs[lhs.(*expr.Ident).Name] = obj
+				c.cur.Objs[lhs.(*expr.Ident).Name] = obj
 			}
 		} else {
 			for i, lhs := range s.Left {
@@ -231,15 +233,14 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Kind: ObjVar,
 					Type: p.typ,
 				}
-				// TODO: c.Defs?
-				c.Cur.Objs[fn.Name] = obj
+				c.cur.Objs[fn.Name] = obj
 			}
 		}
 		return p.typ
 
 	case *stmt.Block:
-		c.PushScope()
-		defer c.PopScope()
+		c.pushScope()
+		defer c.popScope()
 		for _, s := range s.Stmts {
 			c.stmt(s, retType)
 		}
@@ -251,8 +252,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.If:
 		if s.Init != nil {
-			c.PushScope()
-			defer c.PopScope()
+			c.pushScope()
+			defer c.popScope()
 			c.stmt(s.Init, retType)
 		}
 		c.expr(s.Cond)
@@ -264,8 +265,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.For:
 		if s.Init != nil {
-			c.PushScope()
-			defer c.PopScope()
+			c.pushScope()
+			defer c.popScope()
 			c.stmt(s.Init, retType)
 		}
 		if s.Cond != nil {
@@ -278,8 +279,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.Range:
-		c.PushScope()
-		defer c.PopScope()
+		c.pushScope()
+		defer c.popScope()
 
 		p := c.expr(s.Expr)
 		var kt, vt tipe.Type
@@ -299,28 +300,26 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			c.errorf("TODO range over non-slice: %T", t)
 		}
 		if s.Decl {
-			if s.Key != nil {
+			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
 				obj := &Obj{Kind: ObjVar, Type: kt}
-				c.Defs[s.Key.(*expr.Ident)] = obj
-				c.Cur.Objs[s.Key.(*expr.Ident).Name] = obj
-				c.Types[s.Key] = kt
+				c.cur.Objs[s.Key.(*expr.Ident).Name] = obj
+				c.types[s.Key] = kt
 			}
-			if s.Val != nil {
+			if _, exists := c.types[s.Val]; s.Val != nil && !exists {
 				obj := &Obj{Kind: ObjVar, Type: vt}
-				c.Defs[s.Val.(*expr.Ident)] = obj
-				c.Cur.Objs[s.Val.(*expr.Ident).Name] = obj
-				c.Types[s.Val] = vt
+				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
+				c.types[s.Val] = vt
 			}
 		} else {
-			if s.Key != nil {
+			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
 				p := c.expr(s.Key)
 				c.assign(&p, kt)
-				c.Types[s.Key] = kt
+				c.types[s.Key] = kt
 			}
-			if s.Val != nil {
+			if _, exists := c.types[s.Val]; s.Val != nil && !exists {
 				p := c.expr(s.Val)
 				c.assign(&p, vt)
-				c.Types[s.Val] = vt
+				c.types[s.Val] = vt
 			}
 		}
 		c.stmt(s.Body, retType)
@@ -335,7 +334,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			Type: s.Type,
 			Decl: s,
 		}
-		c.Cur.Objs[s.Name] = obj
+		c.cur.Objs[s.Name] = obj
 		return nil
 
 	case *stmt.MethodikDecl:
@@ -347,17 +346,17 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		for _, m := range s.Methods {
-			c.PushScope()
+			c.pushScope()
 			if m.ReceiverName != "" {
 				obj := &Obj{
 					Kind: ObjVar,
 					Type: s.Type,
 				}
-				c.Cur.Objs[m.ReceiverName] = obj
+				c.cur.Objs[m.ReceiverName] = obj
 			}
 			c.expr(m)
 			// TODO: uses num inside a method
-			c.PopScope()
+			c.popScope()
 		}
 
 		if usesNum {
@@ -369,7 +368,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			Type: s.Type,
 			Decl: s,
 		}
-		c.Cur.Objs[s.Name] = obj
+		c.cur.Objs[s.Name] = obj
 		return nil
 
 	case *stmt.Return:
@@ -476,7 +475,7 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			fmt.Printf("typecheck: unknown go type: %v\n", t)
 		} else {
 			c.GoTypes[t] = res
-			c.GoTypesToFill[t] = res
+			c.goTypesToFill[t] = res
 			if _, isBasic := t.(*gotypes.Basic); !isBasic {
 				c.GoEquiv[res] = t
 			}
@@ -668,10 +667,10 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 		}
 		pkg.Exports[name] = c.fromGoType(obj.Type())
 	}
-	for len(c.GoTypesToFill) > 0 {
-		for gotyp, t := range c.GoTypesToFill {
+	for len(c.goTypesToFill) > 0 {
+		for gotyp, t := range c.goTypesToFill {
 			c.fillGoType(t, gotyp)
-			delete(c.GoTypesToFill, gotyp)
+			delete(c.goTypesToFill, gotyp)
 		}
 	}
 	return pkg, nil
@@ -705,14 +704,14 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		return nil, fmt.Errorf("ng package import: %v", err)
 	}
 	c.importWalk = append(c.importWalk, path)
-	oldcur := c.Cur
+	oldcur := c.cur
 	defer func() {
 		f.Close()
 		c.importWalk = c.importWalk[:len(c.importWalk)-1]
-		c.Cur = oldcur
+		c.cur = oldcur
 	}()
 
-	c.Cur = &Scope{
+	c.cur = &Scope{
 		Parent: Universe,
 		Objs:   make(map[string]*Obj),
 	}
@@ -724,7 +723,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		Exports: make(map[string]tipe.Type),
 	}
 	c.NgPkgs[path] = pkg
-	for scope := c.Cur; scope != Universe; scope = scope.Parent {
+	for scope := c.cur; scope != Universe; scope = scope.Parent {
 		for name, obj := range scope.Objs {
 			if !isExported(name) {
 				continue
@@ -754,7 +753,7 @@ func (c *Checker) parseFile(f *os.File) error {
 			return fmt.Errorf("%d: %v", i+1, res.Errs[0]) // TODO: position information
 		}
 		for _, s := range res.Stmts {
-			c.Add(s)
+			c.stmt(s, nil)
 			if len(c.Errs) > 0 {
 				return fmt.Errorf("%d: typecheck: %v\n", i+1, c.Errs[0])
 			}
@@ -794,7 +793,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 		Type: pkg,
 		// TODO Decl?
 	}
-	c.Cur.Objs[s.Name] = obj
+	c.cur.Objs[s.Name] = obj
 }
 
 func (c *Checker) expr(e expr.Expr) (p partial) {
@@ -912,7 +911,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 			}
 			return res, true
 		}
-		obj := c.Cur.LookupRec(t.Name)
+		obj := c.cur.LookupRec(t.Name)
 		if obj == nil {
 			c.errorf("type %s not declared", t.Name)
 			return t, false
@@ -930,7 +929,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 
 func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
 	name := pkgName + "." + sel
-	obj := c.Cur.LookupRec(pkgName)
+	obj := c.cur.LookupRec(pkgName)
 	if obj == nil {
 		c.errorf("undefined %s in %s", pkgName, name)
 		return nil
@@ -1391,10 +1390,14 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	defer func() {
 		if p.mode == modeConst {
-			c.Values[p.expr] = p.val
+			if _, exists := c.Values[p.expr]; !exists {
+				c.Values[p.expr] = p.val
+			}
 		}
 		if p.mode != modeInvalid {
-			c.Types[p.expr] = p.typ
+			if _, exists := c.types[p.expr]; !exists {
+				c.types[p.expr] = p.typ
+			}
 		}
 	}()
 	p.expr = e
@@ -1405,13 +1408,12 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			c.errorf("cannot use _ as a value")
 			return p
 		}
-		obj := c.Cur.LookupRec(e.Name)
+		obj := c.cur.LookupRec(e.Name)
 		if obj == nil {
 			p.mode = modeInvalid
 			c.errorf("undeclared identifier: %s", e.Name)
 			return p
 		}
-		c.Defs[e] = obj // TODO Defs is more than definitions? rename?
 		// TODO: is a partial's mode just an ObjKind?
 		// not every partial has an Obj, but we could reuse the type.
 		switch obj.Kind {
@@ -1457,10 +1459,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		return p
 	case *expr.FuncLiteral:
-		c.PushScope()
-		defer c.PopScope()
-		c.Cur.foundInParent = make(map[string]bool)
-		c.Cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
+		c.pushScope()
+		defer c.popScope()
+		c.cur.foundInParent = make(map[string]bool)
+		c.cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
 				t, _ = c.resolve(t)
@@ -1469,7 +1471,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 					Kind: ObjVar,
 					Type: t,
 				}
-				c.Cur.Objs[e.ParamNames[i]] = obj
+				c.cur.Objs[e.ParamNames[i]] = obj
 			}
 		}
 		if e.Type.Results != nil {
@@ -1478,10 +1480,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 		}
 		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
-		for name := range c.Cur.foundInParent {
+		for name := range c.cur.foundInParent {
 			e.Type.FreeVars = append(e.Type.FreeVars, name)
 		}
-		for mdik := range c.Cur.foundMdikInParent {
+		for mdik := range c.cur.foundMdikInParent {
 			e.Type.FreeMdik = append(e.Type.FreeMdik, mdik)
 		}
 		p.typ = e.Type
@@ -2160,11 +2162,11 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 
 // constrainExprType descends an expression constraining the type.
 func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
-	oldt := c.Types[e]
+	oldt := c.types[e]
 	if oldt == t {
 		return
 	}
-	c.Types[e] = t
+	c.types[e] = t
 
 	switch e := e.(type) {
 	case *expr.Bad, *expr.FuncLiteral: // TODO etc
@@ -2184,7 +2186,7 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 		c.constrainExprType(e.Right, t)
 	}
 
-	c.Types[e] = t
+	c.types[e] = t
 }
 
 func (c *Checker) errorf(format string, args ...interface{}) {
@@ -2192,14 +2194,54 @@ func (c *Checker) errorf(format string, args ...interface{}) {
 	c.Errs = append(c.Errs, err)
 }
 
-func (c *Checker) PushScope() {
-	c.Cur = &Scope{
-		Parent: c.Cur,
+func (c *Checker) pushScope() {
+	c.cur = &Scope{
+		Parent: c.cur,
 		Objs:   make(map[string]*Obj),
 	}
 }
-func (c *Checker) PopScope() {
-	c.Cur = c.Cur.Parent
+func (c *Checker) popScope() {
+	c.cur = c.cur.Parent
+}
+
+func (c *Checker) Type(e expr.Expr) (t tipe.Type) {
+	c.mu.Lock()
+	t = c.types[e]
+	c.mu.Unlock()
+	return t
+}
+
+// NewScope make a copy of Checker with a new, blank current scope.
+// The two checkers share all type checked data.
+func (c *Checker) NewScope() *Checker {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	newc := *c
+	newc.cur = &Scope{
+		Parent: Universe,
+		Objs:   make(map[string]*Obj),
+	}
+	return &newc
+}
+
+// TypesWithPrefix returns the names of all types currently in
+// scope that start with prefix.
+func (c *Checker) TypesWithPrefix(prefix string) (res []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for scope := c.cur; scope != nil; scope = scope.Parent {
+		for k, obj := range scope.Objs {
+			if obj.Kind != ObjType {
+				continue
+			}
+			if strings.HasPrefix(k, prefix) {
+				res = append(res, k)
+			}
+		}
+	}
+	return res
 }
 
 func convGoOp(op token.Token) gotoken.Token {
@@ -2392,11 +2434,15 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 }
 
 func (c *Checker) Add(s stmt.Stmt) tipe.Type {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.stmt(s, nil)
 }
 
 func (c *Checker) Lookup(name string) *Obj {
-	return c.Cur.LookupRec(name)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cur.LookupRec(name)
 }
 
 type Scope struct {
