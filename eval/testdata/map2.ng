@@ -1,0 +1,41 @@
+m := make(map[string]int)
+m["one"] = 1
+
+v, ok := m["one"]
+if !ok {
+	panic("ERROR")
+}
+if v != 1 {
+	panic("ERROR")
+}
+
+v, ok = m["not-there"]
+if ok {
+	panic("ERROR")
+}
+if v != 0 {
+	panic("ERROR")
+}
+
+v += m["one"]
+if v != 1 {
+	panic("ERROR")
+}
+
+func f() map[string]int { return map[string]int{ "one": 11 } }
+
+v, ok = f()["one"]
+if !ok {
+	panic("ERROR")
+}
+
+if v != 11 {
+	panic("ERROR")
+}
+
+v += f()["one"]
+if v != 22 {
+	panic("ERROR")
+}
+
+print("OK")

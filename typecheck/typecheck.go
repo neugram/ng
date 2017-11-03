@@ -133,6 +133,28 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		if len(s.Right) == 1 && len(s.Left) == 2 && len(s.Left) == len(partials)+1 {
 			switch e := s.Right[0].(type) {
+			case *expr.Index:
+				// v, ok = m[key]
+				switch typ := c.types[e.Left].(type) {
+				case *tipe.Map:
+					// the general case for a map-index is to only typecheck
+					// for returning the map-value.
+					// in the case of indexing into a map with a comma-ok,
+					// we need to also return the boolean indicating whther
+					// the key was found in the map.
+					// so, replace the original tipe.Type with the tuple:
+					//  (tipe.Type, tipe.Bool)
+					// this way, the eval of that stmt.Assign will do the right thing.
+					// we still need to add the boolean to the partials, though.
+					t := &tipe.Tuple{Elems: []tipe.Type{typ.Value, tipe.Bool}}
+					partials = append(partials, partial{
+						mode: modeVar,
+						typ:  tipe.Bool,
+					})
+					if curTyp := c.types[e]; curTyp != t {
+						c.types[e] = t
+					}
+				}
 			case *expr.Unary:
 				// v, ok = <-ch
 				switch e.Op {
