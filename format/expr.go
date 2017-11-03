@@ -56,6 +56,16 @@ func (p *printer) expr(e expr.Expr) {
 		*/
 	case *expr.Ident:
 		p.buf.WriteString(e.Name)
+	case *expr.Index:
+		p.expr(e.Left)
+		p.buf.WriteString("[")
+		for i, idx := range e.Indicies {
+			if i > 0 {
+				p.buf.WriteString(":")
+			}
+			p.expr(idx)
+		}
+		p.buf.WriteString("]")
 	case *expr.Call:
 		WriteExpr(p.buf, e.Func)
 		p.buf.WriteString("(")
