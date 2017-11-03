@@ -359,6 +359,8 @@ func handleResult(res parser.Result) {
 				fmt.Print(v.String())
 			case eval.UntypedFloat:
 				fmt.Print(v.String())
+			case eval.UntypedComplex:
+				fmt.Print(v.String())
 			case eval.UntypedString:
 				fmt.Print(v.String)
 			case eval.UntypedRune:

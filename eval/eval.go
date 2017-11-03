@@ -874,6 +874,10 @@ type UntypedString struct{ String string }
 type UntypedRune struct{ Rune rune }
 type UntypedBool struct{ Bool bool }
 
+func (uc UntypedComplex) String() string {
+	return uc.Real.String() + "+" + uc.Imag.String() + "i"
+}
+
 func promoteUntyped(x interface{}) interface{} {
 	switch x := x.(type) {
 	case UntypedInt:
