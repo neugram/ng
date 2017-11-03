@@ -997,6 +997,10 @@ type interpPanic struct {
 	reason error
 }
 
+func (p interpPanic) Error() string {
+	return p.reason.Error()
+}
+
 func (p *Program) prepCall(e *expr.Call) (fn reflect.Value, args []reflect.Value) {
 	fn = p.evalExprOne(e.Func)
 	args = make([]reflect.Value, len(e.Args))
