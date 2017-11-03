@@ -1,0 +1,5 @@
+func invalid(ch <-chan int) {
+	close(ch) // ERROR: cannot close receive-only channel
+}
+
+print("OK")

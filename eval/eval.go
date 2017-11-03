@@ -140,6 +140,10 @@ func New(path string) *Program {
 		c = promoteUntyped(c)
 		panic(Panic{c})
 	})
+	addUniverse("close", func(ch interface{}) {
+		rv := reflect.ValueOf(ch)
+		rv.Close()
+	})
 	addUniverse("copy", func(dst, src interface{}) int {
 		src = promoteUntyped(src)
 		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
@@ -768,6 +772,37 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 						continue mapLoop
 					}
 					break mapLoop
+				}
+			}
+		case reflect.Chan:
+		chanLoop:
+			for {
+				v, ok := src.Recv()
+				if !ok {
+					break chanLoop
+				}
+				key.Set(v)
+				p.evalStmt(s.Body)
+				if p.interrupted() {
+					break
+				}
+				switch p.branchType {
+				default:
+					break chanLoop
+				case brNone:
+				case brBreak:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+					}
+					break chanLoop
+				case brContinue:
+					if p.branchLabel == mostRecentLabel {
+						p.branchType = brNone
+						p.branchLabel = ""
+						continue chanLoop
+					}
+					break chanLoop
 				}
 			}
 		default:

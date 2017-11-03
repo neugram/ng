@@ -1,0 +1,18 @@
+ch := make(chan int)
+sum := 0
+go func() {
+	for i := 0; i < 10; i++ {
+		ch <- 1
+	}
+	close(ch)
+}()
+
+for v := range ch {
+	sum += v
+}
+
+
+if sum != 10 {
+	panic("ERROR")
+}
+print("OK")

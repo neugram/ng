@@ -260,6 +260,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		case *tipe.Map:
 			kt = t.Key
 			vt = t.Value
+		case *tipe.Chan:
+			kt = t.Elem
 		default:
 			c.errorf("TODO range over non-slice: %T", t)
 		}
@@ -948,6 +950,24 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		return p
 	case tipe.Close:
 		p.typ = nil
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorf("too few arguments to close")
+			return p
+		}
+		arg := c.expr(e.Args[0])
+		ch, isChan := tipe.Underlying(arg.typ).(*tipe.Chan)
+		if !isChan {
+			p.mode = modeInvalid
+			c.errorf("argument to close must be a chan, got %s", format.Type(arg.typ))
+			return p
+		}
+		if ch.Direction == tipe.ChanRecv {
+			p.mode = modeInvalid
+			c.errorf("%s: cannot close receive-only channel", format.Expr(e))
+			return p
+		}
+		return p
 	case tipe.ComplexFunc:
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
