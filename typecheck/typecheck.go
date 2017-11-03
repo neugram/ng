@@ -401,14 +401,14 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		var got []tipe.Type
 		if tup, ok := partials[0].typ.(*tipe.Tuple); ok {
 			if len(partials) != 1 {
-				c.errorf("multi-value %s in single-value context", partials[0])
+				c.errorf("multi-value %v in single-value context", partials[0])
 				return nil
 			}
 			got = tup.Elems
 		} else {
 			for _, p := range partials {
 				if _, ok := p.typ.(*tipe.Tuple); ok {
-					c.errorf("multi-value %s in single-value context", partials[0])
+					c.errorf("multi-value %v in single-value context", partials[0])
 					return nil
 				}
 				got = append(got, p.typ)
@@ -1996,7 +1996,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			return p
 		}
 
-		panic(fmt.Sprintf("typecheck.expr TODO Index: %s, %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
+		panic(fmt.Sprintf("typecheck.expr TODO Index: %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
 	case *expr.Shell:
 		p.mode = modeVar
 		if hint == hintElideErr {
