@@ -939,6 +939,10 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseSwitch()
 		p.expectSemi()
 		return s
+	case token.Select:
+		s := p.parseSelect()
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
@@ -984,6 +988,36 @@ func (p *Parser) parseGo() stmt.Stmt {
 		return nil
 	}
 	return &stmt.Go{Call: call}
+}
+
+func (p *Parser) parseSelect() stmt.Stmt {
+	p.expect(token.Select)
+	p.next()
+	p.expect(token.LeftBrace)
+	p.next()
+
+	s := new(stmt.Select)
+	for p.s.Token != token.RightBrace {
+		var c stmt.CommCase
+		switch p.s.Token {
+		case token.Case:
+			p.expect(token.Case)
+			p.next()
+			c.Stmt = p.parseSimpleStmt()
+		case token.Default:
+			p.expect(token.Default)
+			p.next()
+			c.Default = true
+		}
+		p.expect(token.Colon)
+		p.next()
+		c.Body = &stmt.Block{Stmts: p.parseStmts()}
+		s.Cases = append(s.Cases, c)
+	}
+	p.expect(token.RightBrace)
+	p.next()
+	p.expectSemi()
+	return s
 }
 
 func (p *Parser) parseFor() stmt.Stmt {

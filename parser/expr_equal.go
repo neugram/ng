@@ -653,6 +653,31 @@ func equalCase(c1, c2 stmt.Case) bool {
 	return true
 }
 
+func equalCommCases(c1, c2 []stmt.CommCase) bool {
+	if len(c1) != len(c2) {
+		return false
+	}
+	for i := range c1 {
+		if !equalCommCase(c1[i], c2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalCommCase(c1, c2 stmt.CommCase) bool {
+	if c1.Default != c2.Default {
+		return false
+	}
+	if !EqualStmt(c1.Stmt, c2.Stmt) {
+		return false
+	}
+	if !EqualStmt(c1.Body, c2.Body) {
+		return false
+	}
+	return true
+}
+
 func EqualStmt(x, y stmt.Stmt) bool {
 	if x == nil && y == nil {
 		return true
@@ -873,6 +898,14 @@ func EqualStmt(x, y stmt.Stmt) bool {
 			return false
 		}
 		if !equalCases(x.Cases, y.Cases) {
+			return false
+		}
+	case *stmt.Select:
+		y, ok := y.(*stmt.Select)
+		if !ok {
+			return false
+		}
+		if !equalCommCases(x.Cases, y.Cases) {
 			return false
 		}
 	default:
