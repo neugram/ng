@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"runtime/debug"
 	"strings"
+	"sync"
 
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/gowrap"
@@ -1452,8 +1453,8 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Methodik) ref
 	return fn
 }
 
-// TODO make thread safe
 type reflector struct {
+	mu  sync.RWMutex
 	fwd map[tipe.Type]reflect.Type
 	rev map[reflect.Type]tipe.Type
 }
@@ -1470,10 +1471,25 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		return nil
 	}
 
+	r.mu.RLock()
+	rtype := r.fwd[t]
+	r.mu.RUnlock()
+
+	if rtype != nil {
+		return rtype
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.toRType(t)
+}
+
+func (r *reflector) toRType(t tipe.Type) reflect.Type {
 	rtype := r.fwd[t]
 	if rtype != nil {
 		return rtype
 	}
+
 	if t == tipe.Byte {
 		rtype = reflect.TypeOf(byte(0))
 		r.fwd[t] = rtype
@@ -1549,12 +1565,12 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		var in, out []reflect.Type
 		if t.Params != nil {
 			for _, p := range t.Params.Elems {
-				in = append(in, r.ToRType(p))
+				in = append(in, r.toRType(p))
 			}
 		}
 		if t.Results != nil {
 			for _, p := range t.Results.Elems {
-				out = append(out, r.ToRType(p))
+				out = append(out, r.toRType(p))
 			}
 		}
 		rtype = reflect.FuncOf(in, out, t.Variadic)
@@ -1563,7 +1579,7 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		for i, f := range t.Fields {
 			fields = append(fields, reflect.StructField{
 				Name: t.FieldNames[i],
-				Type: r.ToRType(f),
+				Type: r.toRType(f),
 			})
 		}
 		rtype = reflect.StructOf(fields)
@@ -1585,12 +1601,12 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 			panic("TODO unnamed Methodik")
 		}
 	case *tipe.Array:
-		rtype = reflect.ArrayOf(int(t.Len), r.ToRType(t.Elem))
+		rtype = reflect.ArrayOf(int(t.Len), r.toRType(t.Elem))
 	case *tipe.Slice:
-		rtype = reflect.SliceOf(r.ToRType(t.Elem))
+		rtype = reflect.SliceOf(r.toRType(t.Elem))
 	// TODO case *Table:
 	case *tipe.Pointer:
-		rtype = reflect.PtrTo(r.ToRType(t.Elem))
+		rtype = reflect.PtrTo(r.toRType(t.Elem))
 	case *tipe.Chan:
 		var dir reflect.ChanDir
 		switch t.Direction {
@@ -1603,9 +1619,9 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 		default:
 			panic(fmt.Sprintf("bad channel direction: %v", t.Direction))
 		}
-		rtype = reflect.ChanOf(dir, r.ToRType(t.Elem))
+		rtype = reflect.ChanOf(dir, r.toRType(t.Elem))
 	case *tipe.Map:
-		rtype = reflect.MapOf(r.ToRType(t.Key), r.ToRType(t.Value))
+		rtype = reflect.MapOf(r.toRType(t.Key), r.toRType(t.Value))
 	// TODO case *Interface:
 	// TODO need more reflect support, MakeInterface
 	// TODO needs reflect.InterfaceOf
@@ -1623,12 +1639,7 @@ func (r *reflector) ToRType(t tipe.Type) reflect.Type {
 }
 
 func (r *reflector) FromRType(rtype reflect.Type) tipe.Type {
-	if t := r.rev[rtype]; t != nil {
-		return t
-	}
-	var t tipe.Type // TODO
-	r.rev[rtype] = t
-	return t
+	panic("TODO FromRType")
 }
 
 func isError(t tipe.Type) bool {
