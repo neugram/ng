@@ -107,6 +107,15 @@ func (p *printer) tipe(t tipe.Type) {
 		p.tipeFuncSig(t)
 	case *tipe.Alias:
 		p.buf.WriteString(t.Name)
+	case *tipe.Tuple:
+		p.buf.WriteString("(")
+		for i, elt := range t.Elems {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			p.tipe(elt)
+		}
+		p.buf.WriteString(")")
 	default:
 		p.buf.WriteString("format: unknown type: ")
 		WriteDebug(p.buf, t)
