@@ -902,6 +902,93 @@ var stmtTests = []stmtTest{
 			},
 		},
 	},
+	{"select {}", &stmt.Select{}},
+	{`select {
+	case v := <-ch1:
+		print(v)
+	case v, ok := <-ch2:
+		print(v, ok)
+	case ch3 <- vv:
+		print(ch3)
+	default:
+		print(42)
+	}`,
+		&stmt.Select{
+			Cases: []stmt.CommCase{
+				{
+					Stmt: &stmt.Assign{
+						Decl: true,
+						Left: []expr.Expr{
+							&expr.Ident{
+								Name: "v",
+							},
+						},
+						Right: []expr.Expr{
+							&expr.Unary{
+								Op: token.ChanOp,
+								Expr: &expr.Ident{
+									Name: "ch1",
+								},
+							},
+						},
+					},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "v"}},
+								},
+							},
+						},
+					},
+				},
+				{
+					Stmt: &stmt.Assign{
+						Decl:  true,
+						Left:  []expr.Expr{&expr.Ident{Name: "v"}, &expr.Ident{Name: "ok"}},
+						Right: []expr.Expr{&expr.Unary{Op: token.ChanOp, Expr: &expr.Ident{Name: "ch2"}}},
+					},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "v"}, &expr.Ident{Name: "ok"}},
+								},
+							},
+						},
+					},
+				},
+				{
+					Stmt: &stmt.Send{Chan: &expr.Ident{Name: "ch3"}, Value: &expr.Ident{Name: "vv"}},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "ch3"}},
+								},
+							},
+						},
+					},
+				},
+				{
+					Default: true,
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(42)}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestParseStmt(t *testing.T) {

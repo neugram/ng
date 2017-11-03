@@ -115,6 +115,16 @@ type Labeled struct {
 	Stmt  Stmt
 }
 
+type Select struct {
+	Cases []CommCase
+}
+
+type CommCase struct {
+	Default bool
+	Stmt    Stmt // a recv- or send-stmt
+	Body    *Block
+}
+
 type Bad struct {
 }
 
@@ -136,4 +146,5 @@ func (s Simple) stmt()       {}
 func (s Send) stmt()         {}
 func (s Branch) stmt()       {}
 func (s Labeled) stmt()      {}
+func (s Select) stmt()       {}
 func (s Bad) stmt()          {}

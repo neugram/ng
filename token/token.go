@@ -84,6 +84,7 @@ const (
 	Func
 	Return
 
+	Select
 	Switch
 	Case
 	Default
@@ -172,6 +173,7 @@ var Keywords = map[string]Token{
 	"import":      Import,
 	"func":        Func,
 	"return":      Return,
+	"select":      Select,
 	"switch":      Switch,
 	"case":        Case,
 	"default":     Default,
