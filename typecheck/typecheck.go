@@ -130,6 +130,22 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			}
 			partials = append(partials, c.exprNoElide(rhs))
 		}
+		if len(s.Right) == 1 && len(s.Left) == 2 && len(s.Left) == len(partials)+1 {
+			switch e := s.Right[0].(type) {
+			case *expr.Unary:
+				// v, ok = <-ch
+				switch e.Op {
+				case token.ChanOp:
+					typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
+					c.Types[e] = typ
+					partials = append(partials, partial{
+						mode: modeVar,
+						typ:  tipe.Bool,
+					})
+				}
+			}
+		}
+
 		if len(s.Right) == 1 && len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
 			if c, isCall := s.Right[0].(*expr.Call); isCall {
 				// func f() (T, error) { ... )
