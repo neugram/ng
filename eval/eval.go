@@ -622,10 +622,12 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				oldCur := p.Cur
 				p.Path = path
 				p.Cur = p.Universe
+				p.Types.PushScope()
 				func() {
 					defer func() {
 						p.Path = oldPath
 						p.Cur = oldCur
+						p.Types.PopScope()
 					}()
 					if err := p.evalFile(); err != nil {
 						panic(Panic{val: fmt.Errorf("%s: %v", p.Path, err)})

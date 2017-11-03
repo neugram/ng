@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -205,8 +206,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return p.typ
 
 	case *stmt.Block:
-		c.pushScope()
-		defer c.popScope()
+		c.PushScope()
+		defer c.PopScope()
 		for _, s := range s.Stmts {
 			c.stmt(s, retType)
 		}
@@ -218,8 +219,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.If:
 		if s.Init != nil {
-			c.pushScope()
-			defer c.popScope()
+			c.PushScope()
+			defer c.PopScope()
 			c.stmt(s.Init, retType)
 		}
 		c.expr(s.Cond)
@@ -231,8 +232,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.For:
 		if s.Init != nil {
-			c.pushScope()
-			defer c.popScope()
+			c.PushScope()
+			defer c.PopScope()
 			c.stmt(s.Init, retType)
 		}
 		if s.Cond != nil {
@@ -245,8 +246,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.Range:
-		c.pushScope()
-		defer c.popScope()
+		c.PushScope()
+		defer c.PopScope()
 
 		p := c.expr(s.Expr)
 		var kt, vt tipe.Type
@@ -314,7 +315,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		for _, m := range s.Methods {
-			c.pushScope()
+			c.PushScope()
 			if m.ReceiverName != "" {
 				obj := &Obj{
 					Kind: ObjVar,
@@ -324,7 +325,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			}
 			c.expr(m)
 			// TODO: uses num inside a method
-			c.popScope()
+			c.PopScope()
 		}
 
 		if usesNum {
@@ -691,8 +692,8 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		Exports: make(map[string]tipe.Type),
 	}
 	c.NgPkgs[path] = pkg
-	for c.Cur != Universe {
-		for name, obj := range c.Cur.Objs {
+	for scope := c.Cur; scope != Universe; scope = scope.Parent {
+		for name, obj := range scope.Objs {
 			if !isExported(name) {
 				continue
 			}
@@ -700,9 +701,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 				continue
 			}
 			pkg.Exports[name] = obj.Type
-			fmt.Printf("package exports %q\n", name)
 		}
-		c.Cur = c.Cur.Parent
 	}
 	return pkg, nil
 }
@@ -1426,8 +1425,8 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		return p
 	case *expr.FuncLiteral:
-		c.pushScope()
-		defer c.popScope()
+		c.PushScope()
+		defer c.PopScope()
 		c.Cur.foundInParent = make(map[string]bool)
 		c.Cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
 		if e.Type.Params != nil {
@@ -2161,13 +2160,13 @@ func (c *Checker) errorf(format string, args ...interface{}) {
 	c.Errs = append(c.Errs, err)
 }
 
-func (c *Checker) pushScope() {
+func (c *Checker) PushScope() {
 	c.Cur = &Scope{
 		Parent: c.Cur,
 		Objs:   make(map[string]*Obj),
 	}
 }
-func (c *Checker) popScope() {
+func (c *Checker) PopScope() {
 	c.Cur = c.Cur.Parent
 }
 
@@ -2400,6 +2399,31 @@ func (s *Scope) LookupRec(name string) *Obj {
 		}
 	}
 	return o
+}
+
+func (s *Scope) DebugPrint(indent int) {
+	for i := 0; i < indent; i++ {
+		fmt.Print("\t")
+	}
+	scopeName := ""
+	if s == Universe {
+		scopeName = " (universe)"
+	}
+	fmt.Printf("scope %p%s:\n", s, scopeName)
+	var names []string
+	for name := range s.Objs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		for i := 0; i <= indent; i++ {
+			fmt.Print("\t")
+		}
+		fmt.Printf("%s\n", name)
+	}
+	if s.Parent != nil {
+		s.Parent.DebugPrint(indent + 1)
+	}
 }
 
 type ObjKind int
