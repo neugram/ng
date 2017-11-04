@@ -787,6 +787,79 @@ var stmtTests = []stmtTest{
 			Body: &stmt.Block{},
 		},
 	}}},
+	{"switch {}", &stmt.Switch{}},
+	{`switch {
+	case true:
+	case false:
+	default:
+	}`,
+		&stmt.Switch{
+			Cases: []stmt.Case{
+				{
+					Conds: []expr.Expr{
+						&expr.Ident{
+							Name: "true",
+						},
+					},
+					Body: &stmt.Block{},
+				},
+				{
+					Conds: []expr.Expr{
+						&expr.Ident{
+							Name: "false",
+						},
+					},
+					Body: &stmt.Block{},
+				},
+				{
+					Default: true,
+					Body:    &stmt.Block{},
+				},
+			},
+		},
+	},
+	{`switch i := fct(); i {
+	case 42, 66:
+	default:
+	}`,
+		&stmt.Switch{
+			Init: &stmt.Assign{
+				Decl: true,
+				Left: []expr.Expr{
+					&expr.Ident{
+						Name: "i",
+					},
+				},
+				Right: []expr.Expr{
+					&expr.Call{
+						Func: &expr.Ident{
+							Name: "fct",
+						},
+					},
+				},
+			},
+			Cond: &expr.Ident{
+				Name: "i",
+			},
+			Cases: []stmt.Case{
+				{
+					Conds: []expr.Expr{
+						&expr.BasicLiteral{
+							Value: big.NewInt(42),
+						},
+						&expr.BasicLiteral{
+							Value: big.NewInt(66),
+						},
+					},
+					Body: &stmt.Block{},
+				},
+				{
+					Default: true,
+					Body:    &stmt.Block{},
+				},
+			},
+		},
+	},
 }
 
 func TestParseStmt(t *testing.T) {
