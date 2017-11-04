@@ -17,7 +17,11 @@ import (
 )
 
 func quotePkgPath(path string) string {
-	return "wrap_" + strings.NewReplacer("/", "_", ".", "_").Replace(path)
+	return "wrap_" + strings.NewReplacer(
+		"/", "_",
+		".", "_",
+		"-", "_",
+	).Replace(path)
 }
 
 func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
