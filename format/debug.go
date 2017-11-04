@@ -25,6 +25,9 @@ type debugPrinter struct {
 func (p *debugPrinter) collectPtrs(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.Ptr:
+		if !v.CanInterface() {
+			return
+		}
 		ptr := v.Interface()
 		p.ptrseen[ptr]++
 		if p.ptrseen[ptr] == 1 {
@@ -107,6 +110,10 @@ func (p *debugPrinter) printv(v reflect.Value) {
 
 	switch v.Kind() {
 	case reflect.Ptr:
+		if !v.CanInterface() {
+			p.printf("unexported")
+			return
+		}
 		p.printf("&")
 		ptr := v.Interface()
 		if p.ptrdone[ptr] {
