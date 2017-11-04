@@ -171,6 +171,7 @@ func TestPrograms(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("executing %s", file) // TODO: switch to subtests
 
 		os.Stdout = out
 		os.Stderr = out

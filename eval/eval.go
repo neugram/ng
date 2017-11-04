@@ -1251,9 +1251,11 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{m}
 	case *expr.Selector:
 		lhs := p.evalExprOne(e.Left)
-		if pkg, ok := lhs.Interface().(*gowrap.Pkg); ok {
-			name := e.Right.Name
-			return []reflect.Value{pkg.Exports[name]}
+		if lhs.Kind() == reflect.Ptr {
+			if pkg, ok := lhs.Interface().(*gowrap.Pkg); ok {
+				name := e.Right.Name
+				return []reflect.Value{pkg.Exports[name]}
+			}
 		}
 		v := lhs.MethodByName(e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr && lhs.CanAddr() {
