@@ -14,10 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kr/pretty"
-
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 )
@@ -100,10 +99,10 @@ func TestExprs(t *testing.T) {
 		s := mustParse(test.stmt)
 		res, err := p.Eval(s, nil)
 		if err != nil {
-			t.Errorf("Eval(%s) error: %v", pretty.Sprint(s), err)
+			t.Errorf("Eval(%s) error: %v", format.Stmt(s), err)
 		}
 		if len(res) != 1 {
-			t.Errorf("Eval(%s) want *big.Int, got multi-valued (%d) result: %v", pretty.Sprint(s), len(res), res)
+			t.Errorf("Eval(%s) want *big.Int, got multi-valued (%d) result: %v", format.Stmt(s), len(res), res)
 			continue
 		}
 		fmt.Printf("Returning Eval: %#+v\n", res)
@@ -111,25 +110,25 @@ func TestExprs(t *testing.T) {
 		case *big.Int:
 			got, ok := res[0].Interface().(*big.Int)
 			if !ok {
-				t.Errorf("Eval(%s) want *big.Int, got: %s (%T)", pretty.Sprint(s), got, res[0].Interface())
+				t.Errorf("Eval(%s) want *big.Int, got: %s (%T)", format.Stmt(s), got, res[0].Interface())
 				continue
 			}
 			if want.Cmp(got) != 0 {
-				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+				t.Errorf("Eval(%s)=%v, want %v", format.Stmt(s), got, want)
 			}
 		case *big.Float:
 			got, ok := res[0].Interface().(*big.Float)
 			if !ok {
-				t.Errorf("Eval(%s) want *big.Float, got: %s (%T)", pretty.Sprint(s), got, res[0].Interface())
+				t.Errorf("Eval(%s) want *big.Float, got: %s (%T)", format.Stmt(s), got, res[0].Interface())
 				continue
 			}
 			if want.Cmp(got) != 0 {
-				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+				t.Errorf("Eval(%s)=%v, want %v", format.Stmt(s), got, want)
 			}
 		default:
 			got := res[0].Interface()
 			if got != want {
-				t.Errorf("Eval(%s)=%v, want %v", pretty.Sprint(s), got, want)
+				t.Errorf("Eval(%s)=%v, want %v", format.Stmt(s), got, want)
 			}
 		}
 	}
