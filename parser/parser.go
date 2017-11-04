@@ -935,6 +935,10 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s := p.parseBranch()
 		p.expectSemi()
 		return s
+	case token.Switch:
+		s := p.parseSwitch()
+		p.expectSemi()
+		return s
 	}
 	panic(fmt.Sprintf("TODO parseStmt %s", p.s.Token))
 }
@@ -1064,6 +1068,55 @@ func (p *Parser) parseFor() stmt.Stmt {
 	panic("TODO parseFor range")
 }
 
+func (p *Parser) parseSwitch() stmt.Stmt {
+	p.expect(token.Switch)
+	p.next()
+
+	s := new(stmt.Switch)
+
+	if p.s.Token != token.LeftBrace {
+		p.noCompLit = true
+		s.Init = p.parseSimpleStmt()
+		if p.s.Token == token.Semicolon {
+			p.next()
+			s.Cond = p.parseExpr()
+		} else {
+			// no init statement, make it the condition
+			s.Cond = p.extractExpr(s.Init)
+			s.Init = nil
+		}
+		p.noCompLit = false
+	}
+	p.expect(token.LeftBrace)
+	p.next()
+
+	for p.s.Token != token.RightBrace {
+		var c stmt.Case
+		switch p.s.Token {
+		case token.Case:
+			p.expect(token.Case)
+			p.next()
+			c.Conds = p.parseExprs()
+			p.expect(token.Colon)
+		case token.Default:
+			p.expect(token.Default)
+			p.next()
+			p.expect(token.Colon)
+			c.Default = true
+		}
+		// FIXME(sbinet)
+		//p.next()
+		//c.Body = &stmt.Block{Stmts: p.parseStmts()}
+		c.Body = &stmt.Block{}
+		s.Cases = append(s.Cases, c)
+		p.next()
+	}
+	p.expect(token.RightBrace)
+	p.next()
+	p.expectSemi()
+	return s
+}
+
 func (p *Parser) parseBlock() stmt.Stmt {
 	p.expect(token.LeftBrace)
 	p.next()
@@ -1075,7 +1128,8 @@ func (p *Parser) parseBlock() stmt.Stmt {
 
 func (p *Parser) parseStmts() (stmts []stmt.Stmt) {
 	// TODO there are other kinds of blocks to exit from
-	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+	for p.s.Token > 0 && p.s.Token != token.RightBrace &&
+		p.s.Token != token.Case && p.s.Token != token.Default {
 		stmts = append(stmts, p.parseStmt())
 		if p.s.Token == token.Semicolon {
 			p.next()

@@ -67,6 +67,18 @@ type For struct {
 	Body Stmt // always *BlockStmt
 }
 
+type Switch struct {
+	Init  Stmt
+	Cond  expr.Expr
+	Cases []Case
+}
+
+type Case struct {
+	Conds   []expr.Expr
+	Default bool
+	Body    Stmt // always *BlockStmt
+}
+
 type Go struct {
 	Call *expr.Call
 }
@@ -115,6 +127,8 @@ func (s Assign) stmt()       {}
 func (s Block) stmt()        {}
 func (s If) stmt()           {}
 func (s For) stmt()          {}
+func (s Switch) stmt()       {}
+func (s Case) stmt()         {}
 func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}
