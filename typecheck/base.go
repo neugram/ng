@@ -99,6 +99,7 @@ func init() {
 		tipe.Float64,
 		tipe.Complex64,
 		tipe.Complex128,
+		tipe.UnsafePointer,
 	}
 	for _, t := range basic {
 		Universe.Objs[string(t)] = &Obj{Kind: ObjType, Type: t}

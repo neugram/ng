@@ -549,6 +549,8 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 			return tipe.Complex64
 		case gotypes.Complex128:
 			return tipe.Complex128
+		case gotypes.UnsafePointer:
+			return tipe.UnsafePointer
 		case gotypes.UntypedBool:
 			return tipe.UntypedBool
 		case gotypes.UntypedString:

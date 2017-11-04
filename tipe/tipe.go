@@ -155,6 +155,8 @@ const (
 	Complex64  Basic = "complex64"
 	Complex128 Basic = "complex128"
 
+	UnsafePointer Basic = "unsafe pointer"
+
 	UntypedNil     Basic = "untyped nil" // nil pointer or nil interface
 	UntypedString  Basic = "untyped string"
 	UntypedBool    Basic = "untyped bool"
