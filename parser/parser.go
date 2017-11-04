@@ -903,7 +903,6 @@ func (p *Parser) parseImport() (s *stmt.Import) {
 	name := ""
 	if p.s.Token == token.Ident {
 		name = p.s.Literal.(string)
-		name = name[1 : len(name)-1]
 		p.next()
 	}
 	if !p.expect(token.String) {
