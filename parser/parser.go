@@ -255,8 +255,24 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 		case token.LeftBracket:
 			x = p.parseIndex(x)
 		case token.LeftParen:
-			args := p.parseArgs()
-			x = &expr.Call{Func: x, Args: args}
+			p.next()
+			var args []expr.Expr
+			var ellipsis bool
+			for p.s.Token != token.RightParen && p.s.r > 0 && !ellipsis {
+				args = append(args, p.parseExpr())
+				if p.s.Token == token.Ellipsis {
+					ellipsis = true
+					p.next()
+				}
+				if !p.expectCommaOr(token.RightParen, "arguments") {
+					break
+				}
+				p.next()
+			}
+			p.expect(token.RightParen)
+			p.next()
+
+			x = &expr.Call{Func: x, Args: args, Ellipsis: ellipsis}
 		case token.LeftBrace:
 			if tExpr, isType := x.(*expr.Type); isType {
 				switch t := tExpr.Type.(type) {
@@ -402,13 +418,22 @@ func (p *Parser) parseRange() (r expr.Range) {
 	return r
 }
 
+func (p *Parser) maybeParseParamType() (t tipe.Type) {
+	if p.s.Token == token.Ellipsis {
+		p.next()
+		typ := p.maybeParseType()
+		return &tipe.Ellipsis{Elem: typ}
+	}
+	return p.maybeParseType()
+}
+
 func (p *Parser) parseParam() (name string, t tipe.Type) {
 	// Scan what may be a type, or may be a parameter name.
-	first := p.maybeParseType()
+	first := p.maybeParseParamType()
 	if n := typeAsName(first); n != "" && p.s.Token > 0 && p.s.Token != token.Comma && p.s.Token != token.RightParen {
 		// Looks like a type may follow. Treat first as a name.
 		name = n
-		t = p.maybeParseType()
+		t = p.maybeParseParamType()
 	} else {
 		t = first
 	}

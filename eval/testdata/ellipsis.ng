@@ -1,0 +1,19 @@
+/*
+TODO
+
+total := 0
+
+func f(x int, y ...int) {
+	total += x
+	for _, v := range y {
+		total += v
+	}
+}
+ints := []int{3, 4, 5}
+f(2, ints...)
+
+if total == 14 {
+	print("OK")
+}
+*/
+print("OK")

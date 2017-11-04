@@ -496,7 +496,15 @@ func (s *Scanner) Next() {
 		s.Token = token.String
 		s.Literal = s.scanRawString()
 	case '.':
-		s.Token = token.Period
+		if s.r == '.' {
+			s.next()
+			if s.r == '.' {
+				s.next()
+				s.Token = token.Ellipsis
+			}
+		} else {
+			s.Token = token.Period
+		}
 	case ':':
 		switch s.r {
 		case '=':

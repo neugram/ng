@@ -96,6 +96,7 @@ type Ident struct {
 type Call struct {
 	Func       Expr
 	Args       []Expr
+	Ellipsis   bool // last argument expands, e.g. f(x...)
 	ElideError bool
 }
 

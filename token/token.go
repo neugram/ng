@@ -50,6 +50,7 @@ const (
 	AndGreater   // &>
 	TwoGreater   // >>
 	ChanOp       // <-
+	Ellipsis     // ...
 
 	// Statement Operators
 
@@ -143,6 +144,7 @@ var tokens = map[string]Token{
 	"&>":           AndGreater,
 	">>":           TwoGreater,
 	"<-":           ChanOp,
+	"...":          Ellipsis,
 	"++":           Inc,
 	"--":           Dec,
 	"AddAssign":    AddAssign,

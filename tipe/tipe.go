@@ -48,6 +48,10 @@ type Methodik struct {
 	Methods     []*Func
 }
 
+type Ellipsis struct {
+	Elem Type
+}
+
 type Array struct {
 	Len      int64
 	Elem     Type
@@ -196,6 +200,7 @@ var (
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
 	_ = Type((*Methodik)(nil))
+	_ = Type((*Ellipsis)(nil))
 	_ = Type((*Array)(nil))
 	_ = Type((*Slice)(nil))
 	_ = Type((*Table)(nil))
@@ -214,6 +219,7 @@ func (t Builtin) tipe()     {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
 func (t *Methodik) tipe()   {}
+func (t *Ellipsis) tipe()   {}
 func (t *Array) tipe()      {}
 func (t *Slice) tipe()      {}
 func (t *Table) tipe()      {}
@@ -397,6 +403,15 @@ func Equal(x, y Type) bool {
 			}
 		}
 		return true
+	case *Ellipsis:
+		y, ok := y.(*Ellipsis)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		return Equal(x.Elem, y.Elem)
 	case *Array:
 		y, ok := y.(*Array)
 		if !ok {

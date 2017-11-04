@@ -182,6 +182,9 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
+		if x.Ellipsis != y.Ellipsis {
+			return false
+		}
 		if !EqualExpr(x.Func, y.Func) {
 			return false
 		}
@@ -526,6 +529,17 @@ func equalType(t0, t1 tipe.Type) bool {
 			if !equalType(t0.Methods[i], t1.Methods[i]) {
 				return false
 			}
+		}
+	case *tipe.Ellipsis:
+		t1, ok := t1.(*tipe.Ellipsis)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if !equalType(t0.Elem, t1.Elem) {
+			return false
 		}
 	case *tipe.Array:
 		t1, ok := t1.(*tipe.Array)
