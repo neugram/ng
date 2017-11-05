@@ -35,12 +35,13 @@ type Scanner struct {
 	Literal interface{} // string, *big.Int, *big.Float
 
 	// Scanner state
-	src     []byte
-	r       rune
-	off     int
-	semi    bool
-	err     error
-	inShell bool
+	src          []byte
+	r            rune
+	off          int
+	semi         bool
+	err          error
+	inShell      bool
+	exitingShell bool // set mid $$ token when we have read ahead too far
 
 	addSrc  chan []byte
 	needSrc chan struct{}
@@ -113,7 +114,23 @@ func (s *Scanner) scanShellWord() string {
 			s.next()
 		case '$':
 			s.next()
-			if s.r == '{' {
+			switch s.r {
+			case '$':
+				// At this point we have parsed a shell word
+				// literal, and it has run directly on into
+				// the shell-exiting "$$". For example:
+				//	"ls$$"
+				// We want to return the shell word literal
+				// now, and on the subsequent call to Next
+				// return the final token.Shell. But we have
+				// positioned the scanner after the first '$'
+				// so we need to maintain some state so the
+				// subsequent next knows to interpret the
+				// remaining "$" as "$$".
+				s.exitingShell = true
+
+				return string(s.src[off : s.Offset-1])
+			case '{':
 				for s.r != '}' {
 					s.next()
 				}
@@ -326,13 +343,19 @@ func (s *Scanner) scanComment() string {
 }
 
 func (s *Scanner) nextInShell() {
+	if s.exitingShell {
+		if s.r != '$' {
+			panic("exitingShell should only be set mid-$$, s.r=" + string(s.r))
+		}
+		s.next()
+		s.exitingShell = false
+		s.Token = token.Shell
+		s.inShell = false
+		s.semi = true
+		return
+	}
 	switch s.r {
 	case '$':
-		// TODO: there's a significant grammatical issue here. the input:
-		//	$$ ls$$
-		// will parse as Shell ("$$"), ShellWord ("ls$$").
-		// To avoid this, scanShellWord needs to track what follows the $,
-		// and do the inShell = false dance.
 		s.next()
 		if s.r == '$' {
 			s.next()

@@ -11,10 +11,10 @@ import (
 
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
 	"neugram.io/ng/token"
-	"neugram.io/ng/parser"
 )
 
 type parserTest struct {
@@ -250,6 +250,20 @@ var parserTests = []parserTest{
 		Rows:     [][]expr.Expr{{basic(1)}, {basic(2)}},
 	}},
 	*/
+	{"($$ls$$)", &expr.Unary{ // for Issue #50
+		Op: token.LeftParen,
+		Expr: &expr.Shell{
+			Cmds: []*expr.ShellList{{AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
+				Cmd: []*expr.ShellCmd{{
+					SimpleCmd: &expr.ShellSimpleCmd{
+						Args: []string{"ls"},
+					},
+				},
+				},
+			}}}}}},
+			TrapOut: true,
+		}},
+	},
 }
 
 var tint64 = &tipe.Unresolved{Name: "int64"}
