@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"time"
 
 	"neugram.io/ng/eval"
@@ -36,7 +37,7 @@ var (
 	historyNg     = make(chan string, 1)
 	historyShFile = ""
 	historySh     = make(chan string, 1)
-	sigint        = make(chan os.Signal, 1)
+	sigint        = make(chan os.Signal)
 
 	p   *parser.Parser
 	prg *eval.Program
@@ -220,7 +221,37 @@ func initProgram(path string) {
 	}
 	//setWindowSize(env)
 
-	signal.Notify(sigint, os.Interrupt)
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt)
+		for {
+			s := <-sig
+			select {
+			case sigint <- s:
+			case <-time.After(500 * time.Millisecond):
+				// The evaluator has not handled the signal
+				// promptly. There are several possible
+				// reasons for this. The most likely right now
+				// is the evaluator is in arbitrary Go code,
+				// which does not have a way to be preempted.
+				// It is also possible we have run into a
+				// bug in the evaluator.
+				//
+				// Either way, instead of being one of those
+				// obnoxious programs that refuses to respond
+				// to Ctrl-C, be overly agressive and let the
+				// entire ng process exit.
+				//
+				// This is bad if you use ng as your primary
+				// shell, but good if you invoke ng to handle
+				// scripts.
+				fmt.Fprintf(os.Stderr, "ng: sending interrupt signal\n")
+				signal.Reset(os.Interrupt)
+				syscall.Kill(0, syscall.SIGINT)
+				return
+			}
+		}
+	}()
 }
 
 func runFile(f *os.File) (parser.ParserState, error) {
