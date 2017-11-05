@@ -14,7 +14,7 @@ var Universe = &Scope{Objs: universeObjs}
 
 var errorType = &tipe.Interface{
 	Methods: map[string]*tipe.Func{
-		"Error": &tipe.Func{
+		"Error": {
 			Results: &tipe.Tuple{
 				Elems: []tipe.Type{tipe.String},
 			},
@@ -23,16 +23,16 @@ var errorType = &tipe.Interface{
 }
 
 var universeObjs = map[string]*Obj{
-	"true":  &Obj{Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(true)},
-	"false": &Obj{Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(false)},
-	"nil":   &Obj{Kind: ObjVar, Type: tipe.UntypedNil},
-	"env":   &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
-	"alias": &Obj{Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
-	"error": &Obj{
+	"true":  {Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(true)},
+	"false": {Kind: ObjConst, Type: tipe.UntypedBool, Decl: constant.MakeBool(false)},
+	"nil":   {Kind: ObjVar, Type: tipe.UntypedNil},
+	"env":   {Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
+	"alias": {Kind: ObjVar, Type: &tipe.Map{Key: tipe.String, Value: tipe.String}},
+	"error": {
 		Kind: ObjType,
 		Type: errorType,
 	},
-	"print": &Obj{
+	"print": {
 		Kind: ObjVar,
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
@@ -41,7 +41,7 @@ var universeObjs = map[string]*Obj{
 			Variadic: true,
 		},
 	},
-	"printf": &Obj{
+	"printf": {
 		Kind: ObjVar,
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
@@ -51,7 +51,7 @@ var universeObjs = map[string]*Obj{
 			Variadic: true,
 		},
 	},
-	"errorf": &Obj{
+	"errorf": {
 		Kind: ObjVar,
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
@@ -62,19 +62,19 @@ var universeObjs = map[string]*Obj{
 			Variadic: true,
 		},
 	},
-	"append":  &Obj{Kind: ObjVar, Type: tipe.Append},
-	"cap":     &Obj{Kind: ObjVar, Type: tipe.Cap},
-	"close":   &Obj{Kind: ObjVar, Type: tipe.Close},
-	"copy":    &Obj{Kind: ObjVar, Type: tipe.Copy},
-	"delete":  &Obj{Kind: ObjVar, Type: tipe.Delete},
-	"len":     &Obj{Kind: ObjVar, Type: tipe.Len},
-	"make":    &Obj{Kind: ObjVar, Type: tipe.Make},
-	"new":     &Obj{Kind: ObjVar, Type: tipe.New},
-	"panic":   &Obj{Kind: ObjVar, Type: tipe.Panic},
-	"recover": &Obj{Kind: ObjVar, Type: tipe.Recover},
-	"complex": &Obj{Kind: ObjVar, Type: tipe.ComplexFunc},
-	"real":    &Obj{Kind: ObjVar, Type: tipe.Real},
-	"imag":    &Obj{Kind: ObjVar, Type: tipe.Imag},
+	"append":  {Kind: ObjVar, Type: tipe.Append},
+	"cap":     {Kind: ObjVar, Type: tipe.Cap},
+	"close":   {Kind: ObjVar, Type: tipe.Close},
+	"copy":    {Kind: ObjVar, Type: tipe.Copy},
+	"delete":  {Kind: ObjVar, Type: tipe.Delete},
+	"len":     {Kind: ObjVar, Type: tipe.Len},
+	"make":    {Kind: ObjVar, Type: tipe.Make},
+	"new":     {Kind: ObjVar, Type: tipe.New},
+	"panic":   {Kind: ObjVar, Type: tipe.Panic},
+	"recover": {Kind: ObjVar, Type: tipe.Recover},
+	"complex": {Kind: ObjVar, Type: tipe.ComplexFunc},
+	"real":    {Kind: ObjVar, Type: tipe.Real},
+	"imag":    {Kind: ObjVar, Type: tipe.Imag},
 }
 
 func init() {

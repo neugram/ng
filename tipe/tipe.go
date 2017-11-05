@@ -553,7 +553,7 @@ func (t Interface) String() string {
 		return "interface{}"
 	}
 	s := "interface{"
-	for name, _ := range t.Methods {
+	for name := range t.Methods {
 		s += "\t" + name + "(TODO)"
 	}
 	s += "\n}"

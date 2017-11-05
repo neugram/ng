@@ -222,8 +222,7 @@ func ExpandParams(arg string, params paramset) (string, error) {
 }
 
 // param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
-func paramExpand(src []string, arg string, params paramset) (res []string, err error) {
-	res = src
+func paramExpand(src []string, arg string, params paramset) ([]string, error) {
 	expanded, err := ExpandParams(arg, params)
 	if err != nil {
 		return nil, err
