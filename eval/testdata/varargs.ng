@@ -1,0 +1,9 @@
+import "os"
+
+func f(vals ...interface{}) {
+	if len(vals) == 2 {
+		print("OK")
+	}
+}
+
+f(os.Open("does-not-exist"))

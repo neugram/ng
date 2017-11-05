@@ -1046,22 +1046,26 @@ func (p interpPanic) Error() string {
 
 func (p *Program) prepCall(e *expr.Call) (fn reflect.Value, args []reflect.Value) {
 	fn = p.evalExprOne(e.Func)
-	args = make([]reflect.Value, len(e.Args))
-	for i, arg := range e.Args {
-		v := p.evalExprOne(arg)
-		if t := fn.Type(); t.Kind() == reflect.Func && !t.IsVariadic() {
-			// Implicit interface conversion on use.
-			// Bonus: this makes up for the fact that the
-			// evaluator currently stores custom ng
-			// interfaces in a Go empty interface{}.
-			argt := fn.Type().In(i)
-			if argt.Kind() == reflect.Interface && argt != v.Type() {
-				underlying := reflect.ValueOf(v.Interface())
-				v = reflect.New(argt).Elem()
-				v.Set(underlying) // re-box with right type
+	args = make([]reflect.Value, 0, len(e.Args))
+	i := 0
+	for _, arg := range e.Args {
+		vals := p.evalExpr(arg)
+		for _, v := range vals {
+			if t := fn.Type(); t.Kind() == reflect.Func && !t.IsVariadic() {
+				// Implicit interface conversion on use.
+				// Bonus: this makes up for the fact that the
+				// evaluator currently stores custom ng
+				// interfaces in a Go empty interface{}.
+				argt := fn.Type().In(i)
+				if argt.Kind() == reflect.Interface && argt != v.Type() {
+					underlying := reflect.ValueOf(v.Interface())
+					v = reflect.New(argt).Elem()
+					v.Set(underlying) // re-box with right type
+				}
 			}
+			args = append(args, v)
+			i++
 		}
-		args[i] = v
 	}
 	if e.Ellipsis {
 		last := args[len(args)-1] // this is a slice
