@@ -45,6 +45,11 @@ type Index struct {
 	Indicies []Expr
 }
 
+type TypeAssert struct {
+	Left Expr
+	Type tipe.Type
+}
+
 type BasicLiteral struct {
 	Value interface{} // string, *big.Int, *big.Float
 }
@@ -166,6 +171,8 @@ var (
 	_ = Expr((*Type)(nil))
 	_ = Expr((*Ident)(nil))
 	_ = Expr((*Call)(nil))
+	_ = Expr((*Index)(nil))
+	_ = Expr((*TypeAssert)(nil))
 	_ = Expr((*ShellList)(nil))
 	_ = Expr((*ShellAndOr)(nil))
 	_ = Expr((*ShellPipeline)(nil))
@@ -191,6 +198,7 @@ func (e *Type) expr()           {}
 func (e *Ident) expr()          {}
 func (e *Call) expr()           {}
 func (e *Index) expr()          {}
+func (e *TypeAssert) expr()     {}
 func (e *ShellList) expr()      {}
 func (e *ShellAndOr) expr()     {}
 func (e *ShellPipeline) expr()  {}

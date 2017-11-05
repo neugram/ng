@@ -66,6 +66,11 @@ func (p *printer) expr(e expr.Expr) {
 			p.expr(idx)
 		}
 		p.buf.WriteString("]")
+	case *expr.TypeAssert:
+		p.expr(e.Left)
+		p.buf.WriteString(".(")
+		WriteType(p.buf, e.Type)
+		p.buf.WriteString(")")
 	case *expr.Call:
 		WriteExpr(p.buf, e.Func)
 		p.buf.WriteString("(")

@@ -237,6 +237,18 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return equalExprs(x.Indicies, y.Indicies)
+	case *expr.TypeAssert:
+		y, ok := y.(*expr.TypeAssert)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !EqualExpr(x.Left, y.Left) {
+			return false
+		}
+		return equalType(x.Type, y.Type)
 	case *expr.ShellList:
 		y, ok := y.(*expr.ShellList)
 		if !ok {

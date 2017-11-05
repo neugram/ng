@@ -248,7 +248,7 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 					Right: p.parseIdent(),
 				}
 			case token.LeftParen:
-				panic("TODO parse type assertion")
+				x = p.parseTypeAssert(x)
 			default:
 				panic("TODO expect selector type assertion")
 			}
@@ -326,6 +326,21 @@ func maybePackageType(x expr.Expr) *tipe.Unresolved {
 	return &tipe.Unresolved{
 		Package: ident.Name,
 		Name:    sel.Right.Name,
+	}
+}
+
+func (p *Parser) parseTypeAssert(lhs expr.Expr) expr.Expr {
+	p.expect(token.LeftParen)
+	p.next()
+
+	typ := p.parseType()
+
+	p.expect(token.RightParen)
+	p.next()
+
+	return &expr.TypeAssert{
+		Left: lhs,
+		Type: typ,
 	}
 }
 
