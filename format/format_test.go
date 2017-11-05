@@ -5,8 +5,8 @@ import (
 
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
-	"neugram.io/ng/stmt"
 	"neugram.io/ng/parser"
+	"neugram.io/ng/stmt"
 )
 
 var roundTripTests = []string{

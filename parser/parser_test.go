@@ -11,10 +11,10 @@ import (
 
 	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
+	"neugram.io/ng/parser"
 	"neugram.io/ng/stmt"
 	"neugram.io/ng/tipe"
 	"neugram.io/ng/token"
-	"neugram.io/ng/parser"
 )
 
 type parserTest struct {
@@ -445,7 +445,7 @@ var shellTests = []parserTest{
 	}},
 	{`echo start; (echo a; echo b 2>&1); echo end`, &expr.Shell{Cmds: []*expr.ShellList{{
 		AndOr: []*expr.ShellAndOr{
-			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+			{Pipeline: []*expr.ShellPipeline{{
 				Bang: false,
 				Cmd: []*expr.ShellCmd{{
 					SimpleCmd: &expr.ShellSimpleCmd{
@@ -453,12 +453,12 @@ var shellTests = []parserTest{
 					},
 				}},
 			}}},
-			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+			{Pipeline: []*expr.ShellPipeline{{
 				Cmd: []*expr.ShellCmd{{
 					SimpleCmd: (*expr.ShellSimpleCmd)(nil),
 					Subshell: &expr.ShellList{
 						AndOr: []*expr.ShellAndOr{
-							&expr.ShellAndOr{
+							{
 								Pipeline: []*expr.ShellPipeline{{
 									Cmd: []*expr.ShellCmd{{
 										SimpleCmd: &expr.ShellSimpleCmd{
@@ -467,7 +467,7 @@ var shellTests = []parserTest{
 									}},
 								}},
 							},
-							&expr.ShellAndOr{
+							{
 								Pipeline: []*expr.ShellPipeline{{
 									Cmd: []*expr.ShellCmd{{
 										SimpleCmd: &expr.ShellSimpleCmd{
@@ -485,7 +485,7 @@ var shellTests = []parserTest{
 					},
 				}},
 			}}},
-			&expr.ShellAndOr{Pipeline: []*expr.ShellPipeline{{
+			{Pipeline: []*expr.ShellPipeline{{
 				Cmd: []*expr.ShellCmd{{
 					SimpleCmd: &expr.ShellSimpleCmd{
 						Args: []string{"echo", "end"},

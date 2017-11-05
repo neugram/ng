@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,5 +59,27 @@ func TestExitMsg(t *testing.T) {
 	got := string(out)
 	if !strings.Contains(got, "Ctrl-D") {
 		t.Errorf("exit error does not mention Ctrl-D: %q", got)
+	}
+}
+
+func TestGofmt(t *testing.T) {
+	exe, err := exec.LookPath("gofmt")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(exe, "-d", "-s", ".")
+	buf := new(bytes.Buffer)
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+
+	err = cmd.Run()
+	if err != nil {
+		t.Fatalf("error running %s:\n%s\n%v", exe, string(buf.Bytes()), err)
+	}
+
+	if len(buf.Bytes()) != 0 {
+		t.Errorf("some files were not gofmt'ed:\n%s\n", string(buf.Bytes()))
 	}
 }

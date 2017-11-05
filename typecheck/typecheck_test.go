@@ -158,11 +158,11 @@ var typeTests = []typeTest{
 		},
 		[]identType{
 			{"a", &tipe.Interface{Methods: map[string]*tipe.Func{
-				"M": &tipe.Func{
+				"M": {
 					Params:  &tipe.Tuple{},
 					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
 				},
-				"N": &tipe.Func{
+				"N": {
 					Params: &tipe.Tuple{Elems: []tipe.Type{
 						tipe.Int8, tipe.Int8,
 					}},
@@ -172,7 +172,7 @@ var typeTests = []typeTest{
 				},
 			}}},
 			{"b", &tipe.Interface{Methods: map[string]*tipe.Func{
-				"M": &tipe.Func{
+				"M": {
 					Params:  &tipe.Tuple{},
 					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
 				},
