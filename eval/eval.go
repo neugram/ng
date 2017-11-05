@@ -1063,6 +1063,13 @@ func (p *Program) prepCall(e *expr.Call) (fn reflect.Value, args []reflect.Value
 		}
 		args[i] = v
 	}
+	if e.Ellipsis {
+		last := args[len(args)-1] // this is a slice
+		args = args[:len(args)-1]
+		for i, l := 0, last.Len(); i < l; i++ {
+			args = append(args, last.Index(i))
+		}
+	}
 	return fn, args
 }
 
@@ -1605,6 +1612,8 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 	case *tipe.Array:
 		rtype = reflect.ArrayOf(int(t.Len), r.toRType(t.Elem))
 	case *tipe.Slice:
+		rtype = reflect.SliceOf(r.toRType(t.Elem))
+	case *tipe.Ellipsis:
 		rtype = reflect.SliceOf(r.toRType(t.Elem))
 	// TODO case *Table:
 	case *tipe.Pointer:

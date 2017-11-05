@@ -909,6 +909,9 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	case *tipe.Chan:
 		t.Elem, resolved = c.resolve(t.Elem)
 		return t, resolved
+	case *tipe.Ellipsis:
+		t.Elem, resolved = c.resolve(t.Elem)
+		return t, resolved
 	case *tipe.Struct:
 		usesNum := false
 		resolved := true
@@ -1381,14 +1384,31 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				return p
 			}
 		}
-		vart := params[len(params)-1].(*tipe.Slice).Elem
+		var vart tipe.Type
+		switch t := params[len(params)-1].(type) {
+		case *tipe.Slice:
+			vart = t.Elem
+		case *tipe.Ellipsis:
+			vart = t.Elem
+		default:
+			c.errorf("variadic parameter must be a slice, not %s", format.Type(t))
+		}
 		varargs := e.Args[len(params)-1:]
-		for _, arg := range varargs {
+		for i, arg := range varargs {
 			argp := c.exprPartial(arg, hintNone)
 			if argp.mode == modeTypeExpr {
 				p.mode = modeInvalid
 				c.errorf("type %s is not an expression", format.Type(p.typ))
 				return p
+			}
+			if i == len(varargs)-1 && e.Ellipsis {
+				slice, ok := argp.typ.(*tipe.Slice)
+				if !ok {
+					p.mode = modeInvalid
+					c.errorf("cannot ... expand argument type %s", format.Type(argp.typ))
+					return p
+				}
+				argp.typ = slice.Elem
 			}
 			c.convert(&argp, vart)
 			if argp.mode == modeInvalid {
@@ -1500,6 +1520,11 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			for i, t := range e.Type.Params.Elems {
 				t, _ = c.resolve(t)
 				e.Type.Params.Elems[i] = t
+				if e.Type.Variadic && i == len(e.Type.Params.Elems)-1 {
+					if elt, ellipsis := t.(*tipe.Ellipsis); ellipsis {
+						t = &tipe.Slice{Elem: elt.Elem}
+					}
+				}
 				obj := &Obj{
 					Kind: ObjVar,
 					Type: t,

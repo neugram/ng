@@ -1,6 +1,3 @@
-/*
-TODO
-
 total := 0
 
 func f(x int, y ...int) {
@@ -11,9 +8,9 @@ func f(x int, y ...int) {
 }
 ints := []int{3, 4, 5}
 f(2, ints...)
+f(1)
+f(1, 1, 2)
 
-if total == 14 {
+if total == 19 {
 	print("OK")
 }
-*/
-print("OK")

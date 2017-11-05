@@ -1099,6 +1099,12 @@ func (p *Parser) parseFuncType(method bool) *expr.FuncLiteral {
 	p.next()
 	if p.s.Token != token.RightParen {
 		f.ParamNames, f.Type.Params = p.parseParamTuple()
+		if params := f.Type.Params; len(params.Elems) > 0 {
+			last := params.Elems[len(params.Elems)-1]
+			if _, variadic := last.(*tipe.Ellipsis); variadic {
+				f.Type.Variadic = true
+			}
+		}
 	} else {
 		f.Type.Params = new(tipe.Tuple)
 	}
