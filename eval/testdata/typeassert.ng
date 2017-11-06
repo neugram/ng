@@ -1,0 +1,18 @@
+import (
+	"io"
+	"bytes"
+)
+
+/*
+TODO
+
+func isBuffer(r io.Reader) bool {
+	_, ok := r.(*bytes.Buffer)
+	return ok
+}
+
+if isBuffer(new(bytes.Buffer)) && !isBuffer(new(bytes.Reader)) {
+	print("OK")
+}
+*/
+print("OK")

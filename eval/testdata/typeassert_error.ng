@@ -1,0 +1,6 @@
+import "io"
+
+func isSectionReader(w io.Writer) bool {
+	_, ok := w.(*io.SectionReader) // ERROR: does not implement interface
+	return ok
+}

@@ -177,6 +177,22 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 						typ:  tipe.Bool,
 					})
 				}
+			case *expr.TypeAssert:
+				// v, ok = rhs.(T)
+				//
+				// A type assertion can return its typical one value,
+				// the value as the asserted type, or the value and a
+				// comma-ok for whether the assertion was successful.
+				// This is the latter case, so we replace the
+				// original return type with a tuple.
+				typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
+				if curTyp := c.types[e]; curTyp != typ {
+					c.types[e] = typ
+				}
+				partials = append(partials, partial{
+					mode: modeVar,
+					typ:  tipe.Bool,
+				})
 			}
 		}
 
@@ -1756,6 +1772,30 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		p.mode = modeInvalid
 		return p
 
+	case *expr.TypeAssert:
+		left := c.expr(e.Left)
+		if left.mode == modeInvalid {
+			return left
+		}
+		leftTyp, isInterface := tipe.Underlying(left.typ).(*tipe.Interface)
+		if !isInterface {
+			c.errorf("%s is not an interface", format.Type(leftTyp))
+			p.mode = modeInvalid
+			return p
+		}
+		t, resolved := c.resolve(e.Type)
+		if !resolved {
+			p.mode = modeInvalid
+			return p
+		}
+		if c.typeAssert(leftTyp, t) {
+			left.typ = t
+			return left
+		}
+		c.errorf("%s does not implement %s", format.Type(t), format.Type(leftTyp))
+		p.mode = modeInvalid
+		return p
+
 	case *expr.Unary:
 		switch e.Op {
 		case token.LeftParen, token.Not, token.Sub:
@@ -2245,6 +2285,71 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 	}
 
 	c.types[e] = t
+}
+
+// typeAssert returns true if a value of type iface can be type asserted
+// to the type t.
+//
+// The static check for this is making sure that the type t implements
+// all methods of iface. (Note that this does not mean that the concrete
+// type under iface can be a t, just that as far as we know statically
+// it might be.)
+func (c *Checker) typeAssert(iface *tipe.Interface, t tipe.Type) bool {
+	if len(iface.Methods) == 0 {
+		return true // interface{} might be anything
+	}
+
+	if tiface, tIsIface := tipe.Underlying(t).(*tipe.Interface); tIsIface {
+		for name, method := range iface.Methods {
+			if !tipe.Equal(tiface.Methods[name], method) {
+				return false
+			}
+		}
+	} else {
+		for name, method := range iface.Methods {
+			mt := findMember(t, name)
+			if !tipe.Equal(method, mt) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// findMember finds the field or method with name in type t.
+//
+// TODO: there is a lot to do here re: embedding. We have to think
+// if we are enumerating the order correctly, worry about infinite
+// recursion, and think about the pkg the field belongs to.
+func findMember(t tipe.Type, name string) (mt tipe.Type) {
+	if tp, isPointer := tipe.Underlying(t).(*tipe.Pointer); isPointer {
+		t = tp.Elem
+	}
+
+	for t != nil {
+		if methodik, isNamed := t.(*tipe.Methodik); isNamed {
+			for i, mname := range methodik.MethodNames {
+				if mname == name {
+					return methodik.Methods[i]
+				}
+			}
+			t = methodik.Type
+		}
+
+		if st, isStruct := t.(*tipe.Struct); isStruct {
+			for i, fname := range st.FieldNames {
+				if fname == name {
+					return st.Fields[i]
+				}
+				// TODO: if the field is an embedding,
+				// collect it onto the list of types
+				// to analyze.
+			}
+		}
+		return nil
+	}
+	panic("unreachable")
 }
 
 func (c *Checker) errorf(format string, args ...interface{}) {
