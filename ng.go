@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 	"time"
 
 	"neugram.io/ng/eval"
@@ -245,10 +244,8 @@ func initProgram(path string) {
 				// This is bad if you use ng as your primary
 				// shell, but good if you invoke ng to handle
 				// scripts.
-				fmt.Fprintf(os.Stderr, "ng: sending interrupt signal\n")
-				signal.Reset(os.Interrupt)
-				syscall.Kill(0, syscall.SIGINT)
-				return
+				fmt.Fprintf(os.Stderr, "ng: exiting on interrupt\n")
+				exit(1)
 			}
 		}
 	}()
