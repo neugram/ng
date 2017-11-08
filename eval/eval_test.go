@@ -167,57 +167,56 @@ func TestPrograms(t *testing.T) {
 	shell.Alias = environ.New()
 
 	for _, file := range files {
-		out, err := ioutil.TempFile("", filepath.Base(file)+".stdout.")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("executing %s", file) // TODO: switch to subtests
+		// For the file "testdata/name.ng", name the subtest "name".
+		test := file[len("testdata/") : len(file)-3]
+		t.Run(test, func(t *testing.T) {
+			out, err := ioutil.TempFile("", test+".stdout.")
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		os.Stdout = out
-		os.Stderr = out
-		err = EvalFile(file)
-		os.Stdout = origStdout
-		os.Stderr = origStderr
-		if err2 := out.Close(); err2 != nil {
-			t.Fatal(err2)
-		}
+			os.Stdout = out
+			os.Stderr = out
+			err = EvalFile(file)
+			os.Stdout = origStdout
+			os.Stderr = origStderr
+			if err2 := out.Close(); err2 != nil {
+				t.Fatal(err2)
+			}
 
-		if strings.HasSuffix(file, "_panic.ng") {
-			if _, isPanic := err.(Panic); !isPanic {
-				t.Errorf("%s: expect panic, got: %v", file, err)
-				continue
+			if strings.HasSuffix(test, "_panic") {
+				if _, isPanic := err.(Panic); !isPanic {
+					t.Fatalf("expected panic, got: %v", err)
+				}
+			} else if strings.HasSuffix(test, "_error") {
+				// TODO: support multiple errors
+				// TODO: check line numbers
+				b, ferr := ioutil.ReadFile(file)
+				if ferr != nil {
+					t.Fatal(ferr)
+				}
+				match := errRE.FindStringSubmatch(string(b))
+				if match == nil {
+					t.Fatal("test has _error suffix but no ERROR directive")
+				}
+				wantStr := match[1]
+				if !strings.Contains(err.Error(), wantStr) {
+					t.Fatalf("want %q, got: %v", wantStr, err.Error())
+				}
+				return
+			} else if err != nil {
+				t.Fatal(err)
 			}
-		} else if strings.HasSuffix(file, "_error.ng") {
-			// TODO: support multiple errors
-			// TODO: check line numbers
-			b, ferr := ioutil.ReadFile(file)
-			if ferr != nil {
-				t.Error(ferr)
-				continue
-			}
-			match := errRE.FindStringSubmatch(string(b))
-			if match == nil {
-				t.Errorf("%s: file has _error suffix but no ERROR directive", file)
-				continue
-			}
-			wantStr := match[1]
-			if !strings.Contains(err.Error(), wantStr) {
-				t.Errorf("%s: want %q, got: %v", file, wantStr, err.Error())
-			}
-			continue
-		} else if err != nil {
-			t.Errorf("%s:%v", file, err)
-			continue
-		}
 
-		b, err := ioutil.ReadFile(out.Name())
-		if err != nil {
-			t.Fatalf("%s: %v", file, err)
-		}
-		output := string(b)
-		if !strings.HasSuffix(file, "_panic.ng") && !strings.HasSuffix(output, "OK\n") {
-			t.Logf("Testing program %q, output:\n%s", file, output)
-			t.Errorf("%s missing OK", file)
-		}
+			b, err := ioutil.ReadFile(out.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := string(b)
+			if !strings.HasSuffix(test, "_panic") && !strings.HasSuffix(output, "OK\n") {
+				t.Logf("output:\n%s", output)
+				t.Error("test missing OK")
+			}
+		})
 	}
 }
