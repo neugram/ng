@@ -421,6 +421,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	case *stmt.Return:
 		if retType == nil || len(s.Exprs) > len(retType.Elems) {
 			c.errorf("too many arguments to return")
+			return nil
 		}
 		var partials []partial
 		for i, e := range s.Exprs {
