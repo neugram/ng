@@ -249,6 +249,11 @@ func IsNumeric(t Type) bool {
 	return false
 }
 
+func IsUntypedNil(t Type) bool {
+	b, _ := Underlying(t).(Basic)
+	return b == UntypedNil
+}
+
 func UsesNum(t Type) bool {
 	t = Unalias(t)
 	switch t := t.(type) {

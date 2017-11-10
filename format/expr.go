@@ -30,14 +30,15 @@ func (p *printer) expr(e expr.Expr) {
 		p.buf.WriteString(e.Op.String())
 		WriteExpr(p.buf, e.Expr)
 
-		/* TODO
-		case *expr.Bad:
-			panic("not implemented")
-		case *expr.Selector:
-			panic("not implemented")
-		case *expr.Slice:
-			panic("not implemented")
-		*/
+	/* TODO
+	case *expr.Bad:
+		panic("not implemented")
+	case *expr.Slice:
+		panic("not implemented")
+	*/
+	case *expr.Selector:
+		p.expr(e.Left)
+		p.buf.WriteString("." + e.Right.Name)
 	case *expr.BasicLiteral:
 		p.buf.WriteString(fmt.Sprintf("%v", e.Value))
 		/* TODO

@@ -36,7 +36,7 @@ var universeObjs = map[string]*Obj{
 		Kind: ObjVar,
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
-				&tipe.Slice{Elem: &tipe.Interface{}},
+				&tipe.Ellipsis{Elem: &tipe.Interface{}},
 			}},
 			Variadic: true,
 		},
@@ -46,7 +46,7 @@ var universeObjs = map[string]*Obj{
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
 				tipe.String,
-				&tipe.Slice{Elem: &tipe.Interface{}},
+				&tipe.Ellipsis{Elem: &tipe.Interface{}},
 			}},
 			Variadic: true,
 		},
@@ -56,7 +56,7 @@ var universeObjs = map[string]*Obj{
 		Type: &tipe.Func{
 			Params: &tipe.Tuple{Elems: []tipe.Type{
 				tipe.String,
-				&tipe.Slice{Elem: &tipe.Interface{}},
+				&tipe.Ellipsis{Elem: &tipe.Interface{}},
 			}},
 			Results:  &tipe.Tuple{Elems: []tipe.Type{errorType}},
 			Variadic: true,

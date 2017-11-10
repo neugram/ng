@@ -1385,73 +1385,109 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		p.typ = funct.Results
 	}
 
-	if funct.Variadic {
-		if len(e.Args) < len(params)-1 {
-			p.mode = modeInvalid
-			c.errorf("too few arguments (%d) to variadic function %s", len(e.Args), format.Type(funct))
-			return p
-		}
-		for i := 0; i < len(params)-1; i++ {
-			t := params[i]
-			argp := c.expr(e.Args[i])
-			c.convert(&argp, t)
-			if argp.mode == modeInvalid {
-				p.mode = modeInvalid
-				c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(argp.typ), format.Type(t), i)
-				return p
-			}
-		}
-		var vart tipe.Type
-		switch t := params[len(params)-1].(type) {
-		case *tipe.Slice:
-			vart = t.Elem
-		case *tipe.Ellipsis:
-			vart = t.Elem
-		default:
-			c.errorf("variadic parameter must be a slice, not %s", format.Type(t))
-		}
-		varargs := e.Args[len(params)-1:]
-		for i, arg := range varargs {
-			argp := c.exprPartial(arg, hintNone)
-			if argp.mode == modeTypeExpr {
-				p.mode = modeInvalid
-				c.errorf("type %s is not an expression", format.Type(p.typ))
-				return p
-			}
-			if i == len(varargs)-1 && e.Ellipsis {
-				slice, ok := argp.typ.(*tipe.Slice)
-				if !ok {
-					p.mode = modeInvalid
-					c.errorf("cannot ... expand argument type %s", format.Type(argp.typ))
-					return p
-				}
-				argp.typ = slice.Elem
-			}
-			c.convert(&argp, vart)
-			if argp.mode == modeInvalid {
-				p.mode = modeInvalid
-				c.errorf("cannot use type %s as type %s in variadic argument to function", format.Type(argp.typ), format.Type(vart))
-				return p
-			}
-		}
+	// When we have exactly one argument, the Go spec allows this
+	// to be treated as multiple arguments in a few cases, such as
+	// when calling f(g()) and g returns multiple values. Handle this.
+	// TODO: also handle the comma-ok cases.
+	arg, n, _ := unpack(func(p *partial, i int) { *p = c.exprNoElide(e.Args[i]) }, len(e.Args), false)
+	if arg == nil {
+		p.mode = modeInvalid
 		return p
 	}
 
-	if len(e.Args) != len(params) {
-		p.mode = modeInvalid
-		c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), format.Type(funct))
-		return p
-	}
-	for i, arg := range e.Args {
-		t := params[i]
-		argp := c.expr(arg)
-		//fmt.Printf("argp i=%d: %#+v (arg=%#+v)\n", i, argp, arg)
-		c.convert(&argp, t)
-		if argp.mode == modeInvalid {
+	// If we have f([a, b,] c...), check whether that is permissible.
+	if e.Ellipsis {
+		if !funct.Variadic {
+			useGetter(arg, n)
 			p.mode = modeInvalid
-			c.errorf("cannot use type %s as type %s in argument to function", format.Type(argp.typ), format.Type(t))
-			break
+			c.errorf("cannot use ... with non-variadic function %s", format.Type(funct))
+			return p
 		}
+		if len(e.Args) == 1 && n > 1 {
+			useGetter(arg, n)
+			p.mode = modeInvalid
+			c.errorf("cannot use ... with multi-valued function %s", format.Type(funct))
+			return p
+		}
+	}
+
+	// Type-check each argument against the called function
+	for i := 0; i < n; i++ {
+		var pi partial
+		arg(&pi, i)
+		if pi.mode != modeInvalid {
+			// Determine the type of the corresponding parameter in the
+			// called function.
+			var typ tipe.Type
+			switch {
+			case i < len(params):
+				typ = params[i]
+			case funct.Variadic:
+				typ = params[len(params)-1]
+			default:
+				// Too many arguments. However, if we have a single argument
+				// f(g()) and the last return parameter of g is an error type,
+				// elide the error.
+				if i == n-1 && len(e.Args) == 1 && IsError(pi.typ) {
+					markElideError(e.Args[0])
+					continue
+				}
+				p.mode = modeInvalid
+				c.errorf("too many arguments to function %s", format.Type(funct))
+				return p
+			}
+
+			// If this is the variadic parameter and we have "...",
+			// check that the parameter is a slice.
+			if e.Ellipsis && i == len(params)-1 {
+				_, ok := pi.typ.(*tipe.Slice)
+				if !ok && !tipe.IsUntypedNil(pi.typ) {
+					p.mode = modeInvalid
+					c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+					return p
+				}
+				// We're using "x..." and are at the position of the
+				// variadic parameter. To allow for typechecking,
+				// change the Ellipsis type to a Slice type.
+				typ = &tipe.Slice{Elem: typ.(*tipe.Ellipsis).Elem}
+			} else if !e.Ellipsis && funct.Variadic && i >= len(params)-1 {
+				// We're not using "x...", but we are at (or beyond)
+				// the position of the variadic parameter. That means that
+				// typ is a slice, but since we're passing in individual
+				// arguments we should typecheck against the underlying
+				// element type rather than the ellipsis type.
+
+				// TODO there seems to be some cases where we get a slice here
+				// rather than an ellipsis. It's not clear why that is.
+				switch t := typ.(type) {
+				case *tipe.Ellipsis:
+					typ = t.Elem
+				case *tipe.Slice:
+					typ = t.Elem
+				}
+			}
+
+			// Typecheck the argument against the declared type of the
+			// matching function parameter.
+			c.convert(&pi, typ)
+			if pi.mode == modeInvalid {
+				p.mode = modeInvalid
+				c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+				return p
+			}
+		}
+	}
+
+	// Check if we have too few arguments
+	if funct.Variadic {
+		// a variadic function accepts an "empty"
+		// last argument: count one extra
+		n++
+	}
+	if n < len(params) {
+		p.mode = modeInvalid
+		c.errorf("too few arguments in call to %s", format.Type(funct))
+		return p
 	}
 
 	return p
@@ -1911,13 +1947,23 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		return left
 	case *expr.Call:
 		p := c.exprPartialCall(e)
-		if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple && hint == hintElideErr {
-			if IsError(tuple.Elems[len(tuple.Elems)-1]) {
-				tuple.Elems = tuple.Elems[:len(tuple.Elems)-1]
-				if len(tuple.Elems) == 1 {
-					p.typ = tuple.Elems[0]
+		if hint == hintElideErr {
+			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
+				els := tuple.Elems
+				num := len(els)
+				if num > 0 && IsError(els[num-1]) {
+					// We're eliding the error. If we mutate the tuple here
+					// we're actually mutating the underlying *tipe.Func object
+					// itself, so create a new tuple and copy over everything
+					// but the last elem.
+					e.ElideError = true
+					tup2 := &tipe.Tuple{Elems: els[:num-1]}
+					if len(tup2.Elems) == 1 {
+						p.typ = tup2.Elems[0] // unwrap (x,) -> x
+					} else {
+						p.typ = tup2
+					}
 				}
-				e.ElideError = true
 			}
 		}
 		return p
@@ -2777,4 +2823,82 @@ func defaultType(t tipe.Type) tipe.Type {
 		return tipe.Complex128 // tipe.Num
 	}
 	return t
+}
+
+// A getter sets p as the i'th operand, where 0 <= i < n and n is the total
+// number of operands (context-specific, and maintained elsewhere). A getter
+// type-checks the i'th operand; the details of the actual check are getter-
+// specific.
+type getter func(p *partial, i int)
+
+// unpack takes a getter get and a number of operands n. If n == 1, unpack
+// calls the incoming getter for the first operand. If that operand is
+// invalid, unpack returns (nil, 0, false). Otherwise, if that operand is a
+// function call, or a comma-ok expression and allowCommaOk is set, the result
+// is a new getter and operand count providing access to the function results,
+// or comma-ok values, respectively. The third result value reports if it
+// is indeed the comma-ok case. In all other cases, the incoming getter and
+// operand count are returned unchanged, and the third result value is false.
+//
+// In other words, if there's exactly one operand that - after type-checking
+// by calling get - stands for multiple operands, the resulting getter provides
+// access to those operands instead.
+//
+// If the returned getter is called at most once for a given operand index i
+// (including i == 0), that operand is guaranteed to cause only one call of
+// the incoming getter with that i.
+//
+func unpack(get getter, n int, allowCommaOk bool) (getter, int, bool) {
+	// n-valued function calls or comma,ok values are only
+	// possible when there is a single expression.
+	// For n != 1, perform a simple mapping to expr[i].
+	if n != 1 {
+		return get, n, false
+	}
+
+	// possibly result of an n-valued function call or comma,ok value
+	var p0 partial
+	get(&p0, 0)
+	if p0.mode == modeInvalid {
+		return nil, 0, false
+	}
+
+	if t, ok := p0.typ.(*tipe.Tuple); ok {
+		// result of an n-valued function call
+		return func(p *partial, i int) {
+			p.mode = modeVar
+			p.expr = p0.expr
+			p.typ = t.Elems[i]
+		}, len(t.Elems), false
+	}
+
+	// TODO handle comma,ok cases (map indexing, type expr, chan recv?)
+
+	// single value
+	return func(p *partial, i int) {
+		if i != 0 {
+			panic("i != 0 for single value unpack")
+		}
+		*p = p0
+	}, 1, false
+}
+
+// useGetter evaluates all of the expressions that are part of the getter.
+func useGetter(get getter, n int) {
+	var p partial
+	for i := 0; i < n; i++ {
+		get(&p, i)
+	}
+}
+
+// markElideError marks the expression to dynamically
+// elide errors at runtime. If the expression type does not
+// support eliding errors, it does nothing.
+func markElideError(e expr.Expr) {
+	switch e := e.(type) {
+	case *expr.Call:
+		e.ElideError = true
+	case *expr.Shell:
+		e.ElideError = true
+	}
 }
