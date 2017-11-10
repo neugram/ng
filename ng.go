@@ -115,7 +115,6 @@ func main() {
 		return
 	}
 
-	origMode = mode()
 	lineNg = liner.NewLiner()
 	defer lineNg.Close()
 
@@ -408,8 +407,6 @@ func handleResult(res parser.Result) {
 	for _, err := range res.Errs {
 		fmt.Println(err.Error())
 	}
-	//editMode := mode()
-	//origMode.ApplyMode()
 	for _, cmd := range res.Cmds {
 		j := &shell.Job{
 			Cmd:    cmd,
