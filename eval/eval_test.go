@@ -77,7 +77,7 @@ var exprTests = []struct {
 }
 
 func mkBasicProgram() (*Program, error) {
-	p := New("basic")
+	p := New("basic", nil)
 	if _, err := p.Eval(mustParse("x := 4"), nil); err != nil {
 		return nil, err
 	}
@@ -159,13 +159,6 @@ func TestPrograms(t *testing.T) {
 		os.Stderr = origStderr
 	}()
 
-	shell.Env = environ.New()
-	for _, s := range os.Environ() {
-		i := strings.Index(s, "=")
-		shell.Env.Set(s[:i], s[i+1:])
-	}
-	shell.Alias = environ.New()
-
 	for _, file := range files {
 		// For the file "testdata/name.ng", name the subtest "name".
 		test := file[len("testdata/") : len(file)-3]
@@ -175,9 +168,18 @@ func TestPrograms(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			shellState := &shell.State{
+				Env:   environ.New(),
+				Alias: environ.New(),
+			}
+			for _, s := range os.Environ() {
+				i := strings.Index(s, "=")
+				shellState.Env.Set(s[:i], s[i+1:])
+			}
+
 			os.Stdout = out
 			os.Stderr = out
-			err = EvalFile(file)
+			err = EvalFile(file, shellState)
 			os.Stdout = origStdout
 			os.Stderr = origStderr
 			if err2 := out.Close(); err2 != nil {

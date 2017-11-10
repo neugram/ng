@@ -92,13 +92,13 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 		if err != nil {
 			return prefix, []string{}
 		}
-		dirPath, err = shell.ExpandParams(dirPath, shell.Env)
+		dirPath, err = shell.ExpandParams(dirPath, shellState.Env)
 		if err != nil {
 			return prefix, []string{}
 		}
 	}
 	if len(filePath) > 0 && filePath[0] == '$' {
-		res = shell.Env.Keys(filePath[1:])
+		res = shellState.Env.Keys(filePath[1:])
 		for i, s := range res {
 			res[i] = "$" + s + " "
 		}

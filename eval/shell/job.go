@@ -21,10 +21,13 @@ import (
 	"neugram.io/ng/token"
 )
 
-var (
+type State struct {
 	Env   *environ.Environ
 	Alias *environ.Environ
-)
+
+	bgMu sync.Mutex
+	bg   []*Job
+}
 
 type Params interface {
 	Get(name string) string
@@ -36,6 +39,7 @@ type paramset interface {
 }
 
 type Job struct {
+	State  *State
 	Cmd    *expr.ShellList
 	Stdin  *os.File
 	Stdout *os.File
@@ -127,7 +131,7 @@ func (j *Job) Wait() (done bool, err error) {
 				fmt.Fprintf(j.Stderr, "on stop: %v", err)
 			}
 		}
-		bgAdd(j)
+		j.State.bgAdd(j)
 	}
 
 	if interactive {
@@ -303,7 +307,7 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 	if err != nil {
 		return nil, err
 	}
-	if a := Alias.Get(argv[0]); a != "" {
+	if a := j.State.Alias.Get(argv[0]); a != "" {
 		// TODO: This is entirely wrong. The alias string needs to be
 		// parsed like a typical shell command. That is:
 		//	alias["gsm"] = `go build "-ldflags=-w -s"`
@@ -315,7 +319,7 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 	case "cd":
 		dir := ""
 		if len(argv) == 1 {
-			dir = Env.Get("HOME")
+			dir = j.State.Env.Get("HOME")
 		} else {
 			dir = argv[1]
 		}
@@ -323,25 +327,25 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 		if filepath.IsAbs(dir) {
 			wd = filepath.Clean(dir)
 		} else {
-			wd = filepath.Join(Env.Get("PWD"), dir)
+			wd = filepath.Join(j.State.Env.Get("PWD"), dir)
 		}
 		if err := os.Chdir(wd); err != nil {
 			return nil, err
 		}
-		Env.Set("PWD", wd)
+		j.State.Env.Set("PWD", wd)
 		fmt.Fprintf(os.Stdout, "%s\n", wd)
 		return nil, nil
 	case "fg":
-		return nil, bgFg(strings.Join(argv[1:], " "))
+		return nil, j.State.bgFg(strings.Join(argv[1:], " "))
 	case "jobs":
-		bgList(j.Stderr)
+		j.State.bgList(j.Stderr)
 		return nil, nil
 	case "export":
-		return nil, export(argv[1:])
+		return nil, j.export(argv[1:])
 	case "exit", "logout":
 		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	}
-	env := Env.List()
+	env := j.State.Env.List()
 	if len(cmd.Assign) != 0 {
 		baseEnv := env
 		env = make([]string, 0, len(cmd.Assign)+len(baseEnv))
@@ -434,7 +438,7 @@ func (pl *pipeline) start() (err error) {
 	defer pl.job.mu.Unlock()
 
 	for _, p := range pl.proc {
-		p.path, err = findExecInPath(p.argv[0], Env)
+		p.path, err = findExecInPath(p.argv[0], pl.job.State.Env)
 		if err != nil {
 			return err
 		}
@@ -544,6 +548,8 @@ type proc struct {
 	sio     stdio
 }
 
+// TODO: make interactive a property of a *shell.State.
+// Ensure that only one State at a time in a process can be interactive.
 var (
 	interactive bool
 	basicState  syscall.Termios
@@ -557,6 +563,7 @@ var jobSignals = []os.Signal{
 	syscall.SIGTTIN,
 }
 
+// TODO: make this a method on shell.State
 func Init() {
 	if len(os.Args) == 2 && os.Args[1] == "-pgidleader" {
 		select {}
@@ -607,31 +614,26 @@ func Init() {
 	}
 }
 
-var (
-	bgMu sync.Mutex
-	bg   []*Job
-)
-
-func bgAdd(j *Job) {
-	bgMu.Lock()
-	defer bgMu.Unlock()
-	bg = append(bg, j)
-	fmt.Fprintf(j.Stderr, "\n[%d]+  Stopped  %s\n", len(bg), shellListString(j.Cmd))
+func (s *State) bgAdd(j *Job) {
+	s.bgMu.Lock()
+	defer s.bgMu.Unlock()
+	s.bg = append(s.bg, j)
+	fmt.Fprintf(j.Stderr, "\n[%d]+  Stopped  %s\n", len(s.bg), shellListString(j.Cmd))
 }
 
-func bgList(w io.Writer) {
-	bgMu.Lock()
-	defer bgMu.Unlock()
-	for _, j := range bg {
+func (s *State) bgList(w io.Writer) {
+	s.bgMu.Lock()
+	defer s.bgMu.Unlock()
+	for _, j := range s.bg {
 		state := "Stopped"
 		if j.running { // TODO: need to hold lock, but need to not deadlock
 			state = "Running"
 		}
-		fmt.Fprintf(j.Stderr, "\n[%d]+  %s  %s\n", len(bg), state, shellListString(j.Cmd))
+		fmt.Fprintf(j.Stderr, "\n[%d]+  %s  %s\n", len(s.bg), state, shellListString(j.Cmd))
 	}
 }
 
-func bgFg(spec string) error {
+func (s *State) bgFg(spec string) error {
 	jobspec := 1
 	var err error
 	if spec != "" {
@@ -641,30 +643,30 @@ func bgFg(spec string) error {
 		return fmt.Errorf("fg: %v", err)
 	}
 
-	bgMu.Lock()
-	if len(bg) == 0 {
-		bgMu.Unlock()
+	s.bgMu.Lock()
+	if len(s.bg) == 0 {
+		s.bgMu.Unlock()
 		return fmt.Errorf("fg: no jobs\n")
 	}
-	if jobspec > len(bg) {
-		bgMu.Unlock()
+	if jobspec > len(s.bg) {
+		s.bgMu.Unlock()
 		return fmt.Errorf("fg: %d: no such job\n", jobspec)
 	}
-	j := bg[jobspec-1]
-	bg = append(bg[:jobspec-1], bg[jobspec:]...)
+	j := s.bg[jobspec-1]
+	s.bg = append(s.bg[:jobspec-1], s.bg[jobspec:]...)
 	fmt.Fprintf(j.Stderr, "%s\n", shellListString(j.Cmd))
-	bgMu.Unlock()
+	s.bgMu.Unlock()
 	return j.Continue()
 }
 
-func export(pairs []string) error {
+func (j *Job) export(pairs []string) error {
 	for _, p := range pairs {
 		parts := strings.SplitN(p, "=", 2)
 		val := ""
 		if len(parts) > 1 {
 			val = parts[1]
 		}
-		Env.Set(parts[0], val)
+		j.State.Env.Set(parts[0], val)
 	}
 	return nil
 }

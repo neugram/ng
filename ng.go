@@ -38,8 +38,9 @@ var (
 	historySh     = make(chan string, 1)
 	sigint        = make(chan os.Signal)
 
-	p   *parser.Parser
-	prg *eval.Program
+	p          *parser.Parser
+	prg        *eval.Program
+	shellState *shell.State
 )
 
 func exit(code int) {
@@ -203,9 +204,11 @@ func init() {
 
 func initProgram(path string) {
 	p = parser.New()
-	prg = eval.New(path)
-	shell.Env = prg.Environ()
-	shell.Alias = prg.Alias()
+	shellState = &shell.State{
+		Env:   environ.New(),
+		Alias: environ.New(),
+	}
+	prg = eval.New(path, shellState)
 
 	// TODO this env setup could be done in neugram code
 	env := prg.Environ()
@@ -409,6 +412,7 @@ func handleResult(res parser.Result) {
 	}
 	for _, cmd := range res.Cmds {
 		j := &shell.Job{
+			State:  shellState,
 			Cmd:    cmd,
 			Params: prg,
 			Stdin:  os.Stdin,

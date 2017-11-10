@@ -62,6 +62,8 @@ type Program struct {
 	Path      string
 	reflector *reflector
 
+	ShellState *shell.State
+
 	sigint     <-chan os.Signal
 	sigintSeen bool
 
@@ -93,7 +95,13 @@ type evalMap interface {
 	SetVal(key, val interface{})
 }
 
-func New(path string) *Program {
+func New(path string, shellState *shell.State) *Program {
+	if shellState == nil {
+		shellState = &shell.State{
+			Env:   environ.New(),
+			Alias: environ.New(),
+		}
+	}
 	universe := new(Scope)
 	p := &Program{
 		Universe: universe,
@@ -103,7 +111,8 @@ func New(path string) *Program {
 		Cur: &Scope{
 			Parent: universe,
 		},
-		reflector: newReflector(),
+		ShellState: shellState,
+		reflector:  newReflector(),
 	}
 	addUniverse := func(name string, val interface{}) {
 		p.Universe = &Scope{
@@ -115,8 +124,8 @@ func New(path string) *Program {
 	}
 	addUniverse("true", true)
 	addUniverse("false", false)
-	addUniverse("env", (evalMap)(environ.New()))
-	addUniverse("alias", (evalMap)(environ.New()))
+	addUniverse("env", (evalMap)(p.ShellState.Env))
+	addUniverse("alias", (evalMap)(p.ShellState.Alias))
 	addUniverse("nil", nil)
 	addUniverse("print", func(val ...interface{}) {
 		fmt.Println(val...)
@@ -192,12 +201,12 @@ func New(path string) *Program {
 	return p
 }
 
-func EvalFile(path string) error {
+func EvalFile(path string, shellState *shell.State) error {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("eval: %v", err)
 	}
-	p := New(path)
+	p := New(path, shellState)
 	return p.evalFile()
 }
 
@@ -227,6 +236,7 @@ func (p *Program) evalFile() error {
 		}
 		for _, cmd := range res.Cmds {
 			j := &shell.Job{
+				State:  p.ShellState,
 				Cmd:    cmd,
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
@@ -1308,6 +1318,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		var err error
 		for _, cmd := range e.Cmds {
 			j := &shell.Job{
+				State:  p.ShellState,
 				Cmd:    cmd,
 				Params: p,
 				Stdin:  os.Stdin,

@@ -219,10 +219,15 @@ func testCompleteSh(t *testing.T, testName string, files []file, tests []complet
 		}
 	}
 
+	oldShellState := shellState
+	defer func() { shellState = oldShellState }()
 	for _, test := range tests {
-		shell.Env = environ.New()
+		shellState = &shell.State{
+			Env:   environ.New(),
+			Alias: environ.New(),
+		}
 		for k, v := range test.env {
-			shell.Env.Set(k, v)
+			shellState.Env.Set(k, v)
 		}
 		gotPrefix, got, _ := completerSh(test.line, len(test.line))
 		if gotPrefix != test.wantPrefix {
