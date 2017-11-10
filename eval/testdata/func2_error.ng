@@ -1,0 +1,3 @@
+func f(x, y, z int) { }
+func g() (int, int) { return 0, 0 }
+f(1, g()) // ERROR: multi-valued g() used in single-valued context

@@ -1,0 +1,5 @@
+// We should not support unpacking multiple function calls
+// without error elision, only the last one.
+func f(x, y, z int) { }
+func g() (int, int) { return 0, 0 }
+f(g(), 1) // ERROR: multi-valued g() used in single-valued context

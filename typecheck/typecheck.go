@@ -94,6 +94,7 @@ const (
 	modeBuiltin
 	modeTypeExpr
 	modeFunc
+	modeUnpacked
 )
 
 type partial struct {
@@ -1385,8 +1386,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		p.typ = funct.Results
 	}
 
-	mode, unpacked := c.unpackExprs(hintNone, e.Args...)
-	if mode == modeInvalid {
+	// When we have exactly one argument, the Go spec allows this
+	// to be treated as multiple arguments in a few cases, such as
+	// when calling f(g()) and g returns multiple values. Handle this.
+	// TODO: also handle the comma-ok cases.
+	unpacked, ok := c.unpackExprs(hintNone, e.Args...)
+	if !ok {
 		p.mode = modeInvalid
 		return p
 	}
@@ -1416,11 +1421,10 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		case funct.Variadic:
 			typ = params[len(params)-1]
 		default:
-			// Too many arguments. However, if we have a single argument
-			// f(g()) and the last return parameter of g is an error type,
-			// elide the error.
-			if i == len(unpacked)-1 && len(e.Args) == 1 && IsError(pi.typ) {
-				markElideError(e.Args[0])
+			// Too many arguments. However, if we have an unpacked
+			// last argument that is an error type, elide the error.
+			if i == len(unpacked)-1 && pi.mode == modeUnpacked && IsError(pi.typ) {
+				markElideError(pi.expr)
 				continue
 			}
 			p.mode = modeInvalid
@@ -1456,6 +1460,17 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 			case *tipe.Slice:
 				typ = t.Elem
 			}
+		}
+
+		// If we have an unpacked argument that is not an error,
+		// that means that we have a multi-valued function that
+		// returns something else than just (T, error).
+		// We only allow this case when there is a single argument
+		// f(g()) to stay close to the Go spec.
+		if pi.mode == modeUnpacked && !IsError(pi.typ) && len(e.Args) > 1 {
+			p.mode = modeInvalid
+			c.errorf("multi-valued %s used in single-valued context", format.Expr(pi.expr))
+			return p
 		}
 
 		// Typecheck the argument against the declared type of the
@@ -2143,40 +2158,61 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 // Each expr must be used in the same "context", such as
 // representing multiple arguments to a single function call.
 //
-// When unpackExprs is given exactly one expr it
-// evaluates it and if the result is multi-valued (for example
-// in the case of function calls with multiple return values,
-// or "comma-ok" expressions) it unpacks the multiple values
-// and returns them as separate partials.
-func (c *Checker) unpackExprs(hint typeHint, exprs ...expr.Expr) (mode partialMode, partials []partial) {
+// For each expr, unpackExprs evaluates it and if the result
+// is multi-valued (for example in the case of function calls
+// with multiple return values, or "comma-ok" expressions)
+// it unpacks the multiple values and returns them as separate
+// partials.
+//
+// Since the Go spec does not support expressions like f(g(), "foo")
+// if g returns more than one value, we only support single-valued
+// expressions for every position but the last. However, error
+// elision is applied, if possible, to turn a multi-valued (T, error)
+// into a single-valued T, before applying that rule.
+func (c *Checker) unpackExprs(hint typeHint, exprs ...expr.Expr) (partials []partial, ok bool) {
 	partials = make([]partial, 0, len(exprs))
-	for _, expr := range exprs {
-		partials = append(partials, c.exprPartial(expr, hint))
-	}
+	for i, expr := range exprs {
+		// We only elide errors in here for the "interior" expressions.
+		// The last expression is never elided, to allow the caller
+		// to decide what to do with it.
+		interiorExpr := i < len(exprs)-1
+		p := c.exprPartial(expr, hint)
 
-	if len(partials) == 1 {
 		// Handle single expressions that are multi-valued.
 		// TODO: handle comma-ok cases (map index, type assert, chan recv)
-		p := partials[0]
 		if tup, ok := p.typ.(*tipe.Tuple); ok {
 			// Treat each entry as the same underlying
 			// expression, but update the types
 
-			partials = nil // start from the beginning
-			for _, typ := range tup.Elems {
+			// If this is not the last expression, we do not
+			// support multiple values unless we can apply error elision.
+			elems := tup.Elems
+			if interiorExpr && len(tup.Elems) > 1 {
+				if len(tup.Elems) == 2 && IsError(tup.Elems[1]) {
+					markElideError(expr)
+					elems = elems[:1]
+					c.types[p.expr] = &tipe.Tuple{Elems: elems}
+				} else {
+					c.errorf("multi-valued %s used in single-valued context", format.Expr(expr))
+					return nil, false
+				}
+			}
+
+			for i, typ := range elems {
 				p2 := p // copy
 				p2.typ = typ
+				if i > 0 {
+					// Hint that this argument was unpacked
+					// from another expression.
+					p2.mode = modeUnpacked
+				}
 				partials = append(partials, p2)
 			}
+		} else {
+			partials = append(partials, p)
 		}
 	}
-
-	if len(partials) == 0 {
-		mode = modeVoid
-	} else {
-		mode = partials[0].mode
-	}
-	return mode, partials
+	return partials, true
 }
 
 func (c *Checker) assign(p *partial, t tipe.Type) {
