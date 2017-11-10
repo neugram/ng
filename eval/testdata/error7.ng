@@ -1,0 +1,33 @@
+import "errors"
+
+// Support error elisions on "interior" arguments in function calls.
+func concat(a, b string) string { return a + b }
+foobar := concat($$ echo -n foo $$, $$ echo -n bar $$)
+
+// Check that the first function call gets its error elided
+func multiError(errStr string) (error, error) { return errors.New(errStr), nil }
+func check(a, b, c error) {
+    if a.Error() != "a" || b.Error() != "b" || c != nil {
+        panic("wrong error elision applied")
+    }
+}
+check(multiError("a"), multiError("b"))
+
+func emptyInterface(args ...interface{}) {
+    if len(args) != 2 {
+        panic("wrong number of args")
+    }
+}
+// Error elision should not happen for interface{} parameters
+emptyInterface(multiError(""))
+emptyInterface($$ echo $$)
+
+// More error elision for interior args
+func f(x, y, z int) { }
+func g() (int, error) { return 0, nil }
+f(g(), 1, 2)
+f(g(), g(), g())
+
+if foobar == "foobar" {
+    print("OK")
+}
