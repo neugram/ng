@@ -1,0 +1,6 @@
+$$ export A=hello $$
+x := $$ echo -n $A $$
+
+if x == "hello" {
+    print("OK")
+}
