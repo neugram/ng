@@ -5,3 +5,9 @@ go:
   - master
 os:
   - linux
+
+script:
+  - ./.ci-test
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
