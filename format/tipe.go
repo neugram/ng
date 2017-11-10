@@ -116,6 +116,9 @@ func (p *printer) tipe(t tipe.Type) {
 			p.tipe(elt)
 		}
 		p.buf.WriteString(")")
+	case *tipe.Ellipsis:
+		p.tipe(t.Elem)
+		p.buf.WriteString("...")
 	default:
 		p.buf.WriteString("format: unknown type: ")
 		WriteDebug(p.buf, t)

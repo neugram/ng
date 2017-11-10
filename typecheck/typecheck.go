@@ -1385,73 +1385,100 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		p.typ = funct.Results
 	}
 
-	if funct.Variadic {
-		if len(e.Args) < len(params)-1 {
-			p.mode = modeInvalid
-			c.errorf("too few arguments (%d) to variadic function %s", len(e.Args), format.Type(funct))
-			return p
-		}
-		for i := 0; i < len(params)-1; i++ {
-			t := params[i]
-			argp := c.expr(e.Args[i])
-			c.convert(&argp, t)
-			if argp.mode == modeInvalid {
-				p.mode = modeInvalid
-				c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(argp.typ), format.Type(t), i)
-				return p
-			}
-		}
-		var vart tipe.Type
-		switch t := params[len(params)-1].(type) {
-		case *tipe.Slice:
-			vart = t.Elem
-		case *tipe.Ellipsis:
-			vart = t.Elem
-		default:
-			c.errorf("variadic parameter must be a slice, not %s", format.Type(t))
-		}
-		varargs := e.Args[len(params)-1:]
-		for i, arg := range varargs {
-			argp := c.exprPartial(arg, hintNone)
-			if argp.mode == modeTypeExpr {
-				p.mode = modeInvalid
-				c.errorf("type %s is not an expression", format.Type(p.typ))
-				return p
-			}
-			if i == len(varargs)-1 && e.Ellipsis {
-				slice, ok := argp.typ.(*tipe.Slice)
-				if !ok {
-					p.mode = modeInvalid
-					c.errorf("cannot ... expand argument type %s", format.Type(argp.typ))
-					return p
-				}
-				argp.typ = slice.Elem
-			}
-			c.convert(&argp, vart)
-			if argp.mode == modeInvalid {
-				p.mode = modeInvalid
-				c.errorf("cannot use type %s as type %s in variadic argument to function", format.Type(argp.typ), format.Type(vart))
-				return p
-			}
-		}
+	mode, unpacked := c.unpackExprs(hintNone, e.Args...)
+	if mode == modeInvalid {
+		p.mode = modeInvalid
 		return p
 	}
 
-	if len(e.Args) != len(params) {
-		p.mode = modeInvalid
-		c.errorf("wrong number of arguments (%d) to function %s", len(e.Args), format.Type(funct))
-		return p
-	}
-	for i, arg := range e.Args {
-		t := params[i]
-		argp := c.expr(arg)
-		//fmt.Printf("argp i=%d: %#+v (arg=%#+v)\n", i, argp, arg)
-		c.convert(&argp, t)
-		if argp.mode == modeInvalid {
+	// If we have f([a, b,] c...), check whether that is permissible.
+	if e.Ellipsis {
+		if !funct.Variadic {
 			p.mode = modeInvalid
-			c.errorf("cannot use type %s as type %s in argument to function", format.Type(argp.typ), format.Type(t))
-			break
+			c.errorf("cannot use ... with non-variadic function %s", format.Type(funct))
+			return p
 		}
+		if len(e.Args) == 1 && len(unpacked) > 1 {
+			p.mode = modeInvalid
+			c.errorf("cannot use ... with multi-valued function %s", format.Type(funct))
+			return p
+		}
+	}
+
+	// Type-check each argument against the called function
+	for i, pi := range unpacked {
+		// Determine the type of the corresponding parameter in the
+		// called function.
+		var typ tipe.Type
+		switch {
+		case i < len(params):
+			typ = params[i]
+		case funct.Variadic:
+			typ = params[len(params)-1]
+		default:
+			// Too many arguments. However, if we have a single argument
+			// f(g()) and the last return parameter of g is an error type,
+			// elide the error.
+			if i == len(unpacked)-1 && len(e.Args) == 1 && IsError(pi.typ) {
+				markElideError(e.Args[0])
+				continue
+			}
+			p.mode = modeInvalid
+			c.errorf("too many arguments to function %s", format.Type(funct))
+			return p
+		}
+
+		// If this is the variadic parameter and we have "...",
+		// check that the parameter is a slice.
+		if e.Ellipsis && i == len(params)-1 {
+			_, ok := pi.typ.(*tipe.Slice)
+			if !ok && !tipe.IsUntypedNil(pi.typ) {
+				p.mode = modeInvalid
+				c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+				return p
+			}
+			// We're using "x..." and are at the position of the
+			// variadic parameter. To allow for typechecking,
+			// change the Ellipsis type to a Slice type.
+			typ = &tipe.Slice{Elem: typ.(*tipe.Ellipsis).Elem}
+		} else if !e.Ellipsis && funct.Variadic && i >= len(params)-1 {
+			// We're not using "x...", but we are at (or beyond)
+			// the position of the variadic parameter. That means that
+			// typ is a slice, but since we're passing in individual
+			// arguments we should typecheck against the underlying
+			// element type rather than the ellipsis type.
+
+			// TODO there seems to be some cases where we get a slice here
+			// rather than an ellipsis. It's not clear why that is.
+			switch t := typ.(type) {
+			case *tipe.Ellipsis:
+				typ = t.Elem
+			case *tipe.Slice:
+				typ = t.Elem
+			}
+		}
+
+		// Typecheck the argument against the declared type of the
+		// matching function parameter.
+		c.convert(&pi, typ)
+		if pi.mode == modeInvalid {
+			p.mode = modeInvalid
+			c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+			return p
+		}
+	}
+
+	// Check if we have too few arguments
+	numArgs := len(unpacked)
+	if funct.Variadic {
+		// a variadic function accepts an "empty"
+		// last argument: count one extra
+		numArgs++
+	}
+	if numArgs < len(params) {
+		p.mode = modeInvalid
+		c.errorf("too few arguments in call to %s", format.Type(funct))
+		return p
 	}
 
 	return p
@@ -1911,13 +1938,23 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		return left
 	case *expr.Call:
 		p := c.exprPartialCall(e)
-		if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple && hint == hintElideErr {
-			if IsError(tuple.Elems[len(tuple.Elems)-1]) {
-				tuple.Elems = tuple.Elems[:len(tuple.Elems)-1]
-				if len(tuple.Elems) == 1 {
-					p.typ = tuple.Elems[0]
+		if hint == hintElideErr {
+			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
+				els := tuple.Elems
+				num := len(els)
+				if num > 0 && IsError(els[num-1]) {
+					// We're eliding the error. If we mutate the tuple here
+					// we're actually mutating the underlying *tipe.Func object
+					// itself, so create a new tuple and copy over everything
+					// but the last elem.
+					e.ElideError = true
+					tup2 := &tipe.Tuple{Elems: els[:num-1]}
+					if len(tup2.Elems) == 1 {
+						p.typ = tup2.Elems[0] // unwrap (x,) -> x
+					} else {
+						p.typ = tup2
+					}
 				}
-				e.ElideError = true
 			}
 		}
 		return p
@@ -2100,6 +2137,46 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %s", format.Debug(e)))
+}
+
+// unpackExprs evaluates a list of expr.Exprs using the hint.
+// Each expr must be used in the same "context", such as
+// representing multiple arguments to a single function call.
+//
+// When unpackExprs is given exactly one expr it
+// evaluates it and if the result is multi-valued (for example
+// in the case of function calls with multiple return values,
+// or "comma-ok" expressions) it unpacks the multiple values
+// and returns them as separate partials.
+func (c *Checker) unpackExprs(hint typeHint, exprs ...expr.Expr) (mode partialMode, partials []partial) {
+	partials = make([]partial, 0, len(exprs))
+	for _, expr := range exprs {
+		partials = append(partials, c.exprPartial(expr, hint))
+	}
+
+	if len(partials) == 1 {
+		// Handle single expressions that are multi-valued.
+		// TODO: handle comma-ok cases (map index, type assert, chan recv)
+		p := partials[0]
+		if tup, ok := p.typ.(*tipe.Tuple); ok {
+			// Treat each entry as the same underlying
+			// expression, but update the types
+
+			partials = nil // start from the beginning
+			for _, typ := range tup.Elems {
+				p2 := p // copy
+				p2.typ = typ
+				partials = append(partials, p2)
+			}
+		}
+	}
+
+	if len(partials) == 0 {
+		mode = modeVoid
+	} else {
+		mode = partials[0].mode
+	}
+	return mode, partials
 }
 
 func (c *Checker) assign(p *partial, t tipe.Type) {
@@ -2777,4 +2854,16 @@ func defaultType(t tipe.Type) tipe.Type {
 		return tipe.Complex128 // tipe.Num
 	}
 	return t
+}
+
+// markElideError marks the expression to dynamically
+// elide errors at runtime. If the expression type does not
+// support eliding errors, it does nothing.
+func markElideError(e expr.Expr) {
+	switch e := e.(type) {
+	case *expr.Call:
+		e.ElideError = true
+	case *expr.Shell:
+		e.ElideError = true
+	}
 }
