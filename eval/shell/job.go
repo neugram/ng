@@ -336,6 +336,8 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 	case "jobs":
 		bgList(j.Stderr)
 		return nil, nil
+	case "export":
+		return nil, export(argv[1:])
 	case "exit", "logout":
 		return nil, fmt.Errorf("ng does not know %q, try $$", argv[0])
 	}
@@ -653,4 +655,16 @@ func bgFg(spec string) error {
 	fmt.Fprintf(j.Stderr, "%s\n", shellListString(j.Cmd))
 	bgMu.Unlock()
 	return j.Continue()
+}
+
+func export(pairs []string) error {
+	for _, p := range pairs {
+		parts := strings.SplitN(p, "=", 2)
+		val := ""
+		if len(parts) > 1 {
+			val = parts[1]
+		}
+		Env.Set(parts[0], val)
+	}
+	return nil
 }
