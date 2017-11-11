@@ -1,0 +1,7 @@
+This is a vendored copy of the zmtp package from GoMQ.
+
+The canonical source for this project is https://github.com/zeromq/gomq.
+However this copy is vendored from https://github.com/sideshowdave7/gomq,
+where several extra commits add multipart message support.
+
+The revision vendored is f4ff21de80d00864557718879719f8d4163dc547.
