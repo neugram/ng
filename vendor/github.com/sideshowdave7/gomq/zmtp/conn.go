@@ -41,6 +41,14 @@ const (
 
 	// RouterSocketType is a ZMQ_ROUTER socket
 	RouterSocketType SocketType = "ROUTER"
+
+	PubSocketType SocketType = "PUB"
+
+	SubSocketType SocketType = "SUB"
+
+	ReqSocketType SocketType = "REQ"
+
+	RepSocketType SocketType = "REP"
 )
 
 // NewConnection accepts an io.ReadWriter and creates a new ZMTP connection

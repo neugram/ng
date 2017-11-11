@@ -24,6 +24,14 @@ func NewSocket(socketType SocketType) (Socket, error) {
 		return dealerSocket{}, nil
 	case RouterSocketType:
 		return routerSocket{}, nil
+	case PubSocketType:
+		return pubSocket{}, nil
+	case SubSocketType:
+		return subSocket{}, nil
+	case ReqSocketType:
+		return reqSocket{}, nil
+	case RepSocketType:
+		return repSocket{}, nil
 	default:
 		return nil, errors.New("Invalid socket type")
 	}
@@ -126,12 +134,73 @@ func (routerSocket) Type() SocketType {
 }
 
 func (routerSocket) IsSocketTypeCompatible(socketType SocketType) bool {
-	return socketType == DealerSocketType ||
+	return socketType == RepSocketType ||
+		socketType == DealerSocketType ||
 		socketType == RouterSocketType
 }
 
 // IsCommandTypeValid returns if a command is valid for this socket.
 func (routerSocket) IsCommandTypeValid(name string) bool {
+	// FIXME
+	return false
+}
+
+type pubSocket struct{}
+
+func (pubSocket) Type() SocketType {
+	return PubSocketType
+}
+
+func (pubSocket) IsSocketTypeCompatible(socketType SocketType) bool {
+	return socketType == SubSocketType
+}
+
+func (pubSocket) IsCommandTypeValid(name string) bool {
+	// FIXME
+	return false
+}
+
+type subSocket struct{}
+
+func (subSocket) Type() SocketType {
+	return SubSocketType
+}
+
+func (subSocket) IsSocketTypeCompatible(socketType SocketType) bool {
+	return socketType == PubSocketType
+}
+
+func (subSocket) IsCommandTypeValid(name string) bool {
+	// FIXME
+	return false
+}
+
+type reqSocket struct{}
+
+func (reqSocket) Type() SocketType {
+	return ReqSocketType
+}
+
+func (reqSocket) IsSocketTypeCompatible(socketType SocketType) bool {
+	return socketType == RepSocketType
+}
+
+func (reqSocket) IsCommandTypeValid(name string) bool {
+	// FIXME
+	return false
+}
+
+type repSocket struct{}
+
+func (repSocket) Type() SocketType {
+	return RepSocketType
+}
+
+func (repSocket) IsSocketTypeCompatible(socketType SocketType) bool {
+	return socketType == ReqSocketType
+}
+
+func (repSocket) IsCommandTypeValid(name string) bool {
 	// FIXME
 	return false
 }
