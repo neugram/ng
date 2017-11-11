@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/jupyter"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/tipe"
 
@@ -80,6 +82,7 @@ Options:
 func main() {
 	shell.Init()
 
+	flagJupyter := flag.String("jupyter", "", "path to jupyter kernel connection file")
 	help := flag.Bool("h", false, "display help message and exit")
 	e := flag.String("e", "", "program passed as a string")
 	flag.Usage = func() {
@@ -90,6 +93,14 @@ func main() {
 
 	if *help {
 		usage()
+		os.Exit(0)
+	}
+	if *flagJupyter != "" {
+		err := jupyter.Run(context.Background(), *flagJupyter)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 	if *e != "" {
@@ -367,6 +378,7 @@ func loop() {
 }
 
 func handleResult(res parser.Result) {
+	// TODO: use ngcore for this
 	for _, s := range res.Stmts {
 		v, err := prg.Eval(s, sigint)
 		if err != nil {
