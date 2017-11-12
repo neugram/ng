@@ -3,16 +3,20 @@ import (
 	"bytes"
 )
 
-/*
-TODO
-
 func isBuffer(r io.Reader) bool {
 	_, ok := r.(*bytes.Buffer)
 	return ok
 }
 
-if isBuffer(new(bytes.Buffer)) && !isBuffer(new(bytes.Reader)) {
+b1 := isBuffer(new(bytes.Buffer))
+b2 := isBuffer(new(bytes.Reader))
+
+r := io.Reader(new(bytes.Buffer))
+buf := r.(*bytes.Buffer)
+buf.Write("bufval")
+
+b3 := buf.String() == "bufval"
+
+if b1 && !b2 && b3 {
 	print("OK")
 }
-*/
-print("OK")

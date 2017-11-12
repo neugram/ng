@@ -1,0 +1,8 @@
+import (
+	"io"
+	"bytes"
+)
+
+v := new(bytes.Reader)
+r := io.Reader(v)
+_ = r.(*bytes.Buffer)

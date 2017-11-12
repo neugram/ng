@@ -1818,7 +1818,8 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	case *expr.TypeAssert:
 		left := c.expr(e.Left)
 		if left.mode == modeInvalid {
-			return left
+			p.mode = modeInvalid
+			return p
 		}
 		leftTyp, isInterface := tipe.Underlying(left.typ).(*tipe.Interface)
 		if !isInterface {
@@ -1832,8 +1833,9 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			return p
 		}
 		if c.typeAssert(leftTyp, t) {
-			left.typ = t
-			return left
+			p.mode = left.mode
+			p.typ = t
+			return p
 		}
 		c.errorf("%s does not implement %s", format.Type(t), format.Type(leftTyp))
 		p.mode = modeInvalid

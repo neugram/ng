@@ -1365,6 +1365,32 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Type:
 		t := p.reflector.ToRType(e.Type)
 		return []reflect.Value{reflect.ValueOf(t)}
+	case *expr.TypeAssert:
+		v := p.evalExprOne(e.Left)
+		t := p.reflector.ToRType(e.Type)
+		convertible := v.Type().ConvertibleTo(t)
+		if convertible {
+			v = v.Convert(t)
+		} else {
+			if v.CanInterface() {
+				viface := v.Interface()
+				v = reflect.ValueOf(viface)
+				convertible = v.Type().ConvertibleTo(t)
+				if convertible {
+					v = v.Convert(t)
+				}
+			}
+			if !convertible {
+				v = reflect.Zero(t)
+			}
+		}
+		if _, commaOK := p.Types.Type(e).(*tipe.Tuple); commaOK {
+			return []reflect.Value{v, reflect.ValueOf(convertible)}
+		}
+		if !convertible {
+			panic(Panic{val: fmt.Errorf("value of type %s cannot be converted to %s", v.Type(), e.Type)})
+		}
+		return []reflect.Value{v}
 	case *expr.Unary:
 		var v reflect.Value
 		switch e.Op {
