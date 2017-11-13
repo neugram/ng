@@ -1097,19 +1097,15 @@ func (p *Parser) parseSwitch() stmt.Stmt {
 			p.expect(token.Case)
 			p.next()
 			c.Conds = p.parseExprs()
-			p.expect(token.Colon)
 		case token.Default:
 			p.expect(token.Default)
 			p.next()
-			p.expect(token.Colon)
 			c.Default = true
 		}
-		// FIXME(sbinet)
-		//p.next()
-		//c.Body = &stmt.Block{Stmts: p.parseStmts()}
-		c.Body = &stmt.Block{}
-		s.Cases = append(s.Cases, c)
+		p.expect(token.Colon)
 		p.next()
+		c.Body = &stmt.Block{Stmts: p.parseStmts()}
+		s.Cases = append(s.Cases, c)
 	}
 	p.expect(token.RightBrace)
 	p.next()
