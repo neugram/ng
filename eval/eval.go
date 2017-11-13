@@ -904,6 +904,55 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			panic("bad branch type: " + s.Type.String())
 		}
 		return nil
+	case *stmt.Switch:
+		if s.Init != nil {
+			p.pushScope()
+			defer p.popScope()
+			p.evalStmt(s.Init)
+		}
+		cond := reflect.ValueOf(true)
+		if s.Cond != nil {
+			cond = p.evalExprOne(s.Cond)
+		}
+		var (
+			dflt    *stmt.Case
+			match   = false
+			through = false
+		)
+	loopCases:
+		for i, cse := range s.Cases {
+			if cse.Default {
+				dflt = &s.Cases[i]
+			}
+			// only go through the evaluation of the cases when not
+			// in fallthrough mode.
+			if !through {
+				for j := range cse.Conds {
+					e := p.evalExprOne(cse.Conds[j])
+					if reflect.DeepEqual(cond.Interface(), e.Interface()) {
+						match = true
+						break
+					}
+				}
+			}
+			if match || through {
+				through = false
+				p.evalStmt(cse.Body)
+				switch p.branchType {
+				case brFallthrough:
+					through = true
+					p.branchType = brNone
+					continue loopCases
+				}
+				return nil
+			}
+		}
+		// no case were triggered.
+		// execute the default one, if any.
+		if !match && dflt != nil {
+			p.evalStmt(dflt.Body)
+		}
+		return nil
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %s", format.Stmt(s)))
 }

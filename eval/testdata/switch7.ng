@@ -1,0 +1,16 @@
+invalid := true
+
+switch i := 42; i{
+case 1, 2, 3:
+	panic("ERROR")
+case 42:
+	invalid = false
+default:
+	panic("ERROR")
+}
+
+if invalid {
+	panic("ERROR")
+}
+
+print("OK")
