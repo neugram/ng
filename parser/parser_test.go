@@ -790,8 +790,11 @@ var stmtTests = []stmtTest{
 	{"switch {}", &stmt.Switch{}},
 	{`switch {
 	case true:
+		print(true)
 	case false:
+		print(false)
 	default:
+		print(42)
 	}`,
 		&stmt.Switch{
 			Cases: []stmt.Case{
@@ -801,26 +804,51 @@ var stmtTests = []stmtTest{
 							Name: "true",
 						},
 					},
-					Body: &stmt.Block{},
-				},
-				{
-					Conds: []expr.Expr{
-						&expr.Ident{
-							Name: "false",
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "true"}},
+								},
+							},
 						},
 					},
-					Body: &stmt.Block{},
+				},
+				{
+					Conds: []expr.Expr{&expr.Ident{Name: "false"}},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "false"}},
+								},
+							},
+						},
+					},
 				},
 				{
 					Default: true,
-					Body:    &stmt.Block{},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(42)}},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 	},
 	{`switch i := fct(); i {
 	case 42, 66:
+		print(i)
 	default:
+		print(ok)
 	}`,
 		&stmt.Switch{
 			Init: &stmt.Assign{
@@ -844,18 +872,32 @@ var stmtTests = []stmtTest{
 			Cases: []stmt.Case{
 				{
 					Conds: []expr.Expr{
-						&expr.BasicLiteral{
-							Value: big.NewInt(42),
-						},
-						&expr.BasicLiteral{
-							Value: big.NewInt(66),
+						&expr.BasicLiteral{Value: big.NewInt(42)},
+						&expr.BasicLiteral{Value: big.NewInt(66)},
+					},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "i"}},
+								},
+							},
 						},
 					},
-					Body: &stmt.Block{},
 				},
 				{
 					Default: true,
-					Body:    &stmt.Block{},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "ok"}},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
