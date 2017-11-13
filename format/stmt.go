@@ -25,6 +25,48 @@ func (p *printer) stmt(s stmt.Stmt) {
 			}
 			p.expr(e)
 		}
+	case *stmt.Assign:
+		for i, e := range s.Left {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			p.expr(e)
+		}
+		p.buf.WriteString(" ")
+		if s.Decl {
+			p.buf.WriteString(":")
+		}
+		p.buf.WriteString("= ")
+		for i, e := range s.Right {
+			if i > 0 {
+				p.buf.WriteString(", ")
+			}
+			p.expr(e)
+		}
+	case *stmt.Send:
+		p.expr(s.Chan)
+		p.buf.WriteString("<-")
+		p.expr(s.Value)
+	case *stmt.Select:
+		p.buf.WriteString("select {")
+		for _, c := range s.Cases {
+			switch c.Default {
+			case true:
+				p.buf.WriteString("default:")
+			default:
+				p.buf.WriteString("case ")
+				p.stmt(c.Stmt)
+				p.buf.WriteString(":")
+			}
+			p.stmt(c.Body)
+		}
+		p.buf.WriteString("}")
+	case *stmt.Block:
+		p.buf.WriteString("{")
+		for _, s := range s.Stmts {
+			p.stmt(s)
+		}
+		p.buf.WriteString("}")
 	default:
 		p.printf("format: unknown stmt %T: ", s)
 		WriteDebug(p.buf, s)
