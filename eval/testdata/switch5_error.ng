@@ -1,0 +1,4 @@
+switch {
+case 1: // ERROR: invalid case 1 in switch (mismatched types untyped integer and bool)
+default:
+}

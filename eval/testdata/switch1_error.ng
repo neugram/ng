@@ -1,0 +1,8 @@
+switch {
+default:
+	print(1)
+default: // ERROR: multiple defaults in switch
+	print(2)
+case true:
+	print(3)
+}
