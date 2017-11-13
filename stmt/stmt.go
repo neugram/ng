@@ -76,7 +76,7 @@ type Switch struct {
 type Case struct {
 	Conds   []expr.Expr
 	Default bool
-	Body    Stmt // always *BlockStmt
+	Body    *Block
 }
 
 type Go struct {

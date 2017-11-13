@@ -1,0 +1,29 @@
+invalid := true
+cases := 0
+
+switch 1 {
+case 0:
+	panic("ERROR-1")
+case 1:
+	cases++
+	fallthrough
+case 2:
+	cases++
+	fallthrough
+default:
+	cases++
+	invalid = false
+case 4:
+	cases++
+	panic("ERROR-2")
+}
+
+if invalid {
+	panic("ERROR-3")
+}
+
+if cases != 3 {
+	panic("ERROR-4")
+}
+
+print("OK")

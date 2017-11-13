@@ -1,0 +1,6 @@
+switch false {
+case true:
+	panic("ERROR")
+default:
+	print("OK")
+}
