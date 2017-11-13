@@ -1,0 +1,5 @@
+switch i := 42; i {
+case 2:
+case 3:
+case 3: // ERROR: duplicate case 3 in switch
+}

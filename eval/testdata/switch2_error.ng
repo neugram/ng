@@ -1,0 +1,6 @@
+switch i := 42; i {
+case 2:
+default:
+case 3:
+default: // ERROR: multiple defaults in switch
+}

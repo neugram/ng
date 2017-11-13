@@ -508,6 +508,58 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.stmt(s.Stmt, retType)
 		return nil
 
+	case *stmt.Switch:
+		if s.Init != nil {
+			c.pushScope()
+			defer c.popScope()
+			c.stmt(s.Init, retType)
+		}
+		var typ tipe.Type = tipe.Bool
+		if s.Cond != nil {
+			p := c.expr(s.Cond)
+			if p.mode == modeInvalid {
+				return nil
+			}
+			typ = p.typ
+		}
+		typ, ok := c.resolve(typ)
+		if !ok {
+		}
+		ndefaults := 0
+		set := make(map[expr.Expr]struct{})
+		for _, cse := range s.Cases {
+			if cse.Default {
+				ndefaults++
+				if ndefaults > 1 {
+					c.errorf("multiple defaults in switch")
+				}
+			}
+			for _, cond := range cse.Conds {
+				for k := range set {
+					if parser.EqualExpr(cond, k) {
+						c.errorf("duplicate case %s in switch", format.Expr(cond))
+					}
+				}
+				set[cond] = struct{}{}
+				p := c.expr(cond)
+				if p.mode == modeInvalid {
+					return nil
+				}
+				if !c.convertible(typ, p.typ) {
+					c.errorf(
+						"invalid case %s in switch (mismatched types %s and %s)",
+						format.Expr(cond),
+						format.Type(p.typ), format.Type(typ),
+					)
+					return nil
+				}
+				if isUntyped(p.typ) {
+					c.constrainUntyped(&p, typ)
+				}
+			}
+			c.stmt(cse.Body, retType)
+		}
+		return nil
 	default:
 		panic("typecheck: unknown stmt: " + format.Debug(s))
 	}
@@ -2269,6 +2321,9 @@ func (c *Checker) assignable(dst, src tipe.Type) bool {
 		}
 	}
 	if src == tipe.UntypedString && tipe.Underlying(dst) == tipe.String {
+		return true
+	}
+	if src == tipe.UntypedBool && tipe.Underlying(dst) == tipe.Bool {
 		return true
 	}
 
