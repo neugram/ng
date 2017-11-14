@@ -1091,7 +1091,7 @@ func (p *Parser) parseSwitch() stmt.Stmt {
 	p.next()
 
 	for p.s.Token != token.RightBrace {
-		var c stmt.Case
+		var c stmt.SwitchCase
 		switch p.s.Token {
 		case token.Case:
 			p.expect(token.Case)

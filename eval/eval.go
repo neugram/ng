@@ -915,7 +915,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			cond = p.evalExprOne(s.Cond)
 		}
 		var (
-			dflt    *stmt.Case
+			dflt    *stmt.SwitchCase
 			match   = false
 			through = false
 		)
