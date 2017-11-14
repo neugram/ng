@@ -653,19 +653,19 @@ func equalCase(c1, c2 stmt.Case) bool {
 	return true
 }
 
-func equalCommCases(c1, c2 []stmt.CommCase) bool {
+func equalSelectCases(c1, c2 []stmt.SelectCase) bool {
 	if len(c1) != len(c2) {
 		return false
 	}
 	for i := range c1 {
-		if !equalCommCase(c1[i], c2[i]) {
+		if !equalSelectCase(c1[i], c2[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func equalCommCase(c1, c2 stmt.CommCase) bool {
+func equalSelectCase(c1, c2 stmt.SelectCase) bool {
 	if c1.Default != c2.Default {
 		return false
 	}
@@ -905,7 +905,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !ok {
 			return false
 		}
-		if !equalCommCases(x.Cases, y.Cases) {
+		if !equalSelectCases(x.Cases, y.Cases) {
 			return false
 		}
 	default:

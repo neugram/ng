@@ -914,7 +914,7 @@ var stmtTests = []stmtTest{
 		print(42)
 	}`,
 		&stmt.Select{
-			Cases: []stmt.CommCase{
+			Cases: []stmt.SelectCase{
 				{
 					Stmt: &stmt.Assign{
 						Decl: true,
