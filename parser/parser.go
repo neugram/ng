@@ -333,7 +333,13 @@ func (p *Parser) parseTypeAssert(lhs expr.Expr) expr.Expr {
 	p.expect(token.LeftParen)
 	p.next()
 
-	typ := p.parseType()
+	var typ tipe.Type
+	if p.s.Token == token.Type {
+		p.expect(token.Type)
+		p.next()
+	} else {
+		typ = p.parseType()
+	}
 
 	p.expect(token.RightParen)
 	p.next()
@@ -1108,26 +1114,80 @@ func (p *Parser) parseFor() stmt.Stmt {
 }
 
 func (p *Parser) parseSwitch() stmt.Stmt {
+	s1, s2, isTypeSwitch := p.parseSwitchHeader()
+	if isTypeSwitch {
+		return p.parseTypeSwitch(s1, s2)
+	}
+	return p.parseExprSwitch(s1, s2)
+}
+
+func (p *Parser) parseSwitchHeader() (stmt.Stmt, stmt.Stmt, bool) {
 	p.expect(token.Switch)
 	p.next()
 
-	s := new(stmt.Switch)
+	var (
+		// consider:
+		// switch <s1>; <s2> { ... }
+		// from s1 and s2, we need to decide whether we are dealing with
+		// an expression-switch or a type-switch.
+		s1           stmt.Stmt
+		s2           stmt.Stmt
+		isTypeSwitch = false
+	)
 
 	if p.s.Token != token.LeftBrace {
 		p.noCompLit = true
-		s.Init = p.parseSimpleStmt()
-		if p.s.Token == token.Semicolon {
+		s1 = p.parseSimpleStmt()
+		switch p.s.Token {
+		case token.Semicolon:
 			p.next()
-			s.Cond = p.parseExpr()
-		} else {
-			// no init statement, make it the condition
-			s.Cond = p.extractExpr(s.Init)
-			s.Init = nil
+			s2 = p.parseSimpleStmt()
+			switch s2 := s2.(type) {
+			default:
+			// switch x := foo(); x { ... }
+			case *stmt.Simple:
+				// switch x := foo(); x.(type) { ... }
+				_, isTypeSwitch = s2.Expr.(*expr.TypeAssert)
+			case *stmt.Assign:
+				// switch x := foo(); y := x.(type) { ... }
+				if len(s2.Right) == 1 {
+					_, isTypeSwitch = s2.Right[0].(*expr.TypeAssert)
+				}
+			}
+		default:
+			switch init := s1.(type) {
+			default:
+				// switch foo() { ... }
+			case *stmt.Simple:
+				// switch x.(type) { ... }
+				_, isTypeSwitch = init.Expr.(*expr.TypeAssert)
+			case *stmt.Assign:
+				// switch x := x.(type) { ... }
+				if len(init.Right) == 1 {
+					_, isTypeSwitch = init.Right[0].(*expr.TypeAssert)
+
+				}
+			}
+			// expression-switch or type-switch,
+			// without any init statement: make it the condition
+			s2 = s1
+			s1 = nil
 		}
 		p.noCompLit = false
 	}
 	p.expect(token.LeftBrace)
+
+	return s1, s2, isTypeSwitch
+}
+
+func (p *Parser) parseExprSwitch(s1, s2 stmt.Stmt) stmt.Stmt {
+	p.expect(token.LeftBrace)
 	p.next()
+
+	s := &stmt.Switch{Init: s1}
+	if s2 != nil {
+		s.Cond = p.extractExpr(s2)
+	}
 
 	for p.s.Token != token.RightBrace {
 		var c stmt.SwitchCase
@@ -1146,6 +1206,44 @@ func (p *Parser) parseSwitch() stmt.Stmt {
 		c.Body = &stmt.Block{Stmts: p.parseStmts()}
 		s.Cases = append(s.Cases, c)
 	}
+	p.expect(token.RightBrace)
+	p.next()
+	p.expectSemi()
+	return s
+}
+
+func (p *Parser) parseTypeSwitch(s1, s2 stmt.Stmt) stmt.Stmt {
+	p.expect(token.LeftBrace)
+	p.next()
+
+	s := &stmt.TypeSwitch{
+		Init:   s1,
+		Assign: s2,
+	}
+
+	for p.s.Token != token.RightBrace {
+		var c stmt.TypeSwitchCase
+		switch p.s.Token {
+		case token.Case:
+			p.expect(token.Case)
+			p.next()
+			for p.s.Token != token.Colon {
+				c.Types = append(c.Types, p.parseType())
+				if p.s.Token == token.Comma {
+					p.next()
+				}
+			}
+		case token.Default:
+			p.expect(token.Default)
+			p.next()
+			c.Default = true
+		}
+		p.expect(token.Colon)
+		p.next()
+		c.Body = &stmt.Block{Stmts: p.parseStmts()}
+		s.Cases = append(s.Cases, c)
+	}
+
 	p.expect(token.RightBrace)
 	p.next()
 	p.expectSemi()

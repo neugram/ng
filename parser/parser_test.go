@@ -902,6 +902,110 @@ var stmtTests = []stmtTest{
 			},
 		},
 	},
+	{
+		"switch v.(type) {}",
+		&stmt.TypeSwitch{
+			Init:   nil,
+			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "v"}}},
+		},
+	},
+	{
+		"switch x := v.(type) {}",
+		&stmt.TypeSwitch{
+			Init: nil,
+			Assign: &stmt.Assign{
+				Decl: true,
+				Left: []expr.Expr{
+					&expr.Ident{Name: "x"},
+				},
+				Right: []expr.Expr{
+					&expr.TypeAssert{Left: &expr.Ident{Name: "v"}},
+				},
+			},
+		},
+	},
+	{
+		"switch x := fct(); x.(type) {}",
+		&stmt.TypeSwitch{
+			Init: &stmt.Assign{
+				Decl:  true,
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "fct"}}},
+			},
+			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
+		},
+	},
+	{
+		"switch x := fct(); v := x.(type) {}",
+		&stmt.TypeSwitch{
+			Init: &stmt.Assign{
+				Decl:  true,
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "fct"}}},
+			},
+			Assign: &stmt.Assign{
+				Decl: true,
+				Left: []expr.Expr{
+					&expr.Ident{Name: "v"},
+				},
+				Right: []expr.Expr{
+					&expr.TypeAssert{Left: &expr.Ident{Name: "x"}},
+				},
+			},
+		},
+	},
+	{
+		"switch x, y := f(); v := g(x, y).(type) {}",
+		&stmt.TypeSwitch{
+			Init: &stmt.Assign{
+				Decl:  true,
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}, &expr.Ident{Name: "y"}},
+				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "f"}}},
+			},
+			Assign: &stmt.Assign{
+				Decl: true,
+				Left: []expr.Expr{
+					&expr.Ident{Name: "v"},
+				},
+				Right: []expr.Expr{
+					&expr.TypeAssert{Left: &expr.Call{
+						Func: &expr.Ident{Name: "g"},
+						Args: []expr.Expr{&expr.Ident{Name: "x"}, &expr.Ident{Name: "y"}},
+					}},
+				},
+			},
+		},
+	},
+	{
+		`switch x := fct(); x.(type) {
+		case int, float64:
+		case *int:
+		default:
+		}
+		`,
+		&stmt.TypeSwitch{
+			Init: &stmt.Assign{
+				Decl:  true,
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "fct"}}},
+			},
+			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
+			Cases: []stmt.TypeSwitchCase{
+				{
+					Types: []tipe.Type{&tipe.Unresolved{Package: "", Name: "int"}, &tipe.Unresolved{Package: "", Name: "float64"}},
+					Body:  &stmt.Block{},
+				},
+				{
+					Types: []tipe.Type{&tipe.Pointer{Elem: &tipe.Unresolved{Package: "", Name: "int"}}},
+					Body:  &stmt.Block{},
+				},
+				{
+					Default: true,
+					Body:    &stmt.Block{},
+				},
+			},
+		},
+	},
 	{"select {}", &stmt.Select{}},
 	{`select {
 	case v := <-ch1:

@@ -453,6 +453,18 @@ func equalTuple(x, y *tipe.Tuple) bool {
 	return true
 }
 
+func equalTypes(t0, t1 []tipe.Type) bool {
+	if len(t0) != len(t1) {
+		return false
+	}
+	for i := range t0 {
+		if !equalType(t0[i], t1[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func equalType(t0, t1 tipe.Type) bool {
 	if t0 == nil && t1 == nil {
 		return true
@@ -601,6 +613,17 @@ func equalType(t0, t1 tipe.Type) bool {
 		if t0.Name != t1.Name {
 			return false
 		}
+	case *tipe.Pointer:
+		t1, ok := t1.(*tipe.Pointer)
+		if !ok {
+			return false
+		}
+		if t0 == nil || t1 == nil {
+			return t0 == nil && t1 == nil
+		}
+		if !equalType(t0.Elem, t1.Elem) {
+			return false
+		}
 	default:
 		panic(fmt.Sprintf("unknown type: %T", t0))
 	}
@@ -642,6 +665,31 @@ func equalSwitchCases(c1, c2 []stmt.SwitchCase) bool {
 
 func equalSwitchCase(c1, c2 stmt.SwitchCase) bool {
 	if !equalExprs(c1.Conds, c2.Conds) {
+		return false
+	}
+	if c1.Default != c2.Default {
+		return false
+	}
+	if !EqualStmt(c1.Body, c2.Body) {
+		return false
+	}
+	return true
+}
+
+func equalTypeSwitchCases(c1, c2 []stmt.TypeSwitchCase) bool {
+	if len(c1) != len(c2) {
+		return false
+	}
+	for i := range c1 {
+		if !equalTypeSwitchCase(c1[i], c2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalTypeSwitchCase(c1, c2 stmt.TypeSwitchCase) bool {
+	if !equalTypes(c1.Types, c2.Types) {
 		return false
 	}
 	if c1.Default != c2.Default {
@@ -898,6 +946,20 @@ func EqualStmt(x, y stmt.Stmt) bool {
 			return false
 		}
 		if !equalSwitchCases(x.Cases, y.Cases) {
+			return false
+		}
+	case *stmt.TypeSwitch:
+		y, ok := y.(*stmt.TypeSwitch)
+		if !ok {
+			return false
+		}
+		if !EqualStmt(x.Init, y.Init) {
+			return false
+		}
+		if !EqualStmt(x.Assign, y.Assign) {
+			return false
+		}
+		if !equalTypeSwitchCases(x.Cases, y.Cases) {
 			return false
 		}
 	case *stmt.Select:

@@ -70,7 +70,11 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.TypeAssert:
 		p.expr(e.Left)
 		p.buf.WriteString(".(")
-		WriteType(p.buf, e.Type)
+		if e.Type == nil {
+			p.buf.WriteString("type")
+		} else {
+			WriteType(p.buf, e.Type)
+		}
 		p.buf.WriteString(")")
 	case *expr.Call:
 		WriteExpr(p.buf, e.Func)
