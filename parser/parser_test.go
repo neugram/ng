@@ -797,7 +797,7 @@ var stmtTests = []stmtTest{
 		print(42)
 	}`,
 		&stmt.Switch{
-			Cases: []stmt.Case{
+			Cases: []stmt.SwitchCase{
 				{
 					Conds: []expr.Expr{
 						&expr.Ident{
@@ -869,7 +869,7 @@ var stmtTests = []stmtTest{
 			Cond: &expr.Ident{
 				Name: "i",
 			},
-			Cases: []stmt.Case{
+			Cases: []stmt.SwitchCase{
 				{
 					Conds: []expr.Expr{
 						&expr.BasicLiteral{Value: big.NewInt(42)},

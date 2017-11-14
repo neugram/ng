@@ -70,10 +70,10 @@ type For struct {
 type Switch struct {
 	Init  Stmt
 	Cond  expr.Expr
-	Cases []Case
+	Cases []SwitchCase
 }
 
-type Case struct {
+type SwitchCase struct {
 	Conds   []expr.Expr
 	Default bool
 	Body    *Block
@@ -128,7 +128,7 @@ func (s Block) stmt()        {}
 func (s If) stmt()           {}
 func (s For) stmt()          {}
 func (s Switch) stmt()       {}
-func (s Case) stmt()         {}
+func (s SwitchCase) stmt()   {}
 func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}

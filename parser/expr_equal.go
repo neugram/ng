@@ -628,19 +628,19 @@ func equalFuncLiteral(f0, f1 *expr.FuncLiteral) bool {
 	return true
 }
 
-func equalCases(c1, c2 []stmt.Case) bool {
+func equalSwitchCases(c1, c2 []stmt.SwitchCase) bool {
 	if len(c1) != len(c2) {
 		return false
 	}
 	for i := range c1 {
-		if !equalCase(c1[i], c2[i]) {
+		if !equalSwitchCase(c1[i], c2[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func equalCase(c1, c2 stmt.Case) bool {
+func equalSwitchCase(c1, c2 stmt.SwitchCase) bool {
 	if !equalExprs(c1.Conds, c2.Conds) {
 		return false
 	}
@@ -872,7 +872,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualExpr(x.Cond, y.Cond) {
 			return false
 		}
-		if !equalCases(x.Cases, y.Cases) {
+		if !equalSwitchCases(x.Cases, y.Cases) {
 			return false
 		}
 	default:
