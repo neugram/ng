@@ -79,6 +79,18 @@ type SwitchCase struct {
 	Body    *Block
 }
 
+type TypeSwitch struct {
+	Init   Stmt // initialization statement; or nil
+	Assign Stmt // x := y.(type) or y.(type)
+	Cases  []TypeSwitchCase
+}
+
+type TypeSwitchCase struct {
+	Default bool
+	Types   []tipe.Type
+	Body    *Block
+}
+
 type Go struct {
 	Call *expr.Call
 }
@@ -139,6 +151,7 @@ func (s If) stmt()           {}
 func (s For) stmt()          {}
 func (s Switch) stmt()       {}
 func (s SwitchCase) stmt()   {}
+func (s TypeSwitch) stmt()   {}
 func (s Go) stmt()           {}
 func (s Range) stmt()        {}
 func (s Return) stmt()       {}

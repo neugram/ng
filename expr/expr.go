@@ -47,7 +47,7 @@ type Index struct {
 
 type TypeAssert struct {
 	Left Expr
-	Type tipe.Type
+	Type tipe.Type // asserted type; nil means type switch X.(type)
 }
 
 type BasicLiteral struct {
