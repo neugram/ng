@@ -1,0 +1,14 @@
+ch1 := make(chan int)
+
+ok := false
+
+select {
+case <-ch1:
+	panic("ERROR")
+default:
+	ok = true
+}
+
+if ok {
+	print("OK")
+}

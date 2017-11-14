@@ -786,6 +786,10 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			Value: p.parseExpr(),
 		}
 	case token.Colon:
+		// check whether this is 'case <-channel:'
+		if e, isUnary := exprs[0].(*expr.Unary); isUnary && e.Op == token.ChanOp {
+			return &stmt.Simple{e}
+		}
 		p.next()
 		// TODO: we can be stricter here, sometimes it is invalid to declare a label.
 		if lhs, isIdent := exprs[0].(*expr.Ident); isIdent {
