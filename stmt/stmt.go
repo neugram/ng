@@ -116,10 +116,10 @@ type Labeled struct {
 }
 
 type Select struct {
-	Cases []CommCase
+	Cases []SelectCase
 }
 
-type CommCase struct {
+type SelectCase struct {
 	Default bool
 	Stmt    Stmt // a recv- or send-stmt
 	Body    *Block

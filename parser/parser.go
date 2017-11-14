@@ -999,7 +999,7 @@ func (p *Parser) parseSelect() stmt.Stmt {
 
 	s := new(stmt.Select)
 	for p.s.Token != token.RightBrace {
-		var c stmt.CommCase
+		var c stmt.SelectCase
 		switch p.s.Token {
 		case token.Case:
 			p.expect(token.Case)
