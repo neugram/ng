@@ -47,8 +47,43 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.expr(s.Chan)
 		p.buf.WriteString("<-")
 		p.expr(s.Value)
+	case *stmt.Switch:
+		p.buf.WriteString("switch ")
+		if s.Init != nil {
+			p.stmt(s.Init)
+			if s.Cond != nil {
+				p.buf.WriteString("; ")
+			}
+		}
+		if s.Cond != nil {
+			p.expr(s.Cond)
+		}
+		p.buf.WriteString("{")
+		if len(s.Cases) > 0 {
+			p.buf.WriteString("\n")
+		}
+		for _, c := range s.Cases {
+			switch c.Default {
+			case true:
+				p.buf.WriteString("default:")
+			default:
+				p.buf.WriteString("case ")
+				for i, e := range c.Conds {
+					if i > 0 {
+						p.buf.WriteString(", ")
+					}
+					p.expr(e)
+				}
+				p.buf.WriteString(":\n")
+			}
+			p.stmt(c.Body)
+		}
+		p.buf.WriteString("}")
 	case *stmt.Select:
 		p.buf.WriteString("select {")
+		if len(s.Cases) > 0 {
+			p.buf.WriteString("\n")
+		}
 		for _, c := range s.Cases {
 			switch c.Default {
 			case true:
