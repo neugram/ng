@@ -1,0 +1,19 @@
+ch1 := make(chan int)
+ch2 := make(chan int)
+
+go func() {
+	ch1 <- 1
+}()
+
+ok := false
+
+select {
+case ch2 <- 3:
+	panic("ERROR")
+case <-ch1:
+	ok = true
+}
+
+if ok {
+	print("OK")
+}

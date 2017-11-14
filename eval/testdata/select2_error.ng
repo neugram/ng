@@ -1,0 +1,9 @@
+ch1 := make(chan int)
+ch2 := make(chan int)
+ok := true
+select {
+case ch1 <- 42:
+case v := ok: // ERROR: select case must be receive send or assign recv
+case v := <-ch1:
+case v, ok := <-ch2:
+}

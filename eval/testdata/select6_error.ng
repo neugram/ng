@@ -1,0 +1,17 @@
+ch1 := make(chan int)
+ch2 := make(chan int)
+
+close(ch2)
+
+select {
+case v, ok := <-ch1:
+	if ok {
+		panic("ERROR-1")
+	}
+	if v != 0 {
+		panic("ERROR-2")
+	}
+case ch2 <- 1: // ERROR: send on closed channel
+}
+
+print("OK")

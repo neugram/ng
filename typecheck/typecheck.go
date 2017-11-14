@@ -560,6 +560,57 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			c.stmt(cse.Body, retType)
 		}
 		return nil
+	case *stmt.Select:
+		dflts := 0
+		set := make(map[stmt.Stmt]struct{})
+		for _, cse := range s.Cases {
+			if cse.Default {
+				dflts++
+				if dflts > 1 {
+					c.errorf("multiple defaults in select")
+				}
+			}
+			for k := range set {
+				if parser.EqualStmt(k, cse.Stmt) {
+					c.errorf("duplicate case %s in select", format.Stmt(cse.Stmt))
+				}
+			}
+			set[cse.Stmt] = struct{}{}
+			if cse.Stmt != nil {
+				switch st := cse.Stmt.(type) {
+				case *stmt.Assign:
+					if len(st.Right) != 1 {
+						c.errorf("select case must be receive send or assign recv")
+						return nil
+					}
+					sr, ok := st.Right[0].(*expr.Unary)
+					if !ok || sr.Op != token.ChanOp {
+						c.errorf("select case must be receive send or assign recv")
+						return nil
+					}
+				case *stmt.Send:
+				case *stmt.Simple:
+					sr, ok := st.Expr.(*expr.Unary)
+					if !ok || sr.Op != token.ChanOp {
+						c.errorf("select case must be receive send or assign recv")
+						return nil
+					}
+				default:
+					c.errorf("select case must be receive, send or assign recv")
+					return nil
+				}
+			}
+
+			func(cse *stmt.SelectCase) {
+				if cse.Stmt != nil {
+					c.pushScope()
+					defer c.popScope()
+					c.stmt(cse.Stmt, retType)
+				}
+				c.stmt(cse.Body, retType)
+			}(&cse)
+		}
+		return nil
 	default:
 		panic("typecheck: unknown stmt: " + format.Debug(s))
 	}

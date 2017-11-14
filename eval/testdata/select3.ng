@@ -1,0 +1,28 @@
+ch1 := make(chan int)
+ch2 := make(chan int)
+ch3 := make(chan int)
+
+go func() {
+	ch3 <- 3
+	ch1 <- 1
+}()
+
+ok := false
+
+select {
+case v := <-ch1:
+		panic("ERROR-1")
+case ch2 <- 1:
+	panic("ERROR-2")
+case v, ok3 := <-ch3:
+	if !ok3 {
+		panic("ERROR-3")
+	}
+	if v == 3 {
+		ok = true
+	}
+}
+
+if ok {
+	print("OK")
+}

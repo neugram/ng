@@ -1,0 +1,20 @@
+ch1 := make(chan int)
+
+v := 2
+ok := true
+
+close(ch1)
+
+select {
+case v, ok := <-ch1:
+	if v != 0 {
+		panic("ERROR-1")
+	}
+	if ok {
+		panic("ERROR-2")
+	}
+}
+
+if ok && v == 2 {
+	print("OK")
+}

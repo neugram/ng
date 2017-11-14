@@ -953,6 +953,98 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			p.evalStmt(dflt.Body)
 		}
 		return nil
+
+	case *stmt.Select:
+		cases := make([]reflect.SelectCase, len(s.Cases))
+		works := make([]struct {
+			Chan     reflect.Value
+			Vars     []reflect.Value
+			Names    []string
+			Implicit []bool
+		}, len(s.Cases))
+		for i, cse := range s.Cases {
+			if cse.Default {
+				cases[i].Dir = reflect.SelectDefault
+				continue
+			}
+			switch cse := cse.Stmt.(type) {
+			case *stmt.Assign:
+				works[i].Chan = p.evalExprOne(cse.Right[0].(*expr.Unary).Expr)
+				works[i].Names = make([]string, len(cse.Left))
+				works[i].Vars = make([]reflect.Value, len(cse.Left))
+				works[i].Implicit = make([]bool, len(cse.Left))
+				if cse.Decl {
+					for j, lhs := range cse.Left {
+						works[i].Implicit[j] = true
+						name := lhs.(*expr.Ident).Name
+						if name == "_" {
+							continue
+						}
+						works[i].Names[j] = name
+					}
+				}
+				cases[i].Chan = works[i].Chan
+				cases[i].Dir = reflect.SelectRecv
+			case *stmt.Simple:
+				works[i].Chan = p.evalExprOne(cse.Expr.(*expr.Unary).Expr)
+				cases[i].Chan = works[i].Chan
+				cases[i].Dir = reflect.SelectRecv
+			case *stmt.Send:
+				works[i].Chan = p.evalExprOne(cse.Chan)
+				send := p.evalExprOne(cse.Value)
+				cases[i].Dir = reflect.SelectSend
+				cases[i].Chan = works[i].Chan
+				cases[i].Send = send
+			default:
+				panic(interpPanic{fmt.Errorf("unknown select case type: %T", cse)})
+			}
+		}
+		chosen, recv, recvOK := reflect.Select(cases)
+		p.pushScope()
+		defer p.popScope()
+		work := &works[chosen]
+		// prepare scope for body evaluation
+		switch cases[chosen].Dir {
+		case reflect.SelectRecv:
+			switch n := len(work.Vars); n {
+			case 0:
+			case 1:
+				work.Vars[0] = recv
+				s := &Scope{
+					Parent:   p.Cur,
+					VarName:  work.Names[0],
+					Var:      recv,
+					Implicit: work.Implicit[0],
+				}
+				p.Cur = s
+			case 2:
+				work.Vars[0] = recv
+				work.Vars[1] = reflect.New(reflect.TypeOf(recvOK)).Elem()
+				work.Vars[1].SetBool(recvOK)
+				for i := range work.Vars {
+					name := work.Names[i]
+					if name == "" {
+						continue
+					}
+					s := &Scope{
+						Parent:   p.Cur,
+						VarName:  name,
+						Var:      work.Vars[i],
+						Implicit: work.Implicit[i],
+					}
+					p.Cur = s
+				}
+			default:
+				panic(interpPanic{fmt.Errorf("internal error: invalid number of vars (%d)", n)})
+			}
+		case reflect.SelectSend:
+		case reflect.SelectDefault:
+		default:
+			panic(interpPanic{fmt.Errorf("invalid select case chan-dir: %v", cases[chosen].Dir)})
+		}
+		cse := &s.Cases[chosen]
+		p.evalStmt(cse.Body)
+		return nil
 	}
 	panic(fmt.Sprintf("TODO evalStmt: %s", format.Stmt(s)))
 }

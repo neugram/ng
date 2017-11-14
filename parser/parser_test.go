@@ -910,6 +910,8 @@ var stmtTests = []stmtTest{
 		print(v, ok)
 	case ch3 <- vv:
 		print(ch3)
+	case <-ch4:
+		print(ch4)
 	default:
 		print(42)
 	}`,
@@ -968,6 +970,19 @@ var stmtTests = []stmtTest{
 								Expr: &expr.Call{
 									Func: &expr.Ident{Name: "print"},
 									Args: []expr.Expr{&expr.Ident{Name: "ch3"}},
+								},
+							},
+						},
+					},
+				},
+				{
+					Stmt: &stmt.Simple{Expr: &expr.Unary{Op: token.ChanOp, Expr: &expr.Ident{Name: "ch4"}}},
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Simple{
+								Expr: &expr.Call{
+									Func: &expr.Ident{Name: "print"},
+									Args: []expr.Expr{&expr.Ident{Name: "ch4"}},
 								},
 							},
 						},
