@@ -1404,7 +1404,11 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{v.Elem()}
 		case token.Not:
 			v = p.evalExprOne(e.Expr)
-			v.SetBool(!v.Bool())
+			b := v.Bool()
+			if !v.CanAddr() {
+				v = reflect.New(reflect.TypeOf(false)).Elem()
+			}
+			v.SetBool(!b)
 		case token.Sub:
 			rhs := p.evalExprOne(e.Expr)
 			var lhs interface{}

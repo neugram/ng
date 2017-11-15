@@ -1,0 +1,6 @@
+t := func() bool { return true }
+f := func() bool { return false }
+
+if t() && !f() {
+	print("OK")
+}
