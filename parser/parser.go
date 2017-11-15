@@ -863,7 +863,8 @@ func (p *Parser) parseStmt() stmt.Stmt {
 			p.expectSemi()
 		}
 		return s
-	case token.Ident, token.Int, token.Float, token.Add, token.Sub, token.Mul, token.ChanOp, token.Map,
+	case token.Ident, token.Int, token.Float,
+		token.Add, token.Sub, token.Mul, token.ChanOp, token.Not, token.Map,
 		token.Func, token.LeftBracket, token.LeftParen, token.String, token.Rune, token.Shell:
 		// A "simple" statement, no control flow.
 		s := p.parseSimpleStmt()
