@@ -560,6 +560,80 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			c.stmt(cse.Body, retType)
 		}
 		return nil
+
+	case *stmt.TypeSwitch:
+		if s.Init != nil {
+			c.pushScope()
+			defer c.popScope()
+			c.stmt(s.Init, retType)
+		}
+		c.pushScope()
+		defer c.popScope()
+		if s.Assign == nil {
+			c.errorf("type switch needs a type switch guard")
+			return nil
+		}
+		c.stmt(s.Assign, retType)
+		var (
+			e  *expr.TypeAssert
+			id expr.Expr
+		)
+		switch st := s.Assign.(type) {
+		case *stmt.Simple:
+			e = st.Expr.(*expr.TypeAssert)
+			id = e.Left
+		case *stmt.Assign:
+			e = st.Right[0].(*expr.TypeAssert)
+			id = st.Left[0]
+		}
+		p := c.expr(e)
+		if p.mode == modeInvalid {
+			return nil
+		}
+		styp, ok := c.resolve(p.typ)
+		if !ok {
+			c.errorf("type switch could not resolve type switch guard type")
+			return nil
+		}
+		p.typ = styp
+		iface, ok := tipe.Underlying(styp).(*tipe.Interface)
+		if !ok {
+			c.errorf("cannot type switch on non-interface value %s (type %s)", format.Expr(id), format.Type(styp))
+			return nil
+		}
+		dflts := 0
+		set := make(map[tipe.Type]struct{})
+		for _, cse := range s.Cases {
+			if cse.Default {
+				dflts++
+				if dflts > 1 {
+					c.errorf("multiple defaults in switch")
+				}
+			}
+			for i, typ := range cse.Types {
+				typ, resolved := c.resolve(typ)
+				if resolved {
+					cse.Types[i] = typ
+				}
+				for k := range set {
+					if tipe.Equal(typ, k) {
+						c.errorf("duplicate case %s in type switch", format.Type(typ))
+					}
+				}
+				set[typ] = struct{}{}
+				if !c.typeAssert(iface, typ) {
+					// TODO: explain why it can't implement the interface.
+					c.errorf(
+						"impossible type switch case: %s (type %s) cannot have dynamic type %s",
+						format.Expr(p.expr), format.Type(iface), format.Type(typ),
+					)
+				}
+			}
+			// TODO: do not allow 'fallthrough' in case body
+			c.stmt(cse.Body, retType)
+		}
+		return nil
+
 	case *stmt.Select:
 		dflts := 0
 		set := make(map[stmt.Stmt]struct{})
@@ -1928,6 +2002,12 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if !isInterface {
 			c.errorf("%s is not an interface", format.Type(leftTyp))
 			p.mode = modeInvalid
+			return p
+		}
+		if e.Type == nil {
+			// switch x.(type) {...}
+			p.mode = left.mode
+			p.typ, _ = c.resolve(left.typ)
 			return p
 		}
 		t, resolved := c.resolve(e.Type)
