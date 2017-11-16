@@ -79,6 +79,42 @@ func (p *printer) stmt(s stmt.Stmt) {
 			p.stmt(c.Body)
 		}
 		p.buf.WriteString("}")
+	case *stmt.TypeSwitch:
+		p.buf.WriteString("switch ")
+		if s.Init != nil {
+			p.stmt(s.Init)
+			if s.Assign != nil {
+				p.buf.WriteString("; ")
+			}
+		}
+		if s.Assign != nil {
+			p.stmt(s.Assign)
+			p.buf.WriteString(" ")
+		}
+		p.buf.WriteString("{")
+		if len(s.Cases) > 0 {
+			p.buf.WriteString("\n")
+		}
+		for _, c := range s.Cases {
+			switch c.Default {
+			case true:
+				p.buf.WriteString("default:\n")
+			default:
+				p.buf.WriteString("case ")
+				for i, typ := range c.Types {
+					if i > 0 {
+						p.buf.WriteString(", ")
+					}
+					p.tipe(typ)
+				}
+				p.buf.WriteString(":\n")
+			}
+			if len(c.Body.Stmts) > 0 {
+				p.stmt(c.Body)
+				p.buf.WriteString("\n")
+			}
+		}
+		p.buf.WriteString("}")
 	case *stmt.Select:
 		p.buf.WriteString("select {")
 		if len(s.Cases) > 0 {
