@@ -1,0 +1,24 @@
+import (
+	"bytes"
+	"io"
+)
+
+func isBuffer(r io.Reader) bool {
+	switch r.(type) {
+	case *bytes.Buffer:
+		return true
+	}
+	return false
+}
+
+b1 := isBuffer(new(bytes.Reader))
+if b1 {
+	panic("ERROR-1")
+}
+
+b2 := isBuffer(new(bytes.Buffer))
+if !b2 {
+	panic("ERROR-2")
+}
+
+print("OK")

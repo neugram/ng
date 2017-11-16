@@ -953,7 +953,44 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			p.evalStmt(dflt.Body)
 		}
 		return nil
-
+	case *stmt.TypeSwitch:
+		if s.Init != nil {
+			p.pushScope()
+			defer p.popScope()
+			p.evalStmt(s.Init)
+		}
+		p.pushScope()
+		defer p.popScope()
+		var v reflect.Value
+		switch st := s.Assign.(type) {
+		case *stmt.Simple:
+			v = p.evalStmt(st)[0]
+		case *stmt.Assign:
+			p.evalStmt(st)
+			v = p.Cur.Lookup(st.Left[0].(*expr.Ident).Name)
+		default:
+			panic(Panic{fmt.Sprintf("invalid type-switch guard type (%T)", st)})
+		}
+		t := reflect.TypeOf(v.Interface())
+		var dflt *stmt.TypeSwitchCase
+		for i, cse := range s.Cases {
+			if cse.Default {
+				dflt = &s.Cases[i]
+				continue
+			}
+			for _, typ := range cse.Types {
+				rt := p.reflector.ToRType(typ)
+				if t == rt {
+					return p.evalStmt(cse.Body)
+				}
+			}
+		}
+		// no case were triggered.
+		// execute the default one, if any.
+		if dflt != nil {
+			return p.evalStmt(dflt.Body)
+		}
+		return nil
 	case *stmt.Select:
 		cases := make([]reflect.SelectCase, len(s.Cases))
 		works := make([]struct {
@@ -1508,6 +1545,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{reflect.ValueOf(t)}
 	case *expr.TypeAssert:
 		v := p.evalExprOne(e.Left)
+		if e.Type == nil {
+			// this is coming from a switch x.(type) statement
+			return []reflect.Value{v}
+		}
 		t := p.reflector.ToRType(e.Type)
 		convertible := v.Type().ConvertibleTo(t)
 		if convertible {

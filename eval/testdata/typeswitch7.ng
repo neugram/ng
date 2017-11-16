@@ -1,0 +1,23 @@
+ok := false
+
+func f() interface{} {
+	return 42
+}
+
+x := interface{}("x value")
+
+switch x = f(); x.(type) {
+case int:
+	if x != 42 {
+		panic("ERROR-1")
+	}
+	ok = true
+default:
+	panic("ERROR-2")
+}
+
+if !ok {
+	panic("ERROR")
+}
+
+print("OK")
