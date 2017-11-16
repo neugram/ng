@@ -52,6 +52,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -271,12 +272,8 @@ func (s *server) execute(c *conn, req *message) error {
 	}
 
 	session := s.session(req)
-	buf := new(bytes.Buffer)
-	session.Stdout = buf
-	session.Stderr = buf
-	err := session.Exec([]byte(reqContent["code"].(string)))
 
-	if err != nil {
+	errResp := func(err error) error {
 		content := &executeReplyError{
 			Status:         "error",
 			ExecutionCount: session.ExecCount,
@@ -287,9 +284,6 @@ func (s *server) execute(c *conn, req *message) error {
 		} else {
 			content.Err = err.Error()
 		}
-		if content.ErrName == "" {
-			content.ErrName = "error"
-		}
 		// Put the error in the traceback, because it appears that's
 		// all that jupyter actually prints. Huh.
 		content.Traceback = []string{err.Error()}
@@ -297,6 +291,34 @@ func (s *server) execute(c *conn, req *message) error {
 			return err
 		}
 		return s.publishIO("error", content, req)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		return errResp(err)
+	}
+	stdout := os.Stdout
+	os.Stdout = w
+
+	buf := new(bytes.Buffer)
+	session.Stdout = buf
+	session.Stderr = buf
+
+	done := make(chan struct{})
+	go func() {
+		io.Copy(buf, r)
+		close(done)
+	}()
+	defer func() {
+		w.Close()
+		<-done
+		os.Stdout = stdout
+	}()
+
+	err = session.Exec([]byte(reqContent["code"].(string)))
+
+	if err != nil {
+		return errResp(err)
 	}
 
 	content := &executeReply{
