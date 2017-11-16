@@ -1,0 +1,28 @@
+ok := false
+
+func f() (int, int) {
+	return 42, 66
+}
+
+func g(i, j int) interface{} {
+	return i+j
+}
+
+switch x, y := f(); v := g(x, y).(type) {
+case int:
+	if x != 42 {
+		panic("ERROR-1")
+	}
+	if v != 108 {
+		panic("ERROR-2")
+	}
+	ok = true
+default:
+	panic("ERROR-3")
+}
+
+if !ok {
+	panic("ERROR")
+}
+
+print("OK")

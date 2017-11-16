@@ -1,0 +1,17 @@
+ok := false
+
+v := interface{}(42)
+switch v.(type) {
+case *int, []int:
+	panic("ERROR-1")
+case float64:
+	panic("ERROR-2")
+default:
+	ok = true
+}
+
+if !ok {
+	panic("ERROR")
+}
+
+print("OK")
