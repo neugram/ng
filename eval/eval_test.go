@@ -201,6 +201,9 @@ func TestPrograms(t *testing.T) {
 				if match == nil {
 					t.Fatal("test has _error suffix but no ERROR directive")
 				}
+				if err == nil {
+					t.Fatal("test has _error suffix but no error was detected")
+				}
 				wantStr := match[1]
 				if !strings.Contains(err.Error(), wantStr) {
 					t.Fatalf("want %q, got: %v", wantStr, err.Error())
