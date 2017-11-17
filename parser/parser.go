@@ -1200,6 +1200,9 @@ func (p *Parser) parseExprSwitch(s1, s2 stmt.Stmt) stmt.Stmt {
 			p.expect(token.Default)
 			p.next()
 			c.Default = true
+		default:
+			p.errorf("syntax error: got token %q, want %q or %q", p.s.Token, token.Case, token.Default)
+			return nil
 		}
 		p.expect(token.Colon)
 		p.next()
