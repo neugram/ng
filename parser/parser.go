@@ -1244,6 +1244,16 @@ func (p *Parser) parseTypeSwitch(s1, s2 stmt.Stmt) stmt.Stmt {
 		p.expect(token.Colon)
 		p.next()
 		c.Body = &stmt.Block{Stmts: p.parseStmts()}
+		for _, e := range c.Body.Stmts {
+			// TODO: detect fallthrough statements in non-top-level statements
+			switch e := e.(type) {
+			case *stmt.Branch:
+				if e.Type == token.Fallthrough {
+					p.error("cannot fallthrough in type switch")
+				}
+			}
+		}
+
 		s.Cases = append(s.Cases, c)
 	}
 

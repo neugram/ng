@@ -629,7 +629,6 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					)
 				}
 			}
-			// TODO: do not allow 'fallthrough' in case body
 			c.stmt(cse.Body, retType)
 		}
 		return nil
