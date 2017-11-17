@@ -1212,6 +1212,31 @@ func (p *Parser) parseExprSwitch(s1, s2 stmt.Stmt) stmt.Stmt {
 	p.expect(token.RightBrace)
 	p.next()
 	p.expectSemi()
+
+	if len(s.Cases) > 0 {
+		for i, cse := range s.Cases {
+			lastCase := i == len(s.Cases)-1
+			for j, e := range cse.Body.Stmts {
+				// TODO: detect fallthrough statements in non-top-level statements
+				lastStmt := j == len(cse.Body.Stmts)-1
+				switch e := e.(type) {
+				case *stmt.Branch:
+					if e.Type != token.Fallthrough {
+						continue
+					}
+					if !lastStmt {
+						p.error("fallthrough statement out of place")
+						return nil
+					}
+					if lastCase {
+						p.error("cannot fallthrough final case in switch")
+						return nil
+					}
+				}
+			}
+
+		}
+	}
 	return s
 }
 
