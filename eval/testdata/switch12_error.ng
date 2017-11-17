@@ -1,0 +1,7 @@
+i := 42
+switch i {
+case 42:
+	fallthrough // ERROR: cannot fallthrough final case in switch
+}
+
+print("OK")

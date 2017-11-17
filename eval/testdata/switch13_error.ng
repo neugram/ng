@@ -1,0 +1,8 @@
+i := 42
+switch i {
+case 42:
+	fallthrough // ERROR: fallthrough statement out of place
+	i++
+}
+
+print("OK")
