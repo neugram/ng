@@ -1,0 +1,8 @@
+x := interface{}(42)
+switch x.(type) {
+case int:
+	fallthrough // ERROR: cannot fallthrough in type switch
+default:
+}
+
+print("OK")
