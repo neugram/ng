@@ -1615,7 +1615,7 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Methodik) ref
 		funct.Params = &tipe.Tuple{params}
 	}
 	rt := p.reflector.ToRType(&funct)
-	fn := reflect.MakeFunc(rt, func(args []reflect.Value) (results []reflect.Value) {
+	fn := reflect.MakeFunc(rt, func(args []reflect.Value) (res []reflect.Value) {
 		p := &Program{
 			Universe:  p.Universe,
 			Types:     p.Types, // TODO race cond, clone type list
@@ -1642,7 +1642,20 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Methodik) ref
 				Implicit: true,
 			}
 		}
-		res := p.evalStmt(e.Body.(*stmt.Block))
+		resValues := p.evalStmt(e.Body.(*stmt.Block))
+		// Define new result values to hold return
+		// types so any necessary interface boxing
+		// is done. For example:
+		//
+		//	func f(x int) interface{} { return x }
+		//
+		// The int x needs to become an interface{}.
+		res = make([]reflect.Value, len(resValues))
+		for i, v := range resValues {
+			t := p.reflector.ToRType(funct.Results.Elems[i])
+			res[i] = reflect.New(t).Elem()
+			res[i].Set(v)
+		}
 		return res
 	})
 	return fn

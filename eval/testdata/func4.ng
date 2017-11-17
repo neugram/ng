@@ -1,0 +1,8 @@
+func f(x int) (interface{}, interface{}) { return x, "result" }
+
+x, res1 := f(3)
+y, res2 := f(4)
+
+if x.(int) + y.(int) == 7 && res1 == "result" && res2 == "result" {
+	print("OK")
+}
