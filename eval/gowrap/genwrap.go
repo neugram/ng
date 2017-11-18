@@ -17,7 +17,11 @@ import (
 
 func main() {
 	pkgName := os.Args[1]
-	b, err := genwrap.GenGo(pkgName, "wrapbuiltin")
+
+	// Set skipDeps to true, which means we have to
+	// be careful to include the required dependencies
+	// in our builtins.
+	b, err := genwrap.GenGo(pkgName, "wrapbuiltin", true)
 	if err != nil {
 		log.Fatal(err)
 	}

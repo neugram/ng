@@ -54,7 +54,13 @@ func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
 	}
 }
 
-func GenGo(pkgPath, outPkgName string) ([]byte, error) {
+// GenGo generates a wrapper package naemd outPkgName that
+// registers the exported symbols of pkgPath with the global
+// map gopkg.Pkgs.
+//
+// Any other packages that pkgPath depends on for defining its
+// exported symbols are also registered, unless skipDeps is set.
+func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
 	quotedPkgPath := quotePkgPath(pkgPath)
 
 	pkg, err := importer.Default().Import(pkgPath)
@@ -63,7 +69,11 @@ func GenGo(pkgPath, outPkgName string) ([]byte, error) {
 	}
 	pkgs := make(map[string]DataPkg)
 	pkgs[pkgPath] = buildDataPkg(pkgPath, pkg)
-	imports := append([]*types.Package{}, pkg.Imports()...)
+	imports := []*types.Package{}
+	if !skipDeps {
+		imports = append(imports, pkg.Imports()...)
+	}
+
 importsLoop:
 	for i := 0; i < len(imports); i++ { // imports grows as we loop
 		path := imports[i].Path()
@@ -171,7 +181,7 @@ import (
 )
 
 {{range .Pkgs}}
-var wrap_{{.QuotedName}} = &gowrap.Pkg{
+var pkg_{{.QuotedName}} = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 		{{with $data := .}}
 		{{range $name, $export := $data.Exports}}
@@ -184,7 +194,7 @@ var wrap_{{.QuotedName}} = &gowrap.Pkg{
 {{range .Pkgs}}
 func init() {
 	if gowrap.Pkgs["{{.Name}}"] == nil {
-		gowrap.Pkgs["{{.Name}}"] = wrap_{{.QuotedName}}
+		gowrap.Pkgs["{{.Name}}"] = pkg_{{.QuotedName}}
 	}
 }
 {{end}}

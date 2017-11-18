@@ -7,24 +7,26 @@ import (
 
 	"neugram.io/ng/eval/gowrap"
 
-	path "path"
+	wrap_path "path"
 )
 
-var wrap_path = &gowrap.Pkg{
+var pkg_wrap_path = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"Base":          reflect.ValueOf(path.Base),
-		"Clean":         reflect.ValueOf(path.Clean),
-		"Dir":           reflect.ValueOf(path.Dir),
-		"ErrBadPattern": reflect.ValueOf(path.ErrBadPattern),
-		"Ext":           reflect.ValueOf(path.Ext),
-		"IsAbs":         reflect.ValueOf(path.IsAbs),
-		"Join":          reflect.ValueOf(path.Join),
-		"Match":         reflect.ValueOf(path.Match),
-		"Split":         reflect.ValueOf(path.Split),
+		"Base":          reflect.ValueOf(wrap_path.Base),
+		"Clean":         reflect.ValueOf(wrap_path.Clean),
+		"Dir":           reflect.ValueOf(wrap_path.Dir),
+		"ErrBadPattern": reflect.ValueOf(wrap_path.ErrBadPattern),
+		"Ext":           reflect.ValueOf(wrap_path.Ext),
+		"IsAbs":         reflect.ValueOf(wrap_path.IsAbs),
+		"Join":          reflect.ValueOf(wrap_path.Join),
+		"Match":         reflect.ValueOf(wrap_path.Match),
+		"Split":         reflect.ValueOf(wrap_path.Split),
 	},
 }
 
 func init() {
-	gowrap.Pkgs["path"] = wrap_path
+	if gowrap.Pkgs["path"] == nil {
+		gowrap.Pkgs["path"] = pkg_wrap_path
+	}
 }

@@ -7,24 +7,26 @@ import (
 
 	"neugram.io/ng/eval/gowrap"
 
-	sync "sync"
+	wrap_sync "sync"
 )
 
-var wrap_sync = &gowrap.Pkg{
+var pkg_wrap_sync = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"Cond":      reflect.ValueOf(reflect.TypeOf(sync.Cond{})),
-		"Locker":    reflect.ValueOf(reflect.TypeOf((*sync.Locker)(nil)).Elem()),
-		"Map":       reflect.ValueOf(reflect.TypeOf(sync.Map{})),
-		"Mutex":     reflect.ValueOf(reflect.TypeOf(sync.Mutex{})),
-		"NewCond":   reflect.ValueOf(sync.NewCond),
-		"Once":      reflect.ValueOf(reflect.TypeOf(sync.Once{})),
-		"Pool":      reflect.ValueOf(reflect.TypeOf(sync.Pool{})),
-		"RWMutex":   reflect.ValueOf(reflect.TypeOf(sync.RWMutex{})),
-		"WaitGroup": reflect.ValueOf(reflect.TypeOf(sync.WaitGroup{})),
+		"Cond":      reflect.ValueOf(reflect.TypeOf(wrap_sync.Cond{})),
+		"Locker":    reflect.ValueOf(reflect.TypeOf((*wrap_sync.Locker)(nil)).Elem()),
+		"Map":       reflect.ValueOf(reflect.TypeOf(wrap_sync.Map{})),
+		"Mutex":     reflect.ValueOf(reflect.TypeOf(wrap_sync.Mutex{})),
+		"NewCond":   reflect.ValueOf(wrap_sync.NewCond),
+		"Once":      reflect.ValueOf(reflect.TypeOf(wrap_sync.Once{})),
+		"Pool":      reflect.ValueOf(reflect.TypeOf(wrap_sync.Pool{})),
+		"RWMutex":   reflect.ValueOf(reflect.TypeOf(wrap_sync.RWMutex{})),
+		"WaitGroup": reflect.ValueOf(reflect.TypeOf(wrap_sync.WaitGroup{})),
 	},
 }
 
 func init() {
-	gowrap.Pkgs["sync"] = wrap_sync
+	if gowrap.Pkgs["sync"] == nil {
+		gowrap.Pkgs["sync"] = pkg_wrap_sync
+	}
 }

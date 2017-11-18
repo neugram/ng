@@ -7,16 +7,18 @@ import (
 
 	"neugram.io/ng/eval/gowrap"
 
-	errors "errors"
+	wrap_errors "errors"
 )
 
-var wrap_errors = &gowrap.Pkg{
+var pkg_wrap_errors = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"New": reflect.ValueOf(errors.New),
+		"New": reflect.ValueOf(wrap_errors.New),
 	},
 }
 
 func init() {
-	gowrap.Pkgs["errors"] = wrap_errors
+	if gowrap.Pkgs["errors"] == nil {
+		gowrap.Pkgs["errors"] = pkg_wrap_errors
+	}
 }
