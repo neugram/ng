@@ -19,11 +19,11 @@ var pkg_wrap_encoding_base64 = &gowrap.Pkg{
 		"NewEncoder":        reflect.ValueOf(wrap_encoding_base64.NewEncoder),
 		"NewEncoding":       reflect.ValueOf(wrap_encoding_base64.NewEncoding),
 		"NoPadding":         reflect.ValueOf(wrap_encoding_base64.NoPadding),
-		"RawStdEncoding":    reflect.ValueOf(wrap_encoding_base64.RawStdEncoding),
-		"RawURLEncoding":    reflect.ValueOf(wrap_encoding_base64.RawURLEncoding),
-		"StdEncoding":       reflect.ValueOf(wrap_encoding_base64.StdEncoding),
+		"RawStdEncoding":    reflect.ValueOf(&wrap_encoding_base64.RawStdEncoding).Elem(),
+		"RawURLEncoding":    reflect.ValueOf(&wrap_encoding_base64.RawURLEncoding).Elem(),
+		"StdEncoding":       reflect.ValueOf(&wrap_encoding_base64.StdEncoding).Elem(),
 		"StdPadding":        reflect.ValueOf(wrap_encoding_base64.StdPadding),
-		"URLEncoding":       reflect.ValueOf(wrap_encoding_base64.URLEncoding),
+		"URLEncoding":       reflect.ValueOf(&wrap_encoding_base64.URLEncoding).Elem(),
 	},
 }
 

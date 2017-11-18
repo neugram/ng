@@ -16,7 +16,7 @@ var pkg_wrap_path = &gowrap.Pkg{
 		"Base":          reflect.ValueOf(wrap_path.Base),
 		"Clean":         reflect.ValueOf(wrap_path.Clean),
 		"Dir":           reflect.ValueOf(wrap_path.Dir),
-		"ErrBadPattern": reflect.ValueOf(wrap_path.ErrBadPattern),
+		"ErrBadPattern": reflect.ValueOf(&wrap_path.ErrBadPattern).Elem(),
 		"Ext":           reflect.ValueOf(wrap_path.Ext),
 		"IsAbs":         reflect.ValueOf(wrap_path.IsAbs),
 		"Join":          reflect.ValueOf(wrap_path.Join),

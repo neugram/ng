@@ -13,9 +13,9 @@ import (
 var pkg_wrap_encoding_binary = &gowrap.Pkg{
 	Exports: map[string]reflect.Value{
 
-		"BigEndian":      reflect.ValueOf(wrap_encoding_binary.BigEndian),
+		"BigEndian":      reflect.ValueOf(&wrap_encoding_binary.BigEndian).Elem(),
 		"ByteOrder":      reflect.ValueOf(reflect.TypeOf((*wrap_encoding_binary.ByteOrder)(nil)).Elem()),
-		"LittleEndian":   reflect.ValueOf(wrap_encoding_binary.LittleEndian),
+		"LittleEndian":   reflect.ValueOf(&wrap_encoding_binary.LittleEndian).Elem(),
 		"MaxVarintLen16": reflect.ValueOf(wrap_encoding_binary.MaxVarintLen16),
 		"MaxVarintLen32": reflect.ValueOf(wrap_encoding_binary.MaxVarintLen32),
 		"MaxVarintLen64": reflect.ValueOf(wrap_encoding_binary.MaxVarintLen64),

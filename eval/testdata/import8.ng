@@ -1,0 +1,18 @@
+import "os"
+
+stdout := os.Stdout
+stderr := os.Stderr
+
+w, _ := os.Pipe()
+
+os.Stdout = w
+os.Stderr = w
+
+ok := os.Stdout == os.Stderr && os.Stdout == w
+
+os.Stdout = stdout
+os.Stderr = stderr
+
+if ok {
+	print("OK")
+}

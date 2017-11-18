@@ -40,7 +40,9 @@ func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
 			} else {
 				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgPath + "." + name + nilexpr(obj.Type()) + "))"
 			}
-		case *types.Var, *types.Func, *types.Const:
+		case *types.Var:
+			exports[name] = "reflect.ValueOf(&" + quotedPkgPath + "." + name + ").Elem()"
+		case *types.Func, *types.Const:
 			exports[name] = "reflect.ValueOf(" + quotedPkgPath + "." + name + ")"
 		default:
 			log.Printf("genwrap: unexpected obj: %T\n", obj)
@@ -61,8 +63,6 @@ func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
 // Any other packages that pkgPath depends on for defining its
 // exported symbols are also registered, unless skipDeps is set.
 func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
-	quotedPkgPath := quotePkgPath(pkgPath)
-
 	pkg, err := importer.Default().Import(pkgPath)
 	if err != nil {
 		return nil, err
@@ -92,27 +92,6 @@ importsLoop:
 	}
 	for _, dataPkg := range pkgs {
 		data.Pkgs = append(data.Pkgs, dataPkg)
-	}
-
-	scope := pkg.Scope()
-	exports := map[string]string{}
-	for _, name := range scope.Names() {
-		if !ast.IsExported(name) {
-			continue
-		}
-		obj := scope.Lookup(name)
-		switch obj.(type) {
-		case *types.TypeName:
-			if _, ok := obj.Type().Underlying().(*types.Interface); ok {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf((*" + quotedPkgPath + "." + name + ")(nil)).Elem())"
-			} else {
-				exports[name] = "reflect.ValueOf(reflect.TypeOf(" + quotedPkgPath + "." + name + nilexpr(obj.Type()) + "))"
-			}
-		case *types.Var, *types.Func, *types.Const:
-			exports[name] = "reflect.ValueOf(" + quotedPkgPath + "." + name + ")"
-		default:
-			log.Printf("genwrap: unexpected obj: %T\n", obj)
-		}
 	}
 
 	buf := new(bytes.Buffer)

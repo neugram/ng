@@ -21,7 +21,7 @@ var pkg_wrap_bytes = &gowrap.Pkg{
 		"Count":           reflect.ValueOf(wrap_bytes.Count),
 		"Equal":           reflect.ValueOf(wrap_bytes.Equal),
 		"EqualFold":       reflect.ValueOf(wrap_bytes.EqualFold),
-		"ErrTooLarge":     reflect.ValueOf(wrap_bytes.ErrTooLarge),
+		"ErrTooLarge":     reflect.ValueOf(&wrap_bytes.ErrTooLarge).Elem(),
 		"Fields":          reflect.ValueOf(wrap_bytes.Fields),
 		"FieldsFunc":      reflect.ValueOf(wrap_bytes.FieldsFunc),
 		"HasPrefix":       reflect.ValueOf(wrap_bytes.HasPrefix),

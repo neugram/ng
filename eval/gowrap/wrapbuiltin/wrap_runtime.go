@@ -37,7 +37,7 @@ var pkg_wrap_runtime = &gowrap.Pkg{
 		"KeepAlive":               reflect.ValueOf(wrap_runtime.KeepAlive),
 		"LockOSThread":            reflect.ValueOf(wrap_runtime.LockOSThread),
 		"MemProfile":              reflect.ValueOf(wrap_runtime.MemProfile),
-		"MemProfileRate":          reflect.ValueOf(wrap_runtime.MemProfileRate),
+		"MemProfileRate":          reflect.ValueOf(&wrap_runtime.MemProfileRate).Elem(),
 		"MemProfileRecord":        reflect.ValueOf(reflect.TypeOf(wrap_runtime.MemProfileRecord{})),
 		"MemStats":                reflect.ValueOf(reflect.TypeOf(wrap_runtime.MemStats{})),
 		"MutexProfile":            reflect.ValueOf(wrap_runtime.MutexProfile),
