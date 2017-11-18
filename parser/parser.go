@@ -86,7 +86,9 @@ func (p *Parser) work() {
 		}
 		p.next()
 		if p.s.Token == token.Unknown {
-			break
+			p.errorf("unknown token: '%s'", p.s.Literal)
+			p.s.drain()
+			continue
 		}
 
 		// We parse top-level $$ expression-statements here.

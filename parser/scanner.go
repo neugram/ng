@@ -22,8 +22,6 @@ func newScanner() *Scanner {
 		addSrc:  make(chan []byte),
 		needSrc: make(chan struct{}),
 	}
-	//go s.next()
-	//<-s.needSrc
 	return s
 }
 
@@ -51,15 +49,19 @@ func (s *Scanner) errorf(format string, a ...interface{}) {
 	s.err = fmt.Errorf("neugram: scanner: %s (off %d)", fmt.Sprintf(format, a...), s.Offset)
 }
 
+func (s *Scanner) drain() {
+	for s.off < len(s.src) {
+		s.next()
+	}
+}
+
 func (s *Scanner) next() {
 	if s.off >= len(s.src) {
 		if s.r == -1 {
 			return
 		}
-		//fmt.Printf("need src\n")
 		s.needSrc <- struct{}{}
 		b := <-s.addSrc
-		//fmt.Printf("adding source: %q\n", string(b))
 		if b == nil {
 			s.Offset = len(s.src)
 			s.Token = token.Unknown
@@ -660,7 +662,6 @@ func (s *Scanner) Next() {
 		}
 	default:
 		s.Token = token.Unknown
-		fmt.Printf("Scanner.Next unknown r=%v (%q) s.off=%d\n", r, string(rune(r)), s.off)
-		s.err = fmt.Errorf("parser: unknown r=%v", r)
+		s.Literal = string(r)
 	}
 }

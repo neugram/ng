@@ -7,6 +7,7 @@ package parser_test
 import (
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 
 	"neugram.io/ng/expr"
@@ -271,7 +272,7 @@ var tinteger = &tipe.Unresolved{Name: "integer"}
 
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
-		fmt.Printf("Parsing %q\n", test.input)
+		t.Logf("Parsing %q\n", test.input)
 		s, err := parser.ParseStmt([]byte(test.input))
 		if err != nil {
 			t.Errorf("ParseExpr(%q): error: %v", test.input, err)
@@ -289,6 +290,29 @@ func TestParseExpr(t *testing.T) {
 			} else {
 				t.Errorf("ParseExpr(%q):\n%v", test.input, diff)
 			}
+		}
+	}
+}
+
+type parserErrTest struct {
+	input     string
+	errsubstr string
+}
+
+var parserErrTests = []parserErrTest{
+	{`\`, `unknown token: '\'`},
+}
+
+func TestParseError(t *testing.T) {
+	for _, test := range parserErrTests {
+		t.Logf("Parsing %q\n", test.input)
+		_, err := parser.ParseStmt([]byte(test.input))
+		if err == nil {
+			t.Errorf("ParseStmt(%q): missing expected error", test.input)
+			continue
+		}
+		if got := err.Error(); !strings.Contains(got, test.errsubstr) {
+			t.Errorf("ParseStmt(%q): error %q does not contain %q", test.input, got, test.errsubstr)
 		}
 	}
 }
