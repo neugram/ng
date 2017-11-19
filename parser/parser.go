@@ -86,6 +86,9 @@ func (p *Parser) work() {
 		}
 		p.next()
 		if p.s.Token == token.Unknown {
+			if p.s.r == -1 {
+				break // no more work
+			}
 			p.errorf("unknown token: '%s'", p.s.Literal)
 			p.s.drain()
 			continue
