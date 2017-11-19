@@ -12,60 +12,60 @@ import (
 )
 
 type Expr interface {
-	exprfn()
+	expr()
 	Pos() src.Pos // implements syntax.Node
 }
 
 type Binary struct {
-	expr
-	Op    token.Token // Add, Sub, Mul, Div, Rem, Pow, And, Or, Equal, NotEqual, Less, Greater
-	Left  Expr
-	Right Expr
+	Position src.Pos
+	Op       token.Token // Add, Sub, Mul, Div, Rem, Pow, And, Or, Equal, NotEqual, Less, Greater
+	Left     Expr
+	Right    Expr
 }
 
 type Unary struct {
-	expr
-	Op   token.Token // Not, Mul (deref), Ref, LeftParen, Range
-	Expr Expr
+	Position src.Pos
+	Op       token.Token // Not, Mul (deref), Ref, LeftParen, Range
+	Expr     Expr
 }
 
 type Bad struct {
-	expr
-	Error error
+	Position src.Pos
+	Error    error
 }
 
 type Selector struct {
-	expr
-	Left  Expr
-	Right *Ident
+	Position src.Pos
+	Left     Expr
+	Right    *Ident
 }
 
 type Slice struct {
-	expr
-	Low  Expr
-	High Expr
-	Max  Expr
+	Position src.Pos
+	Low      Expr
+	High     Expr
+	Max      Expr
 }
 
 type Index struct {
-	expr
+	Position src.Pos
 	Left     Expr
 	Indicies []Expr
 }
 
 type TypeAssert struct {
-	expr
-	Left Expr
-	Type tipe.Type // asserted type; nil means type switch X.(type)
+	Position src.Pos
+	Left     Expr
+	Type     tipe.Type // asserted type; nil means type switch X.(type)
 }
 
 type BasicLiteral struct {
-	expr
-	Value interface{} // string, *big.Int, *big.Float
+	Position src.Pos
+	Value    interface{} // string, *big.Int, *big.Float
 }
 
 type FuncLiteral struct {
-	expr
+	Position        src.Pos
 	Name            string // may be empty
 	ReceiverName    string // if non-empty, this is a method
 	PointerReceiver bool
@@ -76,27 +76,27 @@ type FuncLiteral struct {
 }
 
 type CompLiteral struct {
-	expr
+	Position src.Pos
 	Type     tipe.Type
 	Keys     []Expr // TODO: could make this []string
 	Elements []Expr
 }
 
 type MapLiteral struct {
-	expr
-	Type   tipe.Type
-	Keys   []Expr
-	Values []Expr
+	Position src.Pos
+	Type     tipe.Type
+	Keys     []Expr
+	Values   []Expr
 }
 
 type SliceLiteral struct {
-	expr
-	Type  *tipe.Slice
-	Elems []Expr
+	Position src.Pos
+	Type     *tipe.Slice
+	Elems    []Expr
 }
 
 type TableLiteral struct {
-	expr
+	Position src.Pos
 	Type     *tipe.Table
 	ColNames []Expr
 	Rows     [][]Expr
@@ -105,18 +105,18 @@ type TableLiteral struct {
 // Type is not a typical Neugram expression. It is used only for when
 // types are passed as arguments to the builtin functions new and make.
 type Type struct {
-	expr
-	Type tipe.Type
+	Position src.Pos
+	Type     tipe.Type
 }
 
 type Ident struct {
-	expr
-	Name string
+	Position src.Pos
+	Name     string
 	// Type tipe.Type
 }
 
 type Call struct {
-	expr
+	Position   src.Pos
 	Func       Expr
 	Args       []Expr
 	Ellipsis   bool // last argument expands, e.g. f(x...)
@@ -124,58 +124,58 @@ type Call struct {
 }
 
 type Range struct {
-	expr
-	Start Expr
-	End   Expr
-	Exact Expr
+	Position src.Pos
+	Start    Expr
+	End      Expr
+	Exact    Expr
 }
 
 type ShellList struct {
-	expr
-	AndOr []*ShellAndOr
+	Position src.Pos
+	AndOr    []*ShellAndOr
 }
 
 type ShellAndOr struct {
-	expr
+	Position   src.Pos
 	Pipeline   []*ShellPipeline
 	Sep        []token.Token // '&&' or '||'. len(Sep) == len(Pipeline)-1
 	Background bool
 }
 
 type ShellPipeline struct {
-	expr
-	Bang bool
-	Cmd  []*ShellCmd // Cmd[0] | Cmd[1] | ...
+	Position src.Pos
+	Bang     bool
+	Cmd      []*ShellCmd // Cmd[0] | Cmd[1] | ...
 }
 
 type ShellCmd struct {
-	expr
+	Position  src.Pos
 	SimpleCmd *ShellSimpleCmd // or:
 	Subshell  *ShellList
 }
 
 type ShellSimpleCmd struct {
-	expr
+	Position src.Pos
 	Redirect []*ShellRedirect
 	Assign   []ShellAssign
 	Args     []string
 }
 
 type ShellRedirect struct {
-	expr
+	Position src.Pos
 	Number   *int
 	Token    token.Token // '<', '<&', '>', '>&', '>>'
 	Filename string
 }
 
 type ShellAssign struct {
-	expr
-	Key   string
-	Value string
+	Position src.Pos
+	Key      string
+	Value    string
 }
 
 type Shell struct {
-	expr
+	Position   src.Pos
 	Cmds       []*ShellList
 	TrapOut    bool // override os.Stdout, outer language collect it
 	DropOut    bool // send stdout to /dev/null (just an optimization)
@@ -183,9 +183,52 @@ type Shell struct {
 	// TODO: Shell object for err := $$(stdin, stdout, stderr) cmd $$
 }
 
-type expr struct {
-	Position src.Pos
-}
+func (e *Binary) expr()         {}
+func (e *Unary) expr()          {}
+func (e *Bad) expr()            {}
+func (e *Selector) expr()       {}
+func (e *Slice) expr()          {}
+func (e *BasicLiteral) expr()   {}
+func (e *FuncLiteral) expr()    {}
+func (e *CompLiteral) expr()    {}
+func (e *MapLiteral) expr()     {}
+func (e *SliceLiteral) expr()   {}
+func (e *TableLiteral) expr()   {}
+func (e *Type) expr()           {}
+func (e *Ident) expr()          {}
+func (e *Call) expr()           {}
+func (e *Index) expr()          {}
+func (e *TypeAssert) expr()     {}
+func (e *ShellList) expr()      {}
+func (e *ShellAndOr) expr()     {}
+func (e *ShellPipeline) expr()  {}
+func (e *ShellSimpleCmd) expr() {}
+func (e *ShellRedirect) expr()  {}
+func (e *ShellAssign) expr()    {}
+func (e *ShellCmd) expr()       {}
+func (e *Shell) expr()          {}
 
-func (e expr) Pos() src.Pos { return e.Position }
-func (expr) exprfn()        {}
+func (e *Binary) Pos() src.Pos         { return e.Position }
+func (e *Unary) Pos() src.Pos          { return e.Position }
+func (e *Bad) Pos() src.Pos            { return e.Position }
+func (e *Selector) Pos() src.Pos       { return e.Position }
+func (e *Slice) Pos() src.Pos          { return e.Position }
+func (e *BasicLiteral) Pos() src.Pos   { return e.Position }
+func (e *FuncLiteral) Pos() src.Pos    { return e.Position }
+func (e *CompLiteral) Pos() src.Pos    { return e.Position }
+func (e *MapLiteral) Pos() src.Pos     { return e.Position }
+func (e *SliceLiteral) Pos() src.Pos   { return e.Position }
+func (e *TableLiteral) Pos() src.Pos   { return e.Position }
+func (e *Type) Pos() src.Pos           { return e.Position }
+func (e *Ident) Pos() src.Pos          { return e.Position }
+func (e *Call) Pos() src.Pos           { return e.Position }
+func (e *Index) Pos() src.Pos          { return e.Position }
+func (e *TypeAssert) Pos() src.Pos     { return e.Position }
+func (e *ShellList) Pos() src.Pos      { return e.Position }
+func (e *ShellAndOr) Pos() src.Pos     { return e.Position }
+func (e *ShellPipeline) Pos() src.Pos  { return e.Position }
+func (e *ShellSimpleCmd) Pos() src.Pos { return e.Position }
+func (e *ShellRedirect) Pos() src.Pos  { return e.Position }
+func (e *ShellAssign) Pos() src.Pos    { return e.Position }
+func (e *ShellCmd) Pos() src.Pos       { return e.Position }
+func (e *Shell) Pos() src.Pos          { return e.Position }
