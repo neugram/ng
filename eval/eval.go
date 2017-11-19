@@ -23,13 +23,13 @@ import (
 	"neugram.io/ng/eval/gowrap/genwrap"
 	_ "neugram.io/ng/eval/gowrap/wrapbuiltin" // registers with gowrap
 	"neugram.io/ng/eval/shell"
-	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/stmt"
-	"neugram.io/ng/tipe"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/stmt"
+	"neugram.io/ng/syntax/tipe"
+	"neugram.io/ng/syntax/token"
 	"neugram.io/ng/typecheck"
 )
 

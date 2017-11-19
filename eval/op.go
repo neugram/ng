@@ -9,7 +9,7 @@ import (
 	"math/big"
 	"reflect"
 
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/token"
 )
 
 // TODO redo

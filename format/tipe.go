@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sort"
 
-	"neugram.io/ng/tipe"
+	"neugram.io/ng/syntax/tipe"
 )
 
 func (p *printer) tipe(t tipe.Type) {

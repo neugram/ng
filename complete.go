@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"neugram.io/ng/eval/shell"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/token"
 )
 
 func completer(mode, line string, pos int) (prefix string, completions []string, suffix string) {

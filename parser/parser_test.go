@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/stmt"
-	"neugram.io/ng/tipe"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/stmt"
+	"neugram.io/ng/syntax/tipe"
+	"neugram.io/ng/syntax/token"
 )
 
 type parserTest struct {
@@ -24,27 +24,27 @@ type parserTest struct {
 }
 
 var parserTests = []parserTest{
-	{"foo", &expr.Ident{"foo"}},
-	{"x + y", &expr.Binary{token.Add, &expr.Ident{"x"}, &expr.Ident{"y"}}},
+	{"foo", &expr.Ident{Name: "foo"}},
+	{"x + y", &expr.Binary{Op: token.Add, Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}},
 	{
 		"x + y + 9",
 		&expr.Binary{
-			token.Add,
-			&expr.Binary{token.Add, &expr.Ident{"x"}, &expr.Ident{"y"}},
-			&expr.BasicLiteral{big.NewInt(9)},
+			Op:    token.Add,
+			Left:  &expr.Binary{Op: token.Add, Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}},
+			Right: &expr.BasicLiteral{Value: big.NewInt(9)},
 		},
 	},
 	{
 		"x + (y + 7)",
 		&expr.Binary{
-			token.Add,
-			&expr.Ident{"x"},
-			&expr.Unary{
+			Op:   token.Add,
+			Left: &expr.Ident{Name: "x"},
+			Right: &expr.Unary{
 				Op: token.LeftParen,
 				Expr: &expr.Binary{
-					token.Add,
-					&expr.Ident{"y"},
-					&expr.BasicLiteral{big.NewInt(7)},
+					Op:    token.Add,
+					Left:  &expr.Ident{Name: "y"},
+					Right: &expr.BasicLiteral{Value: big.NewInt(7)},
 				},
 			},
 		},
@@ -52,9 +52,9 @@ var parserTests = []parserTest{
 	{
 		"x + y * z",
 		&expr.Binary{
-			token.Add,
-			&expr.Ident{"x"},
-			&expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}},
+			Op:    token.Add,
+			Left:  &expr.Ident{Name: "x"},
+			Right: &expr.Binary{Op: token.Mul, Left: &expr.Ident{Name: "y"}, Right: &expr.Ident{Name: "z"}},
 		},
 	},
 	{
@@ -85,8 +85,8 @@ var parserTests = []parserTest{
 				Params:  &tipe.Tuple{},
 				Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 			},
-			Body: &stmt.Block{[]stmt.Stmt{
-				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}}},
+			Body: &stmt.Block{Stmts: []stmt.Stmt{
+				&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(7)}}},
 			}},
 		},
 	},
@@ -105,7 +105,7 @@ var parserTests = []parserTest{
 			},
 			ParamNames:  []string{"x", "y"},
 			ResultNames: []string{"r0", "r1"},
-			Body: &stmt.Block{[]stmt.Stmt{
+			Body: &stmt.Block{Stmts: []stmt.Stmt{
 				&stmt.Return{Exprs: []expr.Expr{
 					&expr.Ident{Name: "x"},
 					&expr.Ident{Name: "y"},
@@ -124,13 +124,13 @@ var parserTests = []parserTest{
 				Results: &tipe.Tuple{Elems: []tipe.Type{tint64}},
 			},
 			ResultNames: []string{""},
-			Body: &stmt.Block{[]stmt.Stmt{
+			Body: &stmt.Block{Stmts: []stmt.Stmt{
 				&stmt.Assign{
 					Decl:  true,
-					Left:  []expr.Expr{&expr.Ident{"x"}},
-					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
+					Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+					Right: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(7)}},
 				},
-				&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"x"}}},
+				&stmt.Return{Exprs: []expr.Expr{&expr.Ident{Name: "x"}}},
 			}},
 		},
 	},
@@ -148,26 +148,26 @@ var parserTests = []parserTest{
 				Results: &tipe.Tuple{Elems: []tipe.Type{tint64}},
 			},
 			ResultNames: []string{""},
-			Body: &stmt.Block{[]stmt.Stmt{&stmt.If{
+			Body: &stmt.Block{Stmts: []stmt.Stmt{&stmt.If{
 				Init: &stmt.Assign{
 					Decl:  true,
-					Left:  []expr.Expr{&expr.Ident{"x"}},
-					Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(9)}},
+					Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+					Right: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(9)}},
 				},
 				Cond: &expr.Binary{
 					Op:    token.Greater,
-					Left:  &expr.Ident{"x"},
-					Right: &expr.BasicLiteral{big.NewInt(3)},
+					Left:  &expr.Ident{Name: "x"},
+					Right: &expr.BasicLiteral{Value: big.NewInt(3)},
 				},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
-					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"x"}}},
+					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{Name: "x"}}},
 				}},
 				Else: &stmt.Block{Stmts: []stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{
 						&expr.Binary{
 							Op:    token.Sub,
-							Left:  &expr.BasicLiteral{big.NewInt(1)},
-							Right: &expr.Ident{"x"},
+							Left:  &expr.BasicLiteral{Value: big.NewInt(1)},
+							Right: &expr.Ident{Name: "x"},
 						},
 					}},
 				}},
@@ -184,17 +184,17 @@ var parserTests = []parserTest{
 				},
 				ParamNames:  []string{""},
 				ResultNames: []string{""},
-				Body: &stmt.Block{[]stmt.Stmt{
+				Body: &stmt.Block{Stmts: []stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{
 						&expr.Binary{
 							Op:    token.Add,
-							Left:  &expr.BasicLiteral{big.NewInt(3)},
-							Right: &expr.Ident{"x"},
+							Left:  &expr.BasicLiteral{Value: big.NewInt(3)},
+							Right: &expr.Ident{Name: "x"},
 						},
 					}},
 				}},
 			},
-			Args: []expr.Expr{&expr.BasicLiteral{big.NewInt(1)}},
+			Args: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}},
 		},
 	},
 	{
@@ -203,42 +203,42 @@ var parserTests = []parserTest{
 			Type: &tipe.Func{
 				Params: &tipe.Tuple{},
 			},
-			Body: &stmt.Block{[]stmt.Stmt{&stmt.Assign{
-				Left:  []expr.Expr{&expr.Ident{"x"}},
-				Right: []expr.Expr{&expr.Unary{Op: token.Sub, Expr: &expr.Ident{"x"}}},
+			Body: &stmt.Block{Stmts: []stmt.Stmt{&stmt.Assign{
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+				Right: []expr.Expr{&expr.Unary{Op: token.Sub, Expr: &expr.Ident{Name: "x"}}},
 			}}},
 		},
 	},
-	{"x.y.z", &expr.Selector{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}, &expr.Ident{"z"}}},
-	{"y * /* comment */ z", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	{"y * z//comment", &expr.Binary{token.Mul, &expr.Ident{"y"}, &expr.Ident{"z"}}},
-	{`"hello"`, &expr.BasicLiteral{"hello"}},
-	{`"hello \"neugram\""`, &expr.BasicLiteral{`hello "neugram"`}},
-	//TODO{`"\""`, &expr.BasicLiteral{`"\""`}}
-	{"x[4]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{basic(4)}}},
+	{"x.y.z", &expr.Selector{Left: &expr.Selector{Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}, Right: &expr.Ident{Name: "z"}}},
+	{"y * /* comment */ z", &expr.Binary{Op: token.Mul, Left: &expr.Ident{Name: "y"}, Right: &expr.Ident{Name: "z"}}},
+	{"y * z//comment", &expr.Binary{Op: token.Mul, Left: &expr.Ident{Name: "y"}, Right: &expr.Ident{Name: "z"}}},
+	{`"hello"`, &expr.BasicLiteral{Value: "hello"}},
+	{`"hello \"neugram\""`, &expr.BasicLiteral{Value: `hello "neugram"`}},
+	//TODO{`"\""`, &expr.BasicLiteral{Value:`"\""`}}
+	{"x[4]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{basic(4)}}},
 	{"x[1+2]", &expr.Index{
-		Left: &expr.Ident{"x"},
+		Left: &expr.Ident{Name: "x"},
 		Indicies: []expr.Expr{&expr.Binary{Op: token.Add,
 			Left:  basic(1),
 			Right: basic(2),
 		}},
 	}},
 	{"x[1:3]", &expr.Index{
-		Left:     &expr.Ident{"x"},
+		Left:     &expr.Ident{Name: "x"},
 		Indicies: []expr.Expr{&expr.Slice{Low: basic(1), High: basic(3)}},
 	}},
-	{"x[1:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}}}},
-	{"x[:3]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{High: basic(3)}}}},
-	{"x[:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{}}}},
-	{"x[:,:]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{}, &expr.Slice{}}}},
-	{"x[1:,:3]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}, &expr.Slice{High: basic(3)}}}},
-	{"x[1:3,5:7]", &expr.Index{Left: &expr.Ident{"x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1), High: basic(3)}, &expr.Slice{Low: basic(5), High: basic(7)}}}},
+	{"x[1:]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}}}},
+	{"x[:3]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{High: basic(3)}}}},
+	{"x[:]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{}}}},
+	{"x[:,:]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{}, &expr.Slice{}}}},
+	{"x[1:,:3]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1)}, &expr.Slice{High: basic(3)}}}},
+	{"x[1:3,5:7]", &expr.Index{Left: &expr.Ident{Name: "x"}, Indicies: []expr.Expr{&expr.Slice{Low: basic(1), High: basic(3)}, &expr.Slice{Low: basic(5), High: basic(7)}}}},
 	/* TODO
-	{`x["C1"|"C2"]`, &expr.TableIndex{Expr: &expr.Ident{"x"}, ColNames: []string{"C1", "C2"}}},
+	{`x["C1"|"C2"]`, &expr.TableIndex{Expr: &expr.Ident{Name: "x"}, ColNames: []string{"C1", "C2"}}},
 	{`x["C1",1:]`, &expr.TableIndex{
-		Expr:     &expr.Ident{"x"},
+		Expr:     &expr.Ident{Name: "x"},
 		ColNames: []string{"C1"},
-		Rows:     expr.Range{Start: &expr.BasicLiteral{big.NewInt(1)}},
+		Rows:     expr.Range{Start: &expr.BasicLiteral{Value:big.NewInt(1)}},
 	}},
 	/*{"[|]num{}", &expr.TableLiteral{Type: &tipe.Table{tipe.Num}}},
 	{"[|]num{{0, 1, 2}}", &expr.TableLiteral{
@@ -610,18 +610,18 @@ type stmtTest struct {
 var stmtTests = []stmtTest{
 	{"for {}", &stmt.For{Body: &stmt.Block{}}},
 	{"for ;; {}", &stmt.For{Body: &stmt.Block{}}},
-	{"for true {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
-	{"for ; true; {}", &stmt.For{Cond: &expr.Ident{"true"}, Body: &stmt.Block{}}},
-	{"for range x {}", &stmt.Range{Expr: &expr.Ident{"x"}, Body: &stmt.Block{}}},
+	{"for true {}", &stmt.For{Cond: &expr.Ident{Name: "true"}, Body: &stmt.Block{}}},
+	{"for ; true; {}", &stmt.For{Cond: &expr.Ident{Name: "true"}, Body: &stmt.Block{}}},
+	{"for range x {}", &stmt.Range{Expr: &expr.Ident{Name: "x"}, Body: &stmt.Block{}}},
 	{"for k, v := range x {}", &stmt.Range{
-		Key:  &expr.Ident{"k"},
-		Val:  &expr.Ident{"v"},
-		Expr: &expr.Ident{"x"},
+		Key:  &expr.Ident{Name: "k"},
+		Val:  &expr.Ident{Name: "v"},
+		Expr: &expr.Ident{Name: "x"},
 		Body: &stmt.Block{},
 	}},
 	{"for k := range x {}", &stmt.Range{
-		Key:  &expr.Ident{"k"},
-		Expr: &expr.Ident{"x"},
+		Key:  &expr.Ident{Name: "k"},
+		Expr: &expr.Ident{Name: "x"},
 		Body: &stmt.Block{},
 	}},
 	{
@@ -629,38 +629,38 @@ var stmtTests = []stmtTest{
 		&stmt.For{
 			Init: &stmt.Assign{
 				Decl:  true,
-				Left:  []expr.Expr{&expr.Ident{"i"}},
-				Right: []expr.Expr{&expr.BasicLiteral{big.NewInt(0)}},
+				Left:  []expr.Expr{&expr.Ident{Name: "i"}},
+				Right: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(0)}},
 			},
 			Cond: &expr.Binary{
 				Op:    token.Less,
-				Left:  &expr.Ident{"i"},
-				Right: &expr.BasicLiteral{big.NewInt(10)},
+				Left:  &expr.Ident{Name: "i"},
+				Right: &expr.BasicLiteral{Value: big.NewInt(10)},
 			},
 			Post: &stmt.Assign{
-				Left: []expr.Expr{&expr.Ident{"i"}},
+				Left: []expr.Expr{&expr.Ident{Name: "i"}},
 				Right: []expr.Expr{
 					&expr.Binary{
 						Op:    token.Add,
-						Left:  &expr.Ident{"i"},
-						Right: &expr.BasicLiteral{big.NewInt(1)},
+						Left:  &expr.Ident{Name: "i"},
+						Right: &expr.BasicLiteral{Value: big.NewInt(1)},
 					},
 				},
 			},
 			Body: &stmt.Block{Stmts: []stmt.Stmt{&stmt.Assign{
-				Left:  []expr.Expr{&expr.Ident{"x"}},
-				Right: []expr.Expr{&expr.Ident{"i"}},
+				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
+				Right: []expr.Expr{&expr.Ident{Name: "i"}},
 			}}},
 		},
 	},
-	{"const x = 4", &stmt.Const{Name: "x", Value: &expr.BasicLiteral{big.NewInt(4)}}},
-	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
+	{"const x = 4", &stmt.Const{Name: "x", Value: &expr.BasicLiteral{Value: big.NewInt(4)}}},
+	{"x.y", &stmt.Simple{Expr: &expr.Selector{Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}}},
 	{
 		"const x int64 = 4",
 		&stmt.Const{
 			Name:  "x",
 			Type:  tint64,
-			Value: &expr.BasicLiteral{big.NewInt(4)},
+			Value: &expr.BasicLiteral{Value: big.NewInt(4)},
 		},
 	},
 	{
@@ -700,7 +700,7 @@ var stmtTests = []stmtTest{
 					Results: &tipe.Tuple{Elems: []tipe.Type{tinteger}},
 				},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
-					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{"a"}}},
+					&stmt.Return{Exprs: []expr.Expr{&expr.Ident{Name: "a"}}},
 				}},
 			}},
 		},
@@ -739,38 +739,38 @@ var stmtTests = []stmtTest{
 				ParamNames: []string{"x"},
 				Body: &stmt.Block{Stmts: []stmt.Stmt{
 					&stmt.Return{Exprs: []expr.Expr{&expr.Selector{
-						Left:  &expr.Ident{"a"},
-						Right: &expr.Ident{"x"},
+						Left:  &expr.Ident{Name: "a"},
+						Right: &expr.Ident{Name: "x"},
 					}}},
 				}},
 			}},
 		},
 	},
-	{"S{ X: 7 }", &stmt.Simple{&expr.CompLiteral{
+	{"S{ X: 7 }", &stmt.Simple{Expr: &expr.CompLiteral{
 		Type:     &tipe.Unresolved{Name: "S"},
-		Keys:     []expr.Expr{&expr.Ident{"X"}},
-		Elements: []expr.Expr{&expr.BasicLiteral{big.NewInt(7)}},
+		Keys:     []expr.Expr{&expr.Ident{Name: "X"}},
+		Elements: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(7)}},
 	}}},
-	{`map[string]string{ "foo": "bar" }`, &stmt.Simple{&expr.MapLiteral{
+	{`map[string]string{ "foo": "bar" }`, &stmt.Simple{Expr: &expr.MapLiteral{
 		Type:   &tipe.Map{Key: &tipe.Unresolved{Name: "string"}, Value: &tipe.Unresolved{Name: "string"}},
 		Keys:   []expr.Expr{basic("foo")},
 		Values: []expr.Expr{basic("bar")},
 	}}},
-	{"x.y", &stmt.Simple{&expr.Selector{&expr.Ident{"x"}, &expr.Ident{"y"}}}},
-	{"sync.Mutex{}", &stmt.Simple{&expr.CompLiteral{
+	{"x.y", &stmt.Simple{Expr: &expr.Selector{Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}}},
+	{"sync.Mutex{}", &stmt.Simple{Expr: &expr.CompLiteral{
 		Type: &tipe.Unresolved{Package: "sync", Name: "Mutex"},
 	}}},
-	{"_ = 5", &stmt.Assign{Left: []expr.Expr{&expr.Ident{"_"}}, Right: []expr.Expr{basic(5)}}},
+	{"_ = 5", &stmt.Assign{Left: []expr.Expr{&expr.Ident{Name: "_"}}, Right: []expr.Expr{basic(5)}}},
 	{"x, _ := 4, 5", &stmt.Assign{
 		Decl:  true,
-		Left:  []expr.Expr{&expr.Ident{"x"}, &expr.Ident{"_"}},
+		Left:  []expr.Expr{&expr.Ident{Name: "x"}, &expr.Ident{Name: "_"}},
 		Right: []expr.Expr{basic(4), basic(5)},
 	}},
 	{`if x == y && y == z {}`, &stmt.If{
 		Cond: &expr.Binary{
 			Op:    token.LogicalAnd,
-			Left:  &expr.Binary{Op: token.Equal, Left: &expr.Ident{"x"}, Right: &expr.Ident{"y"}},
-			Right: &expr.Binary{Op: token.Equal, Left: &expr.Ident{"y"}, Right: &expr.Ident{"z"}},
+			Left:  &expr.Binary{Op: token.Equal, Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}},
+			Right: &expr.Binary{Op: token.Equal, Left: &expr.Ident{Name: "y"}, Right: &expr.Ident{Name: "z"}},
 		},
 		Body: &stmt.Block{},
 	}},
@@ -779,7 +779,7 @@ var stmtTests = []stmtTest{
 			Op: token.LeftParen,
 			Expr: &expr.Binary{
 				Op:    token.Equal,
-				Left:  &expr.Ident{"x"},
+				Left:  &expr.Ident{Name: "x"},
 				Right: &expr.CompLiteral{Type: &tipe.Unresolved{Name: "T"}},
 			},
 		},
@@ -788,9 +788,9 @@ var stmtTests = []stmtTest{
 	{
 		`f(x, // a comment
 		y)`,
-		&stmt.Simple{&expr.Call{
-			Func: &expr.Ident{"f"},
-			Args: []expr.Expr{&expr.Ident{"x"}, &expr.Ident{"y"}},
+		&stmt.Simple{Expr: &expr.Call{
+			Func: &expr.Ident{Name: "f"},
+			Args: []expr.Expr{&expr.Ident{Name: "x"}, &expr.Ident{Name: "y"}},
 		}},
 	},
 	{
@@ -800,8 +800,8 @@ var stmtTests = []stmtTest{
 		}`,
 		&stmt.For{
 			Body: &stmt.Block{Stmts: []stmt.Stmt{
-				&stmt.Assign{Left: []expr.Expr{&expr.Ident{"x"}}, Right: []expr.Expr{basic(4)}},
-				&stmt.Assign{Left: []expr.Expr{&expr.Ident{"x"}}, Right: []expr.Expr{basic(5)}},
+				&stmt.Assign{Left: []expr.Expr{&expr.Ident{Name: "x"}}, Right: []expr.Expr{basic(4)}},
+				&stmt.Assign{Left: []expr.Expr{&expr.Ident{Name: "x"}}, Right: []expr.Expr{basic(5)}},
 			}},
 		},
 	},
@@ -930,7 +930,7 @@ var stmtTests = []stmtTest{
 		"switch v.(type) {}",
 		&stmt.TypeSwitch{
 			Init:   nil,
-			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "v"}}},
+			Assign: &stmt.Simple{Expr: &expr.TypeAssert{Left: &expr.Ident{Name: "v"}}},
 		},
 	},
 	{
@@ -956,7 +956,7 @@ var stmtTests = []stmtTest{
 				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
 				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "fct"}}},
 			},
-			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
+			Assign: &stmt.Simple{Expr: &expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
 		},
 	},
 	{
@@ -1013,7 +1013,7 @@ var stmtTests = []stmtTest{
 				Left:  []expr.Expr{&expr.Ident{Name: "x"}},
 				Right: []expr.Expr{&expr.Call{Func: &expr.Ident{Name: "fct"}}},
 			},
-			Assign: &stmt.Simple{&expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
+			Assign: &stmt.Simple{Expr: &expr.TypeAssert{Left: &expr.Ident{Name: "x"}}},
 			Cases: []stmt.TypeSwitchCase{
 				{
 					Types: []tipe.Type{&tipe.Unresolved{Package: "", Name: "int"}, &tipe.Unresolved{Package: "", Name: "float64"}},
@@ -1160,11 +1160,11 @@ func TestParseStmt(t *testing.T) {
 func basic(x interface{}) *expr.BasicLiteral {
 	switch x := x.(type) {
 	case int:
-		return &expr.BasicLiteral{big.NewInt(int64(x))}
+		return &expr.BasicLiteral{Value: big.NewInt(int64(x))}
 	case int64:
-		return &expr.BasicLiteral{big.NewInt(x)}
+		return &expr.BasicLiteral{Value: big.NewInt(x)}
 	case string:
-		return &expr.BasicLiteral{x}
+		return &expr.BasicLiteral{Value: x}
 	default:
 		panic(fmt.Sprintf("unknown basic %v (%T)", x, x))
 	}

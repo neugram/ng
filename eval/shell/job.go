@@ -16,9 +16,9 @@ import (
 	"syscall"
 
 	"neugram.io/ng/eval/environ"
-	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/token"
 )
 
 type State struct {

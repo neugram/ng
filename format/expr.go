@@ -11,8 +11,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"neugram.io/ng/expr"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/token"
 )
 
 type printer struct {

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 
-	"neugram.io/ng/expr"
+	"neugram.io/ng/syntax/expr"
 )
 
 // A Frame is a two-dimensional data set.

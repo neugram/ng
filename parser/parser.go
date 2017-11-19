@@ -12,11 +12,12 @@ import (
 	"runtime/debug"
 	"strconv"
 
-	"neugram.io/ng/expr"
 	"neugram.io/ng/format"
-	"neugram.io/ng/stmt"
-	"neugram.io/ng/tipe"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/src"
+	"neugram.io/ng/syntax/stmt"
+	"neugram.io/ng/syntax/tipe"
+	"neugram.io/ng/syntax/token"
 )
 
 func New() *Parser {
@@ -146,6 +147,8 @@ func (p *Parser) next() {
 	}
 }
 
+func (p *Parser) pos() src.Pos { return src.Pos{} } // TODO
+
 func (p *Parser) parseExpr() expr.Expr {
 	return p.parseBinaryExpr(1)
 }
@@ -158,35 +161,45 @@ func (p *Parser) parseBinaryExpr(minPrec int) expr.Expr {
 			if op.Precedence() != prec {
 				break
 			}
+			pos := p.pos()
 			p.next()
 			y := p.parseBinaryExpr(prec + 1)
 			// TODO: distinguish expr from types, when we have types
 			// TODO record position
-			x = &expr.Binary{
+			binOp := &expr.Binary{
 				Op:    op,
 				Left:  x,
 				Right: y,
 			}
+			binOp.Position = pos
+			x = binOp
 		}
 	}
 	return x
 }
 
 func (p *Parser) parseUnaryExpr() expr.Expr {
+	pos := p.pos()
 	switch p.s.Token {
 	case token.Add, token.Sub, token.Not, token.Ref:
 		op := p.s.Token
 		p.next()
 		if p.s.err != nil {
-			return &expr.Bad{Error: p.s.err}
+			bad := &expr.Bad{Error: p.s.err}
+			bad.Position = pos
+			return bad
 		}
 		x := p.parseUnaryExpr()
 		// TODO: distinguish expr from types, when we have types
-		return &expr.Unary{Op: op, Expr: x}
+		unary := &expr.Unary{Op: op, Expr: x}
+		unary.Position = pos
+		return unary
 	case token.Mul:
 		p.next()
 		x := p.parseUnaryExpr()
-		return &expr.Unary{Op: token.Mul, Expr: x}
+		unary := &expr.Unary{Op: token.Mul, Expr: x}
+		unary.Position = pos
+		return unary
 	case token.ChanOp:
 		// channel type or receive expression
 		p.next()
@@ -206,7 +219,9 @@ func (p *Parser) parseUnaryExpr() expr.Expr {
 			return x
 		}
 		// parsed a receive expression
-		return &expr.Unary{Op: token.ChanOp, Expr: x}
+		unary := &expr.Unary{Op: token.ChanOp, Expr: x}
+		unary.Position = pos
+		return unary
 	default:
 		return p.parsePrimaryExpr()
 	}
@@ -243,15 +258,18 @@ func (p *Parser) parseArgs() []expr.Expr {
 func (p *Parser) parsePrimaryExpr() expr.Expr {
 	x := p.parseOperand()
 	for {
+		pos := p.pos()
 		switch p.s.Token {
 		case token.Period:
 			p.next()
 			switch p.s.Token {
 			case token.Ident:
-				x = &expr.Selector{
+				selector := &expr.Selector{
 					Left:  x,
 					Right: p.parseIdent(),
 				}
+				selector.Position = pos
+				x = selector
 			case token.LeftParen:
 				x = p.parseTypeAssert(x)
 			default:
@@ -305,9 +323,13 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			}
 
 			if xpr, isIdent := x.(*expr.Ident); isIdent {
-				x = &expr.Type{Type: &tipe.Unresolved{Name: xpr.Name}}
+				t := &expr.Type{Type: &tipe.Unresolved{Name: xpr.Name}}
+				t.Position = pos
+				x = t
 			} else if t := maybePackageType(x); t != nil {
-				x = &expr.Type{Type: t}
+				t := &expr.Type{Type: t}
+				t.Position = pos
+				x = t
 			} else {
 				return x // end of statement
 			}
@@ -335,6 +357,7 @@ func maybePackageType(x expr.Expr) *tipe.Unresolved {
 }
 
 func (p *Parser) parseTypeAssert(lhs expr.Expr) expr.Expr {
+	pos := p.pos()
 	p.expect(token.LeftParen)
 	p.next()
 
@@ -349,10 +372,12 @@ func (p *Parser) parseTypeAssert(lhs expr.Expr) expr.Expr {
 	p.expect(token.RightParen)
 	p.next()
 
-	return &expr.TypeAssert{
+	ex := &expr.TypeAssert{
 		Left: lhs,
 		Type: typ,
 	}
+	ex.Position = pos
+	return ex
 }
 
 func (p *Parser) parseIndex(lhs expr.Expr) expr.Expr {
@@ -728,7 +753,7 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 		if p.s.Token == token.Range {
 			p.next()
 			if tok != token.Define && tok != token.Assign {
-				right = []expr.Expr{&expr.Bad{p.error("range can only be used inside ':=' or '='")}}
+				right = []expr.Expr{&expr.Bad{Error: p.error("range can only be used inside ':=' or '='")}}
 			} else {
 				right = []expr.Expr{&expr.Unary{
 					Op:   token.Range,
@@ -741,13 +766,13 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 		if tok == token.Define {
 			for i, e := range exprs {
 				if _, ok := e.(*expr.Ident); !ok {
-					exprs[i] = &expr.Bad{p.error("expected identifier as declaration")}
+					exprs[i] = &expr.Bad{Error: p.error("expected identifier as declaration")}
 				}
 			}
 		}
 		if arithOp := arithAssignOp(tok); arithOp != token.Unknown {
 			if len(exprs) != 1 || len(right) != 1 {
-				right = []expr.Expr{&expr.Bad{p.error(fmt.Sprintf("arithmetic assignement %q only accepts one argument", tok))}}
+				right = []expr.Expr{&expr.Bad{Error: p.error(fmt.Sprintf("arithmetic assignement %q only accepts one argument", tok))}}
 			} else {
 				right[0] = &expr.Binary{
 					Op:    arithOp,
@@ -787,7 +812,7 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 			Right: []expr.Expr{&expr.Binary{
 				Op:    op,
 				Left:  exprs[0],
-				Right: &expr.BasicLiteral{big.NewInt(1)},
+				Right: &expr.BasicLiteral{Value: big.NewInt(1)},
 			}},
 		}
 	case token.ChanOp:
@@ -799,7 +824,7 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	case token.Colon:
 		// check whether this is 'case <-channel:'
 		if e, isUnary := exprs[0].(*expr.Unary); isUnary && e.Op == token.ChanOp {
-			return &stmt.Simple{e}
+			return &stmt.Simple{Expr: e}
 		}
 		p.next()
 		// TODO: we can be stricter here, sometimes it is invalid to declare a label.
@@ -817,14 +842,14 @@ func (p *Parser) parseSimpleStmt() stmt.Stmt {
 	if e, isShell := exprs[0].(*expr.Shell); isShell {
 		e.TrapOut = false
 	}
-	return &stmt.Simple{exprs[0]}
+	return &stmt.Simple{Expr: exprs[0]}
 }
 
 func (p *Parser) extractExpr(s stmt.Stmt) expr.Expr {
 	if e, isExpr := s.(*stmt.Simple); isExpr {
 		return e.Expr
 	}
-	return &expr.Bad{p.error("expected boolean expression, found statement")}
+	return &expr.Bad{Error: p.error("expected boolean expression, found statement")}
 }
 
 func extractRange(s stmt.Stmt) (res *stmt.Range) {
@@ -1438,11 +1463,14 @@ func (p *Parser) parseOperand() expr.Expr {
 	}
 
 	p.next()
-	return &expr.Bad{p.errorf("expected operand, got %s", p.s.Token)}
+	res := &expr.Bad{Error: p.errorf("expected operand, got %s", p.s.Token)}
+	res.Position = p.pos()
+	return res
 }
 
 func (p *Parser) parseSliceLiteral(t tipe.Type) *expr.SliceLiteral {
 	x := &expr.SliceLiteral{Type: t.(*tipe.Slice)}
+	x.Position = p.pos()
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		e := p.parseExpr()

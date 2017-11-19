@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"neugram.io/ng/parser"
-	"neugram.io/ng/stmt"
-	"neugram.io/ng/tipe"
+	"neugram.io/ng/syntax/stmt"
+	"neugram.io/ng/syntax/tipe"
 )
 
 type identType struct {

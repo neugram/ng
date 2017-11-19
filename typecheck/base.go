@@ -7,7 +7,7 @@ package typecheck
 import (
 	"go/constant"
 
-	"neugram.io/ng/tipe"
+	"neugram.io/ng/syntax/tipe"
 )
 
 var Universe = &Scope{Objs: universeObjs}

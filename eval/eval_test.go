@@ -18,7 +18,7 @@ import (
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/stmt"
+	"neugram.io/ng/syntax/stmt"
 )
 
 var exprTests = []struct {

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"unicode"
 
-	"neugram.io/ng/expr"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/token"
 )
 
 func (p *Parser) parseShellList() *expr.ShellList {

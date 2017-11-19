@@ -25,7 +25,7 @@ import (
 	"neugram.io/ng/format"
 	"neugram.io/ng/jupyter"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/tipe"
+	"neugram.io/ng/syntax/tipe"
 
 	"github.com/peterh/liner"
 )

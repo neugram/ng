@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"neugram.io/ng/internal/bigcplx"
-	"neugram.io/ng/token"
+	"neugram.io/ng/syntax/token"
 )
 
 const bom = 0xFEFF // byte order marker
