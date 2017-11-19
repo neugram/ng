@@ -211,7 +211,7 @@ func EvalFile(path string, shellState *shell.State) error {
 }
 
 func (p *Program) evalFile() error {
-	prsr := parser.New()
+	prsr := parser.New(p.Path)
 	f, err := os.Open(p.Path)
 	if err != nil {
 		return fmt.Errorf("eval: %v", err)

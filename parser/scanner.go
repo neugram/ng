@@ -19,6 +19,7 @@ const bom = 0xFEFF // byte order marker
 
 func newScanner() *Scanner {
 	s := &Scanner{
+		Line:    1,
 		addSrc:  make(chan []byte),
 		needSrc: make(chan struct{}),
 	}
@@ -27,7 +28,8 @@ func newScanner() *Scanner {
 
 type Scanner struct {
 	// Current Token
-	Line    int
+	Line    int32
+	Column  int16
 	Offset  int
 	Token   token.Token
 	Literal interface{} // string, *big.Int, *big.Float
@@ -75,6 +77,7 @@ func (s *Scanner) next() {
 	s.Offset = s.off
 	if s.r == '\n' {
 		s.Line++
+		s.Column = 0
 	}
 	var w int
 	s.r, w = rune(s.src[s.off]), 1
@@ -89,6 +92,7 @@ func (s *Scanner) next() {
 			s.errorf("bad byte order marker")
 		}
 	}
+	s.Column += int16(w)
 	s.off += w
 	return
 }

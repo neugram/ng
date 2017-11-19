@@ -87,7 +87,7 @@ func (n *Neugram) newSession(ctx context.Context, name string) *Session {
 
 	// TODO: wire ctx into *eval.Program for cancellation (replace sigint channel)
 	return &Session{
-		Parser:     parser.New(),
+		Parser:     parser.New(name),
 		Program:    eval.New("session-"+name, shellState),
 		ShellState: shellState,
 		name:       name,

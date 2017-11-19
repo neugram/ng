@@ -942,7 +942,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		Parent: Universe,
 		Objs:   make(map[string]*Obj),
 	}
-	if err := c.parseFile(f); err != nil {
+	if err := c.parseFile(path, f); err != nil {
 		return nil, fmt.Errorf("ng import parse: %v", err)
 	}
 	pkg := &tipe.Package{
@@ -969,8 +969,8 @@ func isExported(name string) bool {
 	return unicode.IsUpper(ch)
 }
 
-func (c *Checker) parseFile(f *os.File) error {
-	p := parser.New()
+func (c *Checker) parseFile(filename string, f *os.File) error {
+	p := parser.New(filename)
 
 	scanner := bufio.NewScanner(f)
 	for i := 0; scanner.Scan(); i++ {

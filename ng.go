@@ -214,7 +214,7 @@ func init() {
 }
 
 func initProgram(path string) {
-	p = parser.New()
+	p = parser.New(path)
 	shellState = &shell.State{
 		Env:   environ.New(),
 		Alias: environ.New(),

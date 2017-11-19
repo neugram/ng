@@ -14,9 +14,20 @@
 //
 package syntax
 
-import "neugram.io/ng/syntax/src"
+import (
+	"neugram.io/ng/syntax/src"
+	"neugram.io/ng/syntax/stmt"
+)
 
 // A Node is a node in the syntax tree.
 type Node interface {
 	Pos() src.Pos
 }
+
+// File is the syntax tree of a Neugram file.
+type File struct {
+	Filename string
+	Stmts    []stmt.Stmt
+}
+
+func (f File) Pos() src.Pos { return src.Pos{Filename: f.Filename} }

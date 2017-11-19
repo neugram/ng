@@ -5,6 +5,7 @@
 package parser
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 
 	"neugram.io/ng/format"
+	"neugram.io/ng/syntax"
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/src"
 	"neugram.io/ng/syntax/stmt"
@@ -20,9 +22,10 @@ import (
 	"neugram.io/ng/syntax/token"
 )
 
-func New() *Parser {
+func New(filename string) *Parser {
 	p := &Parser{
-		s: newScanner(),
+		filename: filename,
+		s:        newScanner(),
 	}
 	go p.work()
 	<-p.s.needSrc
@@ -39,6 +42,62 @@ const (
 	StateCmdPartial
 )
 
+// Parse parses a neugram source file.
+// If non-nil, the returned error is either of type Error or Errors.
+func (p *Parser) Parse(source []byte) (*syntax.File, error) {
+	f := &syntax.File{Filename: p.filename}
+	var errs Errors
+	scanner := bufio.NewScanner(bytes.NewReader(source))
+	for i := 0; scanner.Scan(); i++ {
+		b := scanner.Bytes()
+		if i == 0 && len(b) > 2 && b[0] == '#' && b[1] == '!' { // shebang
+			p.s.Line++
+			continue
+		}
+		res := p.ParseLine(b)
+		if len(res.Stmts) > 0 {
+			f.Stmts = append(f.Stmts, res.Stmts...)
+		}
+		if len(res.Cmds) == 1 {
+			s := &stmt.Simple{
+				Position: res.Cmds[0].Pos(),
+				Expr:     res.Cmds[0],
+			}
+			f.Stmts = append(f.Stmts, s)
+		} else if len(res.Cmds) > 1 {
+			s := &stmt.Block{
+				Position: res.Cmds[0].Position,
+			}
+			for _, cmd := range res.Cmds {
+				simple := &stmt.Simple{
+					Position: cmd.Pos(),
+					Expr:     cmd,
+				}
+				s.Stmts = append(s.Stmts, simple)
+			}
+			f.Stmts = append(f.Stmts, s)
+		}
+		if len(res.Errs) > 0 {
+			errs = append(errs, res.Errs...)
+		}
+		if len(errs) > 10 {
+			// Too many errors. Call it quits.
+			return f, errs
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		panic("parser.Parse: impossible scanner error: " + err.Error())
+	}
+
+	if len(errs) == 1 {
+		return f, errs[0]
+	}
+	if len(errs) > 1 {
+		return f, errs
+	}
+	return f, nil
+}
+
 func (p *Parser) ParseLine(line []byte) Result {
 	p.s.addSrc <- append(line, '\n') // TODO: skip the append?
 	<-p.s.needSrc
@@ -48,6 +107,8 @@ func (p *Parser) ParseLine(line []byte) Result {
 }
 
 type Parser struct {
+	filename string
+
 	res Result
 
 	interactive bool
@@ -125,7 +186,7 @@ func (p *Parser) work() {
 }
 
 func ParseStmt(src []byte) (stmt stmt.Stmt, err error) {
-	p := New()
+	p := New("<single statement>")
 	defer p.Close()
 	res := p.ParseLine(src)
 	if res.State == StateStmtPartial {
@@ -147,7 +208,13 @@ func (p *Parser) next() {
 	}
 }
 
-func (p *Parser) pos() src.Pos { return src.Pos{} } // TODO
+func (p *Parser) pos() src.Pos {
+	return src.Pos{
+		Filename: p.filename,
+		Line:     p.s.Line,
+		Column:   p.s.Column,
+	}
+}
 
 func (p *Parser) parseExpr() expr.Expr {
 	return p.parseBinaryExpr(1)
@@ -167,11 +234,11 @@ func (p *Parser) parseBinaryExpr(minPrec int) expr.Expr {
 			// TODO: distinguish expr from types, when we have types
 			// TODO record position
 			binOp := &expr.Binary{
-				Op:    op,
-				Left:  x,
-				Right: y,
+				Position: pos,
+				Op:       op,
+				Left:     x,
+				Right:    y,
 			}
-			binOp.Position = pos
 			x = binOp
 		}
 	}
@@ -185,20 +252,20 @@ func (p *Parser) parseUnaryExpr() expr.Expr {
 		op := p.s.Token
 		p.next()
 		if p.s.err != nil {
-			bad := &expr.Bad{Error: p.s.err}
-			bad.Position = pos
+			bad := &expr.Bad{
+				Position: pos,
+				Error:    p.s.err,
+			}
 			return bad
 		}
 		x := p.parseUnaryExpr()
 		// TODO: distinguish expr from types, when we have types
-		unary := &expr.Unary{Op: op, Expr: x}
-		unary.Position = pos
+		unary := &expr.Unary{Position: pos, Op: op, Expr: x}
 		return unary
 	case token.Mul:
 		p.next()
 		x := p.parseUnaryExpr()
-		unary := &expr.Unary{Op: token.Mul, Expr: x}
-		unary.Position = pos
+		unary := &expr.Unary{Position: pos, Op: token.Mul, Expr: x}
 		return unary
 	case token.ChanOp:
 		// channel type or receive expression
@@ -219,8 +286,7 @@ func (p *Parser) parseUnaryExpr() expr.Expr {
 			return x
 		}
 		// parsed a receive expression
-		unary := &expr.Unary{Op: token.ChanOp, Expr: x}
-		unary.Position = pos
+		unary := &expr.Unary{Position: pos, Op: token.ChanOp, Expr: x}
 		return unary
 	default:
 		return p.parsePrimaryExpr()
@@ -265,10 +331,10 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			switch p.s.Token {
 			case token.Ident:
 				selector := &expr.Selector{
-					Left:  x,
-					Right: p.parseIdent(),
+					Position: pos,
+					Left:     x,
+					Right:    p.parseIdent(),
 				}
-				selector.Position = pos
 				x = selector
 			case token.LeftParen:
 				x = p.parseTypeAssert(x)
@@ -323,12 +389,10 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			}
 
 			if xpr, isIdent := x.(*expr.Ident); isIdent {
-				t := &expr.Type{Type: &tipe.Unresolved{Name: xpr.Name}}
-				t.Position = pos
+				t := &expr.Type{Position: pos, Type: &tipe.Unresolved{Name: xpr.Name}}
 				x = t
 			} else if t := maybePackageType(x); t != nil {
-				t := &expr.Type{Type: t}
-				t.Position = pos
+				t := &expr.Type{Position: pos, Type: t}
 				x = t
 			} else {
 				return x // end of statement
@@ -373,10 +437,10 @@ func (p *Parser) parseTypeAssert(lhs expr.Expr) expr.Expr {
 	p.next()
 
 	ex := &expr.TypeAssert{
-		Left: lhs,
-		Type: typ,
+		Position: pos,
+		Left:     lhs,
+		Type:     typ,
 	}
-	ex.Position = pos
 	return ex
 }
 
@@ -1463,14 +1527,12 @@ func (p *Parser) parseOperand() expr.Expr {
 	}
 
 	p.next()
-	res := &expr.Bad{Error: p.errorf("expected operand, got %s", p.s.Token)}
-	res.Position = p.pos()
+	res := &expr.Bad{Position: p.pos(), Error: p.errorf("expected operand, got %s", p.s.Token)}
 	return res
 }
 
 func (p *Parser) parseSliceLiteral(t tipe.Type) *expr.SliceLiteral {
-	x := &expr.SliceLiteral{Type: t.(*tipe.Slice)}
-	x.Position = p.pos()
+	x := &expr.SliceLiteral{Position: p.pos(), Type: t.(*tipe.Slice)}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		e := p.parseExpr()
@@ -1593,6 +1655,7 @@ func (e Errors) Error() string {
 }
 
 type Error struct {
+	Pos    src.Pos
 	Offset int
 	Msg    string
 }
@@ -1607,6 +1670,7 @@ func (p *Parser) errorf(format string, a ...interface{}) error {
 
 func (p *Parser) error(msg string) error {
 	err := Error{
+		Pos:    p.pos(),
 		Offset: p.s.Offset,
 		Msg:    msg,
 	}
