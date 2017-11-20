@@ -28,11 +28,12 @@ func newScanner() *Scanner {
 
 type Scanner struct {
 	// Current Token
-	Line    int32
-	Column  int16
-	Offset  int
-	Token   token.Token
-	Literal interface{} // string, *big.Int, *big.Float
+	Line      int32
+	Column    int16
+	Offset    int
+	Token     token.Token
+	Literal   interface{} // string, *big.Int, *big.Float
+	lastWidth int16
 
 	// Scanner state
 	src          []byte
@@ -77,6 +78,7 @@ func (s *Scanner) next() {
 	s.Offset = s.off
 	if s.r == '\n' {
 		s.Line++
+		s.lastWidth = 0
 		s.Column = 0
 	}
 	var w int
@@ -92,7 +94,8 @@ func (s *Scanner) next() {
 			s.errorf("bad byte order marker")
 		}
 	}
-	s.Column += int16(w)
+	s.Column += s.lastWidth
+	s.lastWidth = int16(w)
 	s.off += w
 	return
 }

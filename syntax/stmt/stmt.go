@@ -163,6 +163,7 @@ type SelectCase struct {
 
 type Bad struct {
 	Position src.Pos
+	Error    error
 }
 
 func (s *Import) stmt()       {}

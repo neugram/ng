@@ -33,13 +33,17 @@ var srcposWant = &syntax.File{
 	Stmts: []stmt.Stmt{
 		&stmt.Assign{
 			Position: src.Pos{
-				Filename: "", // TODO
+				Filename: "srctest.ng",
+				Line:     int32(1),
+				Column:   int16(4),
 			},
 			Decl: bool(true),
 			Left: []expr.Expr{
 				&expr.Ident{
 					Position: src.Pos{
-						Filename: "", // TODO
+						Filename: "srctest.ng",
+						Line:     int32(1),
+						Column:   int16(1),
 					},
 					Name: "ch",
 				},
@@ -47,18 +51,24 @@ var srcposWant = &syntax.File{
 			Right: []expr.Expr{
 				&expr.Call{
 					Position: src.Pos{
-						Filename: "", // TODO
+						Filename: "srctest.ng",
+						Line:     int32(1),
+						Column:   int16(11),
 					},
 					Func: &expr.Ident{
 						Position: src.Pos{
-							Filename: "", // TODO
+							Filename: "srctest.ng",
+							Line:     int32(1),
+							Column:   int16(7),
 						},
 						Name: "make",
 					},
 					Args: []expr.Expr{
 						&expr.Type{
 							Position: src.Pos{
-								Filename: "", // TODO
+								Filename: "srctest.ng",
+								Line:     int32(1),
+								Column:   int16(12),
 							},
 							Type: &tipe.Chan{
 								Elem: &tipe.Unresolved{
@@ -73,15 +83,21 @@ var srcposWant = &syntax.File{
 		},
 		&stmt.Go{
 			Position: src.Pos{
-				Filename: "", // TODO
+				Filename: "srctest.ng",
+				Line:     int32(2),
+				Column:   int16(1),
 			},
 			Call: &expr.Call{
 				Position: src.Pos{
-					Filename: "", // TODO
+					Filename: "srctest.ng",
+					Line:     int32(5),
+					Column:   int16(2),
 				},
 				Func: &expr.FuncLiteral{
 					Position: src.Pos{
-						Filename: "", // TODO
+						Filename: "srctest.ng",
+						Line:     int32(2),
+						Column:   int16(4),
 					},
 					Name:         "",
 					ReceiverName: "",
@@ -98,11 +114,15 @@ var srcposWant = &syntax.File{
 						Stmts: []stmt.Stmt{
 							&stmt.Send{
 								Position: src.Pos{
-									Filename: "", // TODO
+									Filename: "srctest.ng",
+									Line:     int32(3),
+									Column:   int16(5),
 								},
 								Chan: &expr.Ident{
 									Position: src.Pos{
-										Filename: "", // TODO
+										Filename: "srctest.ng",
+										Line:     int32(3),
+										Column:   int16(2),
 									},
 									Name: "ch",
 								},
@@ -110,18 +130,22 @@ var srcposWant = &syntax.File{
 									Position: src.Pos{
 										Filename: "srctest.ng",
 										Line:     int32(3),
-										Column:   int16(12),
+										Column:   int16(11),
 									},
 									Op: token.Add,
 									Left: &expr.BasicLiteral{
 										Position: src.Pos{
-											Filename: "", // TODO
+											Filename: "srctest.ng",
+											Line:     int32(3),
+											Column:   int16(9),
 										},
 										Value: big.NewInt(41),
 									},
 									Right: &expr.BasicLiteral{
 										Position: src.Pos{
-											Filename: "", // TODO
+											Filename: "srctest.ng",
+											Line:     int32(3),
+											Column:   int16(13),
 										},
 										Value: big.NewInt(1),
 									},
@@ -133,18 +157,24 @@ var srcposWant = &syntax.File{
 								},
 								Expr: &expr.Call{
 									Position: src.Pos{
-										Filename: "", // TODO
+										Filename: "srctest.ng",
+										Line:     int32(4),
+										Column:   int16(7),
 									},
 									Func: &expr.Ident{
 										Position: src.Pos{
-											Filename: "", // TODO
+											Filename: "srctest.ng",
+											Line:     int32(4),
+											Column:   int16(2),
 										},
 										Name: "close",
 									},
 									Args: []expr.Expr{
 										&expr.Ident{
 											Position: src.Pos{
-												Filename: "", // TODO
+												Filename: "srctest.ng",
+												Line:     int32(4),
+												Column:   int16(8),
 											},
 											Name: "ch",
 										},
@@ -158,23 +188,31 @@ var srcposWant = &syntax.File{
 		},
 		&stmt.If{
 			Position: src.Pos{
-				Filename: "", // TODO
+				Filename: "srctest.ng",
+				Line:     int32(6),
+				Column:   int16(1),
 			},
 			Init: &stmt.Assign{
 				Position: src.Pos{
-					Filename: "", // TODO
+					Filename: "srctest.ng",
+					Line:     int32(6),
+					Column:   int16(10),
 				},
 				Decl: bool(true),
 				Left: []expr.Expr{
 					&expr.Ident{
 						Position: src.Pos{
-							Filename: "", // TODO
+							Filename: "srctest.ng",
+							Line:     int32(6),
+							Column:   int16(4),
 						},
 						Name: "v",
 					},
 					&expr.Ident{
 						Position: src.Pos{
-							Filename: "", // TODO
+							Filename: "srctest.ng",
+							Line:     int32(6),
+							Column:   int16(7),
 						},
 						Name: "ok",
 					},
@@ -184,12 +222,14 @@ var srcposWant = &syntax.File{
 						Position: src.Pos{
 							Filename: "srctest.ng",
 							Line:     int32(6),
-							Column:   int16(15),
+							Column:   int16(13),
 						},
 						Op: token.ChanOp,
 						Expr: &expr.Ident{
 							Position: src.Pos{
-								Filename: "", // TODO
+								Filename: "srctest.ng",
+								Line:     int32(6),
+								Column:   int16(16),
 							},
 							Name: "ch",
 						},
@@ -198,7 +238,9 @@ var srcposWant = &syntax.File{
 			},
 			Cond: &expr.Ident{
 				Position: src.Pos{
-					Filename: "", // TODO
+					Filename: "srctest.ng",
+					Line:     int32(6),
+					Column:   int16(20),
 				},
 				Name: "ok",
 			},
@@ -213,18 +255,24 @@ var srcposWant = &syntax.File{
 						},
 						Expr: &expr.Call{
 							Position: src.Pos{
-								Filename: "", // TODO
+								Filename: "srctest.ng",
+								Line:     int32(7),
+								Column:   int16(7),
 							},
 							Func: &expr.Ident{
 								Position: src.Pos{
-									Filename: "", // TODO
+									Filename: "srctest.ng",
+									Line:     int32(7),
+									Column:   int16(2),
 								},
 								Name: "print",
 							},
 							Args: []expr.Expr{
 								&expr.Ident{
 									Position: src.Pos{
-										Filename: "", // TODO
+										Filename: "srctest.ng",
+										Line:     int32(7),
+										Column:   int16(8),
 									},
 									Name: "v",
 								},
