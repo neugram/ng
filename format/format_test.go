@@ -16,6 +16,16 @@ var roundTripTests = []string{
 echo one
 echo two
 $$`,
+
+	// TODO: spacing around return statement
+	"func(x int, y bool) ([]byte, error) {return nil, nil}",
+	"func() error {return nil}",
+	"func() (err error) {return nil}",
+	"func(x int, y bool) (b []byte, err error) {return nil, nil}",
+
+	"x[:y]",
+	"x[y:z:t]",
+	"new(int)",
 }
 
 func TestRoundTrip(t *testing.T) {

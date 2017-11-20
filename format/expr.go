@@ -5,13 +5,13 @@
 package format
 
 // TODO: general pretty printer
-// TODO: remove s-expression generator from lang packages
 
 import (
 	"bytes"
 	"fmt"
 
 	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/token"
 )
 
@@ -29,21 +29,79 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.Unary:
 		p.buf.WriteString(e.Op.String())
 		WriteExpr(p.buf, e.Expr)
-
-	/* TODO
 	case *expr.Bad:
-		panic("not implemented")
+		fmt.Fprintf(p.buf, "bad(%q)", e.Error)
 	case *expr.Slice:
-		panic("not implemented")
-	*/
+		if e.Low != nil {
+			p.expr(e.Low)
+		}
+		p.buf.WriteString(":")
+		if e.High != nil {
+			p.expr(e.High)
+		}
+		if e.Max != nil {
+			p.buf.WriteString(":")
+			p.expr(e.Max)
+		}
 	case *expr.Selector:
 		p.expr(e.Left)
 		p.buf.WriteString("." + e.Right.Name)
 	case *expr.BasicLiteral:
 		p.buf.WriteString(fmt.Sprintf("%v", e.Value))
+	case *expr.FuncLiteral:
+		p.buf.WriteString("func")
+		if e.ReceiverName != "" {
+			ptr := ""
+			if e.PointerReceiver {
+				ptr = "*"
+			}
+			fmt.Fprintf(p.buf, " (%s%s)", ptr, e.ReceiverName)
+		}
+		if e.Name != "" {
+			p.buf.WriteByte(' ')
+			p.buf.WriteString(e.Name)
+		}
+		p.buf.WriteByte('(')
+
+		// Similar to tipeFuncSig, but with parameter names.
+		if len(e.ParamNames) > 0 {
+			for i, name := range e.ParamNames {
+				if i > 0 {
+					p.buf.WriteString(", ")
+				}
+				if name != "" {
+					p.buf.WriteString(name)
+					p.buf.WriteByte(' ')
+				}
+				// TODO: elide types for equal subsequent params
+				p.tipe(e.Type.Params.Elems[i])
+			}
+		}
+		p.buf.WriteString(")")
+		if len(e.ResultNames) == 1 && e.ResultNames[0] == "" {
+			p.buf.WriteString(" ")
+			p.tipe(e.Type.Results.Elems[0])
+		} else if len(e.ResultNames) != 0 {
+			p.buf.WriteString(" (")
+			for i, name := range e.ResultNames {
+				if i > 0 {
+					p.buf.WriteString(", ")
+				}
+				if name != "" {
+					p.buf.WriteString(name)
+					p.buf.WriteByte(' ')
+				}
+				// TODO: elide types for equal subsequent params
+				p.tipe(e.Type.Results.Elems[i])
+			}
+			p.buf.WriteString(")")
+		}
+
+		if e.Body != nil {
+			p.buf.WriteString(" ")
+			p.stmt(e.Body.(*stmt.Block))
+		}
 		/* TODO
-		case *expr.FuncLiteral:
-			panic("not implemented")
 		case *expr.CompLiteral:
 			panic("not implemented")
 		case *expr.MapLiteral:
@@ -52,9 +110,9 @@ func (p *printer) expr(e expr.Expr) {
 			panic("not implemented")
 		case *expr.TableLiteral:
 			panic("not implemented")
-		case *expr.Type:
-			panic("not implemented")
 		*/
+	case *expr.Type:
+		p.tipe(e.Type)
 	case *expr.Ident:
 		p.buf.WriteString(e.Name)
 	case *expr.Index:
