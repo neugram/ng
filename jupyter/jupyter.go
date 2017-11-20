@@ -52,6 +52,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -271,12 +272,8 @@ func (s *server) execute(c *conn, req *message) error {
 	}
 
 	session := s.session(req)
-	buf := new(bytes.Buffer)
-	session.Stdout = buf
-	session.Stderr = buf
-	err := session.Exec([]byte(reqContent["code"].(string)))
 
-	if err != nil {
+	errResp := func(err error) error {
 		content := &executeReplyError{
 			Status:         "error",
 			ExecutionCount: session.ExecCount,
@@ -299,6 +296,27 @@ func (s *server) execute(c *conn, req *message) error {
 		return s.publishIO("error", content, req)
 	}
 
+	r, w, err := os.Pipe()
+	if err != nil {
+		return errResp(err)
+	}
+
+	session.Stdout = w
+	session.Stderr = w
+	stdout := os.Stdout
+	os.Stdout = w
+
+	err = session.Exec([]byte(reqContent["code"].(string)))
+
+	w.Close()
+	buf := new(bytes.Buffer)
+	io.Copy(buf, r)
+	r.Close()
+	os.Stdout = stdout
+
+	if err != nil {
+		return errResp(err)
+	}
 	content := &executeReply{
 		Status:         "ok",
 		ExecutionCount: session.ExecCount,

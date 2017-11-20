@@ -13,8 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -50,8 +48,8 @@ type Session struct {
 	// If these interfaces have the concrete type *os.File the underlying
 	// file descriptor is passed directly to shell jobs.
 	Stdin  *os.File
-	Stdout io.Writer
-	Stderr io.Writer
+	Stdout *os.File
+	Stderr *os.File
 
 	ExecCount int // number of statements executed
 	// TODO: record execution statement history here
@@ -107,13 +105,20 @@ func (n *Neugram) GetOrNewSession(ctx context.Context, name string) *Session {
 }
 
 func (s *Session) Exec(src []byte) error {
+	var err error
 	stdout := s.Stdout
 	if stdout == nil {
-		stdout = ioutil.Discard
+		stdout, err = os.Create(os.DevNull)
+		if err != nil {
+			return err
+		}
 	}
 	stderr := s.Stderr
 	if stderr == nil {
-		stderr = ioutil.Discard
+		stdout, err = os.Create(os.DevNull)
+		if err != nil {
+			return err
+		}
 	}
 
 	res := s.Parser.ParseLine(src)
@@ -147,7 +152,7 @@ func (s *Session) Exec(src []byte) error {
 				fmt.Fprint(stdout, ", ")
 			}
 			if val == (reflect.Value{}) {
-				fmt.Print(stdout, "<nil>")
+				fmt.Fprint(stdout, "<nil>")
 				continue
 			}
 			switch v := val.Interface().(type) {
@@ -174,39 +179,13 @@ func (s *Session) Exec(src []byte) error {
 		}
 	}
 	for _, cmd := range res.Cmds {
-		outdone := make(chan struct{})
-		var outr, outw, errw *os.File
-		if f, isFile := stdout.(*os.File); isFile {
-			outw = f
-		}
-		if f, isFile := stderr.(*os.File); isFile {
-			errw = f
-		}
-		if outw == nil || errw == nil {
-			r, w, err := os.Pipe()
-			if err != nil {
-				return Error{Phase: "shellexec", List: []error{err}}
-			}
-			outr = r
-			if outw == nil {
-				outw = w
-			}
-			if errw == nil {
-				errw = w
-			}
-			go func() {
-				io.Copy(stdout, outr)
-				close(outdone)
-			}()
-		}
-
 		j := &shell.Job{
 			State:  s.ShellState,
 			Cmd:    cmd,
 			Params: s.Program,
 			Stdin:  s.Stdin,
-			Stdout: outw,
-			Stderr: errw,
+			Stdout: stdout,
+			Stderr: stderr,
 		}
 		if err := j.Start(); err != nil {
 			fmt.Fprintln(stdout, err)
@@ -215,10 +194,6 @@ func (s *Session) Exec(src []byte) error {
 		done, err := j.Wait()
 		if err != nil {
 			return Error{Phase: "shell", List: []error{err}}
-		}
-		if outw != nil {
-			outw.Close()
-			<-outdone
 		}
 		if !done {
 			break // TODO not right, instead we should just have one cmd, not Cmds here.
