@@ -37,6 +37,11 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.indent--
 		p.newline()
 		p.buf.WriteString(")")
+	case *stmt.TypeDecl:
+		p.buf.WriteString("type ")
+		p.buf.WriteString(s.Name)
+		p.buf.WriteString(" ")
+		p.tipe(s.Type)
 	case *stmt.Simple:
 		p.expr(s.Expr)
 	case *stmt.Return:
