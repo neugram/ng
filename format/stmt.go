@@ -6,12 +6,37 @@ package format
 
 import (
 	"bytes"
+	"fmt"
 
 	"neugram.io/ng/syntax/stmt"
 )
 
 func (p *printer) stmt(s stmt.Stmt) {
 	switch s := s.(type) {
+	case *stmt.Import:
+		if s.Name != "" {
+			fmt.Fprintf(p.buf, "import %s %q", s.Name, s.Path)
+		} else {
+			fmt.Fprintf(p.buf, "import %q", s.Path)
+		}
+	case *stmt.ImportSet:
+		p.buf.WriteString("import (")
+		if len(s.Imports) == 0 {
+			p.buf.WriteString(")")
+			return
+		}
+		p.indent++
+		for _, imp := range s.Imports {
+			p.newline()
+			if imp.Name != "" {
+				fmt.Fprintf(p.buf, "%s %q", imp.Name, imp.Path)
+			} else {
+				fmt.Fprintf(p.buf, "%q", imp.Path)
+			}
+		}
+		p.indent--
+		p.newline()
+		p.buf.WriteString(")")
 	case *stmt.Simple:
 		p.expr(s.Expr)
 	case *stmt.Return:
