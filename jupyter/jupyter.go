@@ -305,14 +305,23 @@ func (s *server) execute(c *conn, req *message) error {
 	session.Stderr = w
 	stdout := os.Stdout
 	os.Stdout = w
+	stderr := os.Stderr
+	os.Stderr = w
+
+	done := make(chan struct{})
+	buf := new(bytes.Buffer)
+	go func() {
+		io.Copy(buf, r)
+		close(done)
+	}()
 
 	err = session.Exec([]byte(reqContent["code"].(string)))
 
 	w.Close()
-	buf := new(bytes.Buffer)
-	io.Copy(buf, r)
+	<-done
 	r.Close()
 	os.Stdout = stdout
+	os.Stderr = stderr
 
 	if err != nil {
 		return errResp(err)
