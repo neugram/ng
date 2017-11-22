@@ -119,7 +119,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			}
 			if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
 				if len(s.Right) > 1 {
-					c.errorf("multiple value %s in single-value context", rhs)
+					c.errorfmt("multiple value %s in single-value context", rhs)
 					return nil
 				}
 				for _, t := range tuple.Elems {
@@ -207,7 +207,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		if len(s.Left) != len(partials) {
-			c.errorf("arity mismatch, left %d != right %d", len(s.Left), len(partials))
+			c.errorfmt("arity mismatch, left %d != right %d", len(s.Left), len(partials))
 			return nil
 		}
 
@@ -224,7 +224,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				}
 			}
 			if ndecls == 0 {
-				c.errorf("no new variables on left side of :=")
+				c.errorfmt("no new variables on left side of :=")
 				return nil
 			}
 
@@ -235,7 +235,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				}
 				if lhs.(*expr.Ident).Name == "_" {
 					if len(s.Left) == 1 {
-						c.errorf("no new variables in declaration")
+						c.errorfmt("no new variables in declaration")
 						return nil
 					}
 					continue
@@ -345,7 +345,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		case *tipe.Chan:
 			kt = t.Elem
 		default:
-			c.errorf("TODO range over non-slice: %T", t)
+			c.errorfmt("TODO range over non-slice: %T", t)
 		}
 		if s.Decl {
 			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
@@ -421,7 +421,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.Return:
 		if retType == nil || len(s.Exprs) > len(retType.Elems) {
-			c.errorf("too many arguments to return")
+			c.errorfmt("too many arguments to return")
 			return nil
 		}
 		var partials []partial
@@ -441,31 +441,31 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		var got []tipe.Type
 		if tup, ok := partials[0].typ.(*tipe.Tuple); ok {
 			if len(partials) != 1 {
-				c.errorf("multi-value %v in single-value context", partials[0])
+				c.errorfmt("multi-value %v in single-value context", partials[0])
 				return nil
 			}
 			got = tup.Elems
 		} else {
 			for _, p := range partials {
 				if _, ok := p.typ.(*tipe.Tuple); ok {
-					c.errorf("multi-value %v in single-value context", partials[0])
+					c.errorfmt("multi-value %v in single-value context", partials[0])
 					return nil
 				}
 				got = append(got, p.typ)
 			}
 		}
 		if len(got) > len(want) {
-			c.errorf("too many arguments to return")
+			c.errorfmt("too many arguments to return")
 			return nil
 		}
 		if len(got) < len(want) {
-			c.errorf("too few arguments to return")
+			c.errorfmt("too few arguments to return")
 			return nil
 		}
 
 		for i := range want {
 			if !c.assignable(want[i], got[i]) {
-				c.errorf("cannot use %s as %s in return argument", format.Type(got[i]), format.Type(want[i]))
+				c.errorfmt("cannot use %s as %s in return argument", got[i], want[i])
 			}
 		}
 		return nil
@@ -487,7 +487,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		cht, ok := p.typ.(*tipe.Chan)
 		if !ok {
-			c.errorf("cannot send to non-channel type: %s", format.Type(cht))
+			c.errorfmt("cannot send to non-channel type: %s", cht)
 			return nil
 		}
 		p = c.expr(s.Value)
@@ -496,7 +496,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		c.convert(&p, cht.Elem)
 		if p.mode == modeInvalid {
-			c.errorf("cannot send %s to %s", format.Type(p.typ), format.Type(cht))
+			c.errorfmt("cannot send %s to %s", p.typ, cht)
 		}
 		return nil
 
@@ -531,13 +531,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if cse.Default {
 				ndefaults++
 				if ndefaults > 1 {
-					c.errorf("multiple defaults in switch")
+					c.errorfmt("multiple defaults in switch")
 				}
 			}
 			for _, cond := range cse.Conds {
 				for k := range set {
 					if parser.EqualExpr(cond, k) {
-						c.errorf("duplicate case %s in switch", format.Expr(cond))
+						c.errorfmt("duplicate case %s in switch", cond)
 					}
 				}
 				set[cond] = struct{}{}
@@ -546,7 +546,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					return nil
 				}
 				if !c.convertible(typ, p.typ) {
-					c.errorf(
+					c.errorfmt(
 						"invalid case %s in switch (mismatched types %s and %s)",
 						format.Expr(cond),
 						format.Type(p.typ), format.Type(typ),
@@ -570,7 +570,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.pushScope()
 		defer c.popScope()
 		if s.Assign == nil {
-			c.errorf("type switch needs a type switch guard")
+			c.errorfmt("type switch needs a type switch guard")
 			return nil
 		}
 		c.stmt(s.Assign, retType)
@@ -592,13 +592,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		styp, ok := c.resolve(p.typ)
 		if !ok {
-			c.errorf("type switch could not resolve type switch guard type")
+			c.errorfmt("type switch could not resolve type switch guard type")
 			return nil
 		}
 		p.typ = styp
 		iface, ok := tipe.Underlying(styp).(*tipe.Interface)
 		if !ok {
-			c.errorf("cannot type switch on non-interface value %s (type %s)", format.Expr(id), format.Type(styp))
+			c.errorfmt("cannot type switch on non-interface value %s (type %s)", id, styp)
 			return nil
 		}
 		dflts := 0
@@ -607,7 +607,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if cse.Default {
 				dflts++
 				if dflts > 1 {
-					c.errorf("multiple defaults in switch")
+					c.errorfmt("multiple defaults in switch")
 				}
 			}
 			for i, typ := range cse.Types {
@@ -617,13 +617,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				}
 				for k := range set {
 					if tipe.Equal(typ, k) {
-						c.errorf("duplicate case %s in type switch", format.Type(typ))
+						c.errorfmt("duplicate case %s in type switch", typ)
 					}
 				}
 				set[typ] = struct{}{}
 				if !c.typeAssert(iface, typ) {
 					// TODO: explain why it can't implement the interface.
-					c.errorf(
+					c.errorfmt(
 						"impossible type switch case: %s (type %s) cannot have dynamic type %s",
 						format.Expr(p.expr), format.Type(iface), format.Type(typ),
 					)
@@ -640,12 +640,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if cse.Default {
 				dflts++
 				if dflts > 1 {
-					c.errorf("multiple defaults in select")
+					c.errorfmt("multiple defaults in select")
 				}
 			}
 			for k := range set {
 				if parser.EqualStmt(k, cse.Stmt) {
-					c.errorf("duplicate case %s in select", format.Stmt(cse.Stmt))
+					c.errorfmt("duplicate case %s in select", cse.Stmt)
 				}
 			}
 			set[cse.Stmt] = struct{}{}
@@ -653,23 +653,23 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				switch st := cse.Stmt.(type) {
 				case *stmt.Assign:
 					if len(st.Right) != 1 {
-						c.errorf("select case must be receive send or assign recv")
+						c.errorfmt("select case must be receive send or assign recv")
 						return nil
 					}
 					sr, ok := st.Right[0].(*expr.Unary)
 					if !ok || sr.Op != token.ChanOp {
-						c.errorf("select case must be receive send or assign recv")
+						c.errorfmt("select case must be receive send or assign recv")
 						return nil
 					}
 				case *stmt.Send:
 				case *stmt.Simple:
 					sr, ok := st.Expr.(*expr.Unary)
 					if !ok || sr.Op != token.ChanOp {
-						c.errorf("select case must be receive send or assign recv")
+						c.errorfmt("select case must be receive send or assign recv")
 						return nil
 					}
 				default:
-					c.errorf("select case must be receive, send or assign recv")
+					c.errorfmt("select case must be receive, send or assign recv")
 					return nil
 				}
 			}
@@ -991,7 +991,7 @@ func (c *Checker) parseFile(filename string, f *os.File) error {
 
 func (c *Checker) checkImport(s *stmt.Import) {
 	if strings.HasPrefix(s.Path, "/") {
-		c.errorf("imports do not support absolute paths: %q", s.Path)
+		c.errorfmt("imports do not support absolute paths: %q", s.Path)
 		return
 	}
 	var pkg *tipe.Package
@@ -999,7 +999,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 	if strings.HasSuffix(s.Path, ".ng") {
 		pkg, err = c.ngPkg(s.Path)
 		if err != nil {
-			c.errorf("importing of ng package failed: %v", err)
+			c.errorfmt("importing of ng package failed: %v", err)
 			return
 		}
 		if s.Name == "" {
@@ -1008,7 +1008,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 	} else {
 		pkg, err = c.goPkg(s.Path)
 		if err != nil {
-			c.errorf("importing of go package failed: %v", err)
+			c.errorfmt("importing of go package failed: %v", err)
 			return
 		}
 		if s.Name == "" {
@@ -1028,7 +1028,7 @@ func (c *Checker) expr(e expr.Expr) (p partial) {
 	p = c.exprPartial(e, hintElideErr)
 	if p.mode == modeTypeExpr {
 		p.mode = modeInvalid
-		c.errorf("type %s is not an expression", format.Type(p.typ))
+		c.errorfmt("type %s is not an expression", p.typ)
 	}
 	return p
 }
@@ -1038,7 +1038,7 @@ func (c *Checker) exprNoElide(e expr.Expr) (p partial) {
 	// TODO: dedup with expr()
 	if p.mode == modeTypeExpr {
 		p.mode = modeInvalid
-		c.errorf("type %s is not an expression", format.Type(p.typ))
+		c.errorfmt("type %s is not an expression", p.typ)
 	}
 	return p
 }
@@ -1056,7 +1056,7 @@ func (c *Checker) exprType(e expr.Expr) tipe.Type {
 			}
 		}
 	}
-	c.errorf("argument %s is not a type (%#+v)", format.Expr(e), p)
+	c.errorfmt("argument %s is not a type (%#+v)", e, p)
 	return nil
 }
 
@@ -1143,11 +1143,11 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		}
 		obj := c.cur.LookupRec(t.Name)
 		if obj == nil {
-			c.errorf("type %s not declared", t.Name)
+			c.errorfmt("type %s not declared", t.Name)
 			return t, false
 		}
 		if obj.Kind != ObjType {
-			c.errorf("symbol %s is not a type", t.Name)
+			c.errorfmt("symbol %s is not a type", t.Name)
 			return t, false
 		}
 		return obj.Type, true
@@ -1161,17 +1161,17 @@ func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
 	name := pkgName + "." + sel
 	obj := c.cur.LookupRec(pkgName)
 	if obj == nil {
-		c.errorf("undefined %s in %s", pkgName, name)
+		c.errorfmt("undefined %s in %s", pkgName, name)
 		return nil
 	}
 	if obj.Kind != ObjPkg {
-		c.errorf("%s is not a packacge", pkgName)
+		c.errorfmt("%s is not a packacge", pkgName)
 		return nil
 	}
 	pkg := obj.Type.(*tipe.Package)
 	res := pkg.Exports[sel]
 	if res == nil {
-		c.errorf("%s not in package %s", name, pkgName)
+		c.errorfmt("%s not in package %s", name, pkgName)
 		return nil
 	}
 	return res
@@ -1185,14 +1185,14 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 	case tipe.Append:
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
-			c.errorf("too few arguments to append")
+			c.errorfmt("too few arguments to append")
 			return p
 		}
 		arg0 := c.expr(e.Args[0])
 		slice, isSlice := tipe.Underlying(arg0.typ).(*tipe.Slice)
 		if !isSlice {
 			p.mode = modeInvalid
-			c.errorf("first argument to append must be a slice, got %s", format.Type(arg0.typ))
+			c.errorfmt("first argument to append must be a slice, got %s", arg0.typ)
 			return p
 		}
 		p.typ = arg0.typ
@@ -1203,7 +1203,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			c.convert(&argp, slice.Elem)
 			if argp.mode == modeInvalid {
 				p.mode = modeInvalid
-				c.errorf("cannot use %s (type %s) as type %s in argument to append", format.Expr(arg), format.Type(argpTyp), format.Type(slice.Elem))
+				c.errorfmt("cannot use %s (type %s) as type %s in argument to append", arg, argpTyp, slice.Elem)
 				return p
 			}
 		}
@@ -1212,26 +1212,26 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		p.typ = nil
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("too few arguments to close")
+			c.errorfmt("too few arguments to close")
 			return p
 		}
 		arg := c.expr(e.Args[0])
 		ch, isChan := tipe.Underlying(arg.typ).(*tipe.Chan)
 		if !isChan {
 			p.mode = modeInvalid
-			c.errorf("argument to close must be a chan, got %s", format.Type(arg.typ))
+			c.errorfmt("argument to close must be a chan, got %s", arg.typ)
 			return p
 		}
 		if ch.Direction == tipe.ChanRecv {
 			p.mode = modeInvalid
-			c.errorf("%s: cannot close receive-only channel", format.Expr(e))
+			c.errorfmt("%s: cannot close receive-only channel", e)
 			return p
 		}
 		return p
 	case tipe.ComplexFunc:
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
-			c.errorf("complex takes two arguments, got %d", len(e.Args))
+			c.errorfmt("complex takes two arguments, got %d", len(e.Args))
 			return p
 		}
 		arg0 := c.expr(e.Args[0])
@@ -1250,7 +1250,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 				p.typ = tipe.Complex128
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				c.errorfmt("second argument to complex must be a float, got %s", arg1.typ)
 				return p
 			}
 		case tipe.UntypedFloat:
@@ -1266,7 +1266,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 				p.typ = tipe.Complex128
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				c.errorfmt("second argument to complex must be a float, got %s", arg1.typ)
 				return p
 			}
 		case tipe.Float:
@@ -1275,7 +1275,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 				p.typ = tipe.Complex
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float, got %s", format.Type(arg1.typ))
+				c.errorfmt("second argument to complex must be a float, got %s", arg1.typ)
 				return p
 			}
 		case tipe.Float32:
@@ -1284,15 +1284,15 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 				p.typ = tipe.Complex64
 			case tipe.Float:
 				p.mode = modeInvalid
-				c.errorf("invalid operation: complex(%s, %s) (mismatched types float32 and float)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				c.errorfmt("invalid operation: complex(%s, %s) (mismatched types float32 and float)", e.Args[0], e.Args[1])
 				return p
 			case tipe.Float64:
 				p.mode = modeInvalid
-				c.errorf("invalid operation: complex(%s, %s) (mismatched types float32 and float64)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				c.errorfmt("invalid operation: complex(%s, %s) (mismatched types float32 and float64)", e.Args[0], e.Args[1])
 				return p
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float32, got %s", format.Type(arg1.typ))
+				c.errorfmt("second argument to complex must be a float32, got %s", arg1.typ)
 				return p
 			}
 		case tipe.Float64:
@@ -1301,20 +1301,20 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 				p.typ = tipe.Complex128
 			case tipe.Float:
 				p.mode = modeInvalid
-				c.errorf("invalid operation: complex(%s, %s) (mismatched types float64 and float)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				c.errorfmt("invalid operation: complex(%s, %s) (mismatched types float64 and float)", e.Args[0], e.Args[1])
 				return p
 			case tipe.Float32:
 				p.mode = modeInvalid
-				c.errorf("invalid operation: complex(%s, %s) (mismatched types float64 and float32)", format.Expr(e.Args[0]), format.Expr(e.Args[1]))
+				c.errorfmt("invalid operation: complex(%s, %s) (mismatched types float64 and float32)", e.Args[0], e.Args[1])
 				return p
 			default:
 				p.mode = modeInvalid
-				c.errorf("second argument to complex must be a float64, got %s", format.Type(arg1.typ))
+				c.errorfmt("second argument to complex must be a float64, got %s", arg1.typ)
 				return p
 			}
 		default:
 			p.mode = modeInvalid
-			c.errorf("first argument to complex must be a float, got %s", format.Type(arg0.typ))
+			c.errorfmt("first argument to complex must be a float, got %s", arg0.typ)
 			return p
 		}
 		return p
@@ -1322,7 +1322,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		p.typ = tipe.Int
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
-			c.errorf("copy takes two arguments, got %d", len(e.Args))
+			c.errorfmt("copy takes two arguments, got %d", len(e.Args))
 			return p
 		}
 		dst, src := c.expr(e.Args[0]), c.expr(e.Args[1])
@@ -1334,19 +1334,19 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			srcElem = tipe.Byte
 		} else {
 			p.mode = modeInvalid
-			c.errorf("copy source must be slice or string, got %s", format.Type(src.typ))
+			c.errorfmt("copy source must be slice or string, got %s", src.typ)
 			return p
 		}
 		if t, isSlice := tipe.Underlying(dst.typ).(*tipe.Slice); isSlice {
 			dstElem = t.Elem
 		} else {
 			p.mode = modeInvalid
-			c.errorf("copy destination must be a slice, have %s", format.Type(dst.typ))
+			c.errorfmt("copy destination must be a slice, have %s", dst.typ)
 			return p
 		}
 		if !c.convertible(dstElem, srcElem) {
 			p.mode = modeInvalid
-			c.errorf("copy source type %s is not convertible to destination %s", format.Type(dstElem), format.Type(srcElem))
+			c.errorfmt("copy source type %s is not convertible to destination %s", dstElem, srcElem)
 			return p
 		}
 		return p
@@ -1354,7 +1354,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		p.typ = nil
 		if len(e.Args) != 2 {
 			p.mode = modeInvalid
-			c.errorf("delete takes exactly two arguments, got %d", len(e.Args))
+			c.errorfmt("delete takes exactly two arguments, got %d", len(e.Args))
 			return p
 		}
 		arg0, arg1 := c.expr(e.Args[0]), c.expr(e.Args[1])
@@ -1363,19 +1363,19 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			keyType = t.Key
 		} else {
 			p.mode = modeInvalid
-			c.errorf("first argument to delete must be a map, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg0.typ))
+			c.errorfmt("first argument to delete must be a map, got %s (type %s)", e.Args[0], arg0.typ)
 			return p
 		}
 		if !c.convertible(keyType, arg1.typ) {
 			p.mode = modeInvalid
-			c.errorf("second argument to delete must match the key type %s, got type %s", format.Type(keyType), format.Type(arg1.typ))
+			c.errorfmt("second argument to delete must match the key type %s, got type %s", keyType, arg1.typ)
 			return p
 		}
 		return p
 	case tipe.Imag:
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("imag takes exactly 1 argument, got %d", len(e.Args))
+			c.errorfmt("imag takes exactly 1 argument, got %d", len(e.Args))
 			return p
 		}
 		arg := c.expr(e.Args[0])
@@ -1391,7 +1391,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			p.typ = tipe.Float64
 		default:
 			p.mode = modeInvalid
-			c.errorf("argument to imag must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
+			c.errorfmt("argument to imag must be a complex, got %s (type %s)", e.Args[0], arg.typ)
 			return p
 		}
 		return p
@@ -1399,7 +1399,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		p.typ = tipe.Int
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("%s takes exactly 1 argument, got %d", format.Type(p.typ), len(e.Args))
+			c.errorfmt("%s takes exactly 1 argument, got %d", p.typ, len(e.Args))
 			return p
 		}
 		arg0 := c.expr(e.Args[0])
@@ -1412,7 +1412,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			}
 		}
 		p.mode = modeInvalid
-		c.errorf("invalid argument %s (%s) for %s ", format.Expr(e.Args[0]), format.Type(arg0.typ), format.Type(p.typ))
+		c.errorfmt("invalid argument %s (%s) for %s ", e.Args[0], arg0.typ, p.typ)
 		return p
 	case tipe.Make:
 		switch len(e.Args) {
@@ -1435,7 +1435,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		case 1:
 		default:
 			p.mode = modeInvalid
-			c.errorf("make requires 1-3 arguments")
+			c.errorfmt("make requires 1-3 arguments")
 			return p
 		}
 
@@ -1448,19 +1448,19 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		if p.typ == nil {
 			p.mode = modeInvalid
-			c.errorf("make argument must be a slice, map, or channel")
+			c.errorfmt("make argument must be a slice, map, or channel")
 		}
 		return p
 	case tipe.New:
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("new takes exactly one argument, got %d", len(e.Args))
+			c.errorfmt("new takes exactly one argument, got %d", len(e.Args))
 			return p
 		}
 		arg0 := c.exprType(e.Args[0])
 		if arg0 == nil {
 			p.mode = modeInvalid
-			c.errorf("argument to new must be a type")
+			c.errorfmt("argument to new must be a type")
 			return p
 		}
 		e.Args[0] = &expr.Type{Type: arg0}
@@ -1470,7 +1470,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		p.typ = nil
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("panic takes exactly 1 argument, got %d", len(e.Args))
+			c.errorfmt("panic takes exactly 1 argument, got %d", len(e.Args))
 			return p
 		}
 		if arg0 := c.expr(e.Args[0]); arg0.mode == modeInvalid {
@@ -1481,7 +1481,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 	case tipe.Real:
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("real takes exactly 1 argument, got %d", len(e.Args))
+			c.errorfmt("real takes exactly 1 argument, got %d", len(e.Args))
 			return p
 		}
 		arg := c.expr(e.Args[0])
@@ -1497,7 +1497,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			p.typ = tipe.Float64
 		default:
 			p.mode = modeInvalid
-			c.errorf("argument to real must be a complex, got %s (type %s)", format.Expr(e.Args[0]), format.Type(arg.typ))
+			c.errorfmt("argument to real must be a complex, got %s (type %s)", e.Args[0], arg.typ)
 			return p
 		}
 		return p
@@ -1519,11 +1519,11 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		// type conversion
 		if len(e.Args) == 0 {
 			p.mode = modeInvalid
-			c.errorf("type conversion to %s is missing an argument", format.Type(p.typ))
+			c.errorfmt("type conversion to %s is missing an argument", p.typ)
 			return p
 		} else if len(e.Args) != 1 {
 			p.mode = modeInvalid
-			c.errorf("type conversion to %s has too many arguments", format.Type(p.typ))
+			c.errorfmt("type conversion to %s has too many arguments", p.typ)
 			return p
 		}
 		t := p.typ
@@ -1576,12 +1576,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	if e.Ellipsis {
 		if !funct.Variadic {
 			p.mode = modeInvalid
-			c.errorf("cannot use ... with non-variadic function %s", format.Type(funct))
+			c.errorfmt("cannot use ... with non-variadic function %s", funct)
 			return p
 		}
 		if len(e.Args) == 1 && len(unpacked) > 1 {
 			p.mode = modeInvalid
-			c.errorf("cannot use ... with multi-valued function %s", format.Type(funct))
+			c.errorfmt("cannot use ... with multi-valued function %s", funct)
 			return p
 		}
 	}
@@ -1604,7 +1604,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				continue
 			}
 			p.mode = modeInvalid
-			c.errorf("too many arguments to function %s", format.Type(funct))
+			c.errorfmt("too many arguments to function %s", funct)
 			return p
 		}
 
@@ -1614,7 +1614,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 			_, ok := pi.typ.(*tipe.Slice)
 			if !ok && !tipe.IsUntypedNil(pi.typ) {
 				p.mode = modeInvalid
-				c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+				c.errorfmt("cannot use type %s as type %s in argument %d to function", pi.typ, typ, i)
 				return p
 			}
 			// We're using "x..." and are at the position of the
@@ -1645,7 +1645,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		// f(g()) to stay close to the Go spec.
 		if pi.mode == modeUnpacked && !IsError(pi.typ) && len(e.Args) > 1 {
 			p.mode = modeInvalid
-			c.errorf("multi-valued %s used in single-valued context", format.Expr(pi.expr))
+			c.errorfmt("multi-valued %s used in single-valued context", pi.expr)
 			return p
 		}
 
@@ -1654,7 +1654,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 		c.convert(&pi, typ)
 		if pi.mode == modeInvalid {
 			p.mode = modeInvalid
-			c.errorf("cannot use type %s as type %s in argument %d to function", format.Type(pi.typ), format.Type(typ), i)
+			c.errorfmt("cannot use type %s as type %s in argument %d to function", pi.typ, typ, i)
 			return p
 		}
 	}
@@ -1668,7 +1668,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	}
 	if numArgs < len(params) {
 		p.mode = modeInvalid
-		c.errorf("too few arguments in call to %s", format.Type(funct))
+		c.errorfmt("too few arguments in call to %s", funct)
 		return p
 	}
 
@@ -1693,13 +1693,13 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	case *expr.Ident:
 		if e.Name == "_" {
 			p.mode = modeInvalid
-			c.errorf("cannot use _ as a value")
+			c.errorfmt("cannot use _ as a value")
 			return p
 		}
 		obj := c.cur.LookupRec(e.Name)
 		if obj == nil {
 			p.mode = modeInvalid
-			c.errorf("undeclared identifier: %s", e.Name)
+			c.errorfmt("undeclared identifier: %s", e.Name)
 			return p
 		}
 		// TODO: is a partial's mode just an ObjKind?
@@ -1794,7 +1794,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		t, isStruct := tipe.Underlying(e.Type).(*tipe.Struct)
 		if !isStruct {
-			c.errorf("cannot construct type %s with a composite literal", format.Type(e.Type))
+			c.errorfmt("cannot construct type %s with a composite literal", e.Type)
 			p.mode = modeInvalid
 			return p
 		}
@@ -1811,7 +1811,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				return p
 			}
 			if len(e.Elements) != len(t.Fields) {
-				c.errorf("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
+				c.errorfmt("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
 				p.mode = modeInvalid
 				return p
 			}
@@ -1827,7 +1827,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			for i, elemp := range elemsp {
 				ident, ok := e.Keys[i].(*expr.Ident)
 				if !ok {
-					c.errorf("invalid field name %s in struct initializer", e.Keys[i])
+					c.errorfmt("invalid field name %s in struct initializer", e.Keys[i])
 					p.mode = modeInvalid
 					return p
 				}
@@ -1862,7 +1862,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		t, isMap := tipe.Underlying(e.Type).(*tipe.Map)
 		if !isMap {
-			c.errorf("cannot construct type %s with a map composite literal", format.Type(e.Type))
+			c.errorfmt("cannot construct type %s with a map composite literal", e.Type)
 			p.mode = modeInvalid
 			return p
 		}
@@ -1899,7 +1899,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if t, resolved := c.resolve(e.Type); resolved {
 			t, isSlice := t.(*tipe.Slice)
 			if !isSlice {
-				c.errorf("type %s is not a slice", format.Type(t))
+				c.errorfmt("type %s is not a slice", t)
 				p.mode = modeInvalid
 				return p
 			}
@@ -1933,7 +1933,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if t, resolved := c.resolve(e.Type); resolved {
 			t, isTable := t.(*tipe.Table)
 			if !isTable {
-				c.errorf("type %s is not a table", format.Type(t))
+				c.errorfmt("type %s is not a table", t)
 				p.mode = modeInvalid
 				return p
 			}
@@ -1960,13 +1960,13 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		// Check everyone agrees on the width.
 		w := len(e.Rows[0])
 		if len(e.ColNames) > 0 && len(e.ColNames) != w {
-			c.errorf("table literal has %d column names but a width of %d", len(e.ColNames), w)
+			c.errorfmt("table literal has %d column names but a width of %d", len(e.ColNames), w)
 			p.mode = modeInvalid
 			return p
 		}
 		for _, r := range e.Rows {
 			if len(r) != w {
-				c.errorf("table literal has rows of different lengths (%d and %d)", w, len(r))
+				c.errorfmt("table literal has rows of different lengths (%d and %d)", w, len(r))
 				p.mode = modeInvalid
 				return p
 			}
@@ -1999,7 +1999,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		leftTyp, isInterface := tipe.Underlying(left.typ).(*tipe.Interface)
 		if !isInterface {
-			c.errorf("%s is not an interface", format.Type(leftTyp))
+			c.errorfmt("%s is not an interface", leftTyp)
 			p.mode = modeInvalid
 			return p
 		}
@@ -2019,7 +2019,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.typ = t
 			return p
 		}
-		c.errorf("%s does not implement %s", format.Type(t), format.Type(leftTyp))
+		c.errorfmt("%s does not implement %s", t, leftTyp)
 		p.mode = modeInvalid
 		return p
 
@@ -2053,7 +2053,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				p.typ = t.Elem
 				return p
 			}
-			c.errorf("invalid dereference of %s", e.Expr)
+			c.errorfmt("invalid dereference of %s", e.Expr)
 			p.mode = modeInvalid
 			return p
 		case token.ChanOp:
@@ -2064,7 +2064,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 			t, ok := sub.typ.(*tipe.Chan)
 			if !ok {
-				c.errorf("receive from non-chan type %s", format.Type(sub.typ))
+				c.errorfmt("receive from non-chan type %s", sub.typ)
 				p.mode = modeInvalid
 				return p
 			}
@@ -2091,7 +2091,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			// comparison
 			lt, rt := left.typ, right.typ
 			if !c.assignable(lt, rt) && !c.assignable(rt, lt) {
-				c.errorf("incomparable types %s and %s", format.Type(lt), format.Type(rt))
+				c.errorfmt("incomparable types %s and %s", lt, rt)
 				left.mode = modeInvalid
 				return left
 			}
@@ -2100,19 +2100,19 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				if !isComparable(lt) {
 					if canBeNil(lt) || canBeNil(rt) {
 						if ltOrig != tipe.UntypedNil && rtOrig != tipe.UntypedNil {
-							c.errorf("type %s only comparable to nil", format.Type(lt))
+							c.errorfmt("type %s only comparable to nil", lt)
 							left.mode = modeInvalid
 							return left
 						}
 					} else {
-						c.errorf("incomparable type %s", format.Type(lt))
+						c.errorfmt("incomparable type %s", lt)
 						left.mode = modeInvalid
 						return left
 					}
 				}
 			case token.LessEqual, token.GreaterEqual, token.Less, token.Greater:
 				if !isOrdered(lt) {
-					c.errorf("unordered type %s", format.Type(lt))
+					c.errorfmt("unordered type %s", lt)
 					left.mode = modeInvalid
 					return left
 				}
@@ -2130,7 +2130,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 
 		if !tipe.Equal(left.typ, right.typ) {
-			c.errorf("inoperable types %s and %s", format.Type(left.typ), format.Type(right.typ))
+			c.errorfmt("inoperable types %s and %s", left.typ, right.typ)
 			left.mode = modeInvalid
 			return left
 		}
@@ -2187,7 +2187,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 			p.mode = modeInvalid
-			c.errorf("%s undefined (type %s has no field or method %s)", e, format.Type(lt), right)
+			c.errorfmt("%s undefined (type %s has no field or method %s)", e, lt, right)
 			return p
 		case *tipe.Package:
 			for name, t := range lt.Exports {
@@ -2206,11 +2206,11 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 			p.mode = modeInvalid
-			c.errorf("%s not in package %s", e, lt)
+			c.errorfmt("%s not in package %s", e, lt)
 			return p
 		}
 		p.mode = modeInvalid
-		c.errorf("%s undefined (type %s is not a struct or package)", e, format.Type(left.typ))
+		c.errorfmt("%s undefined (type %s is not a struct or package)", e, left.typ)
 		return p
 	case *expr.Index:
 		left := c.expr(e.Left)
@@ -2222,7 +2222,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		case *tipe.Map:
 			if len(e.Indicies) != 1 {
 				p.mode = modeInvalid
-				c.errorf("cannot table slice %s (type %s)", e.Left, format.Type(left.typ))
+				c.errorfmt("cannot table slice %s (type %s)", e.Left, left.typ)
 				return p
 			}
 			ind := c.expr(e.Indicies[0])
@@ -2239,7 +2239,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		case *tipe.Array:
 			if len(e.Indicies) != 1 {
 				p.mode = modeInvalid
-				c.errorf("cannot table slice %s (type %s)", e.Left, format.Type(left.typ))
+				c.errorfmt("cannot table slice %s (type %s)", e.Left, left.typ)
 				return p
 			}
 			ind := c.expr(e.Indicies[0])
@@ -2256,7 +2256,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		case *tipe.Slice:
 			if len(e.Indicies) != 1 {
 				p.mode = modeInvalid
-				c.errorf("cannot table slice %s (type %s)", e.Left, format.Type(left.typ))
+				c.errorfmt("cannot table slice %s (type %s)", e.Left, left.typ)
 				return p
 			}
 			if s, isSlice := e.Indicies[0].(*expr.Slice); isSlice {
@@ -2297,7 +2297,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			return p
 		case *tipe.Table:
 			p.mode = modeInvalid
-			c.errorf("TODO table slicing support")
+			c.errorfmt("TODO table slicing support")
 			return p
 		}
 		if atTyp := c.memory.Method(lt, "At"); atTyp != nil {
@@ -2309,7 +2309,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				atTyp.Params.Elems[0] != tipe.Int || (dim == 2 && atTyp.Params.Elems[1] != tipe.Int) ||
 				len(atTyp.Results.Elems) != 1 {
 				p.mode = modeInvalid
-				c.errorf("cannot slice type %s, expecting method %q but type has %q", left.typ, want, format.Type(atTyp))
+				c.errorfmt("cannot slice type %s, expecting method %s but type has %s", left.typ, want, atTyp)
 				return p
 			}
 			p.mode = modeVar
@@ -2318,7 +2318,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		if setTyp := c.memory.Method(lt, "Set"); setTyp != nil {
 			p.mode = modeInvalid
-			c.errorf("TODO Set index")
+			c.errorfmt("TODO Set index")
 			return p
 		}
 
@@ -2377,7 +2377,7 @@ func (c *Checker) unpackExprs(hint typeHint, exprs ...expr.Expr) (partials []par
 					elems = elems[:1]
 					c.types[p.expr] = &tipe.Tuple{Elems: elems}
 				} else {
-					c.errorf("multi-valued %s used in single-valued context", format.Expr(expr))
+					c.errorfmt("multi-valued %s used in single-valued context", expr)
 					return nil, false
 				}
 			}
@@ -2408,7 +2408,7 @@ func (c *Checker) assign(p *partial, t tipe.Type) {
 		return
 	}
 	if !tipe.Equal(p.typ, t) { // TODO interfaces, etc
-		c.errorf("cannot assign %s to %s", format.Type(p.typ), format.Type(t))
+		c.errorfmt("cannot assign %s to %s", p.typ, t)
 		p.mode = modeInvalid
 	}
 }
@@ -2420,14 +2420,14 @@ func (c *Checker) convert(p *partial, t tipe.Type) {
 		// TODO or integer -> string conversion
 		if round(p.val, t.(tipe.Basic)) == nil {
 			// p.val does not fit in t
-			c.errorf("constant %s does not fit in %s", p.val, format.Type(t))
+			c.errorfmt("constant %s does not fit in %s", p.val, t)
 			p.mode = modeInvalid
 			return
 		}
 	}
 
 	if !c.convertible(t, p.typ) {
-		c.errorf("cannot convert %s to %s", format.Type(p.typ), format.Type(t))
+		c.errorfmt("cannot convert %s to %s", p.typ, t)
 		p.mode = modeInvalid
 		return
 	}
@@ -2537,7 +2537,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 		case t == tipe.Num && (p.typ == tipe.UntypedInteger || p.typ == tipe.UntypedFloat):
 			// promote untyped int or float to num type parameter
 		case t != p.typ:
-			c.errorf("cannot convert %s to %s", format.Type(p.typ), format.Type(t))
+			c.errorfmt("cannot convert %s to %s", p.typ, t)
 		}
 	} else {
 		switch t := tipe.Unalias(t).(type) {
@@ -2546,7 +2546,7 @@ func (c *Checker) constrainUntyped(p *partial, t tipe.Type) {
 			case modeConst:
 				p.val = round(p.val, t)
 				if p.val == nil {
-					c.errorf("cannot convert const %s to %s", format.Type(p.typ), format.Type(t))
+					c.errorfmt("cannot convert const %s to %s", p.typ, t)
 					// TODO more details about why
 				}
 			case modeVar:
@@ -2653,8 +2653,22 @@ func findMember(t tipe.Type, name string) (mt tipe.Type) {
 	panic("unreachable")
 }
 
-func (c *Checker) errorf(format string, args ...interface{}) {
-	err := fmt.Errorf(format, args...)
+func (c *Checker) errorfmt(formatstr string, args ...interface{}) {
+	for i, arg := range args {
+		switch v := arg.(type) {
+		case stmt.Stmt:
+			args[i] = format.Stmt(v)
+		case tipe.Type:
+			// TODO: use a short mode for printing
+			// types like methodik, which can scroll
+			// on for many pages.
+			args[i] = format.Type(v)
+		case expr.Expr:
+			args[i] = format.Expr(v)
+		}
+	}
+
+	err := fmt.Errorf(formatstr, args...)
 	c.Errs = append(c.Errs, err)
 }
 
