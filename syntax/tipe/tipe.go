@@ -316,6 +316,20 @@ func Unalias(t Type) Type {
 }
 
 func Equal(x, y Type) bool {
+	eq := equaler{}
+	return eq.equal(x, y)
+}
+
+func EqualUnresolved(x, y Type) bool {
+	eq := equaler{matchUnresolved: true}
+	return eq.equal(x, y)
+}
+
+type equaler struct {
+	matchUnresolved bool
+}
+
+func (eq *equaler) equal(x, y Type) bool {
 	x, y = Unalias(x), Unalias(y)
 	if x == y {
 		return true
@@ -352,10 +366,10 @@ func Equal(x, y Type) bool {
 		if x.Spec != y.Spec {
 			return false
 		}
-		if !Equal(x.Params, y.Params) {
+		if !eq.equal(x.Params, y.Params) {
 			return false
 		}
-		if !Equal(x.Results, y.Results) {
+		if !eq.equal(x.Results, y.Results) {
 			return false
 		}
 		return true
@@ -377,7 +391,7 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		for i := range x.Fields {
-			if !Equal(x.Fields[i], y.Fields[i]) {
+			if !eq.equal(x.Fields[i], y.Fields[i]) {
 				return false
 			}
 		}
@@ -393,7 +407,7 @@ func Equal(x, y Type) bool {
 		if x.Spec != y.Spec {
 			return false
 		}
-		if !Equal(x.Type, y.Type) {
+		if !eq.equal(x.Type, y.Type) {
 			return false
 		}
 		if !reflect.DeepEqual(x.MethodNames, y.MethodNames) {
@@ -403,7 +417,7 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		for i := range x.Methods {
-			if !Equal(x.Methods[i], y.Methods[i]) {
+			if !eq.equal(x.Methods[i], y.Methods[i]) {
 				return false
 			}
 		}
@@ -416,7 +430,7 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		return Equal(x.Elem, y.Elem)
+		return eq.equal(x.Elem, y.Elem)
 	case *Array:
 		y, ok := y.(*Array)
 		if !ok {
@@ -428,7 +442,7 @@ func Equal(x, y Type) bool {
 		if x.Len != y.Len {
 			return false
 		}
-		return Equal(x.Elem, y.Elem)
+		return eq.equal(x.Elem, y.Elem)
 	case *Slice:
 		y, ok := y.(*Slice)
 		if !ok {
@@ -437,7 +451,7 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		return Equal(x.Elem, y.Elem)
+		return eq.equal(x.Elem, y.Elem)
 	case *Table:
 		y, ok := y.(*Table)
 		if !ok {
@@ -446,7 +460,7 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		return Equal(x.Type, y.Type)
+		return eq.equal(x.Type, y.Type)
 	case *Tuple:
 		y, ok := y.(*Tuple)
 		if !ok {
@@ -462,7 +476,7 @@ func Equal(x, y Type) bool {
 			return false
 		}
 		for i := range x.Elems {
-			if !Equal(x.Elems[i], y.Elems[i]) {
+			if !eq.equal(x.Elems[i], y.Elems[i]) {
 				return false
 			}
 		}
@@ -486,7 +500,7 @@ func Equal(x, y Type) bool {
 			if !ok {
 				return false
 			}
-			if !Equal(xt, yt) {
+			if !eq.equal(xt, yt) {
 				return false
 			}
 		}
@@ -510,7 +524,7 @@ func Equal(x, y Type) bool {
 			if !ok {
 				return false
 			}
-			if !Equal(xt, yt) {
+			if !eq.equal(xt, yt) {
 				return false
 			}
 		}
@@ -523,7 +537,7 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		return Equal(x.Elem, y.Elem)
+		return eq.equal(x.Elem, y.Elem)
 	case *Chan:
 		y, ok := y.(*Chan)
 		if !ok {
@@ -535,7 +549,7 @@ func Equal(x, y Type) bool {
 		if x.Direction != y.Direction {
 			return false
 		}
-		return Equal(x.Elem, y.Elem)
+		return eq.equal(x.Elem, y.Elem)
 	case *Map:
 		y, ok := y.(*Map)
 		if !ok {
@@ -544,13 +558,27 @@ func Equal(x, y Type) bool {
 		if x == nil || y == nil {
 			return false
 		}
-		if !Equal(x.Key, y.Key) {
+		if !eq.equal(x.Key, y.Key) {
 			return false
 		}
-		return Equal(x.Value, y.Value)
+		return eq.equal(x.Value, y.Value)
+	case *Unresolved:
+		if !eq.matchUnresolved {
+			return false
+		}
+		y, ok := y.(*Unresolved)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		return true
 	}
-	fmt.Printf("tipe.Equal TODO %T\n", x)
-	return false
+	panic(fmt.Sprintf("tipe.Equal TODO %T\n", x))
 }
 
 func (t Interface) String() string {

@@ -718,10 +718,10 @@ var stmtTests = []stmtTest{
 		&stmt.MethodikDecl{
 			Name: "T",
 			Type: &tipe.Methodik{
-				Type: &tipe.Struct{
+				Type: &tipe.Pointer{Elem: &tipe.Struct{
 					FieldNames: []string{"x", "y"},
 					Fields:     []tipe.Type{tinteger, &tipe.Table{tint64}},
-				},
+				}},
 				MethodNames: []string{"f"},
 				Methods: []*tipe.Func{{
 					Params:  &tipe.Tuple{Elems: []tipe.Type{tinteger}},

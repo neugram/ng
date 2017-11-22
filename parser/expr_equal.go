@@ -7,7 +7,6 @@ package parser
 import (
 	"fmt"
 	"math/big"
-	"reflect"
 
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
@@ -75,7 +74,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if !equalExprs(x.Keys, y.Keys) {
@@ -93,7 +92,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if !equalExprs(x.Keys, y.Keys) {
@@ -111,7 +110,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if !equalExprs(x.Elems, y.Elems) {
@@ -126,7 +125,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if !equalExprs(x.ColNames, y.ColNames) {
@@ -149,7 +148,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if x == nil || y == nil {
 			return x == nil && y == nil
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		return true
@@ -248,7 +247,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !EqualExpr(x.Left, y.Left) {
 			return false
 		}
-		return equalType(x.Type, y.Type)
+		return tipe.EqualUnresolved(x.Type, y.Type)
 	case *expr.ShellList:
 		y, ok := y.(*expr.ShellList)
 		if !ok {
@@ -446,7 +445,7 @@ func equalTuple(x, y *tipe.Tuple) bool {
 		return false
 	}
 	for i := range x.Elems {
-		if !equalType(x.Elems[i], y.Elems[i]) {
+		if !tipe.EqualUnresolved(x.Elems[i], y.Elems[i]) {
 			return false
 		}
 	}
@@ -458,180 +457,15 @@ func equalTypes(t0, t1 []tipe.Type) bool {
 		return false
 	}
 	for i := range t0 {
-		if !equalType(t0[i], t1[i]) {
+		if !tipe.EqualUnresolved(t0[i], t1[i]) {
 			return false
 		}
-	}
-	return true
-}
-
-func equalType(t0, t1 tipe.Type) bool {
-	if t0 == nil && t1 == nil {
-		return true
-	}
-	if t0 == nil || t1 == nil {
-		return false
-	}
-	switch t0 := t0.(type) {
-	case tipe.Basic:
-		if t0 != t1 {
-			return false
-		}
-	case tipe.Builtin:
-		if t0 != t1 {
-			return false
-		}
-	case *tipe.Func:
-		t1, ok := t1.(*tipe.Func)
-		if !ok {
-			panic("not both tipe.Func")
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalTuple(t0.Params, t1.Params) {
-			return false
-		}
-		if !equalTuple(t0.Results, t1.Results) {
-			return false
-		}
-	case *tipe.Struct:
-		t1, ok := t1.(*tipe.Struct)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if t0.Spec != t1.Spec {
-			return false
-		}
-		if !reflect.DeepEqual(t0.FieldNames, t1.FieldNames) {
-			return false
-		}
-		if len(t0.Fields) != len(t1.Fields) {
-			return false
-		}
-		for i := range t0.Fields {
-			if !equalType(t0.Fields[i], t1.Fields[i]) {
-				return false
-			}
-		}
-	case *tipe.Map:
-		t1, ok := t1.(*tipe.Map)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalType(t0.Key, t1.Key) {
-			return false
-		}
-		if !equalType(t0.Value, t1.Value) {
-			return false
-		}
-	case *tipe.Methodik:
-		t1, ok := t1.(*tipe.Methodik)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if t0.Spec != t1.Spec {
-			return false
-		}
-		if !reflect.DeepEqual(t0.MethodNames, t1.MethodNames) {
-			return false
-		}
-		if len(t0.Methods) != len(t1.Methods) {
-			return false
-		}
-		for i := range t0.Methods {
-			if !equalType(t0.Methods[i], t1.Methods[i]) {
-				return false
-			}
-		}
-	case *tipe.Ellipsis:
-		t1, ok := t1.(*tipe.Ellipsis)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalType(t0.Elem, t1.Elem) {
-			return false
-		}
-	case *tipe.Array:
-		t1, ok := t1.(*tipe.Array)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if t0.Len != t1.Len {
-			return false
-		}
-		if !equalType(t0.Elem, t1.Elem) {
-			return false
-		}
-	case *tipe.Slice:
-		t1, ok := t1.(*tipe.Slice)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalType(t0.Elem, t1.Elem) {
-			return false
-		}
-	case *tipe.Table:
-		t1, ok := t1.(*tipe.Table)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalType(t0.Type, t1.Type) {
-			return false
-		}
-	case *tipe.Unresolved:
-		// TODO a correct definition for a parser, but not for a type checker
-		t1, ok := t1.(*tipe.Unresolved)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if t0.Name != t1.Name {
-			return false
-		}
-	case *tipe.Pointer:
-		t1, ok := t1.(*tipe.Pointer)
-		if !ok {
-			return false
-		}
-		if t0 == nil || t1 == nil {
-			return t0 == nil && t1 == nil
-		}
-		if !equalType(t0.Elem, t1.Elem) {
-			return false
-		}
-	default:
-		panic(fmt.Sprintf("unknown type: %T", t0))
 	}
 	return true
 }
 
 func equalFuncLiteral(f0, f1 *expr.FuncLiteral) bool {
-	if !equalType(f0.Type, f1.Type) {
+	if !tipe.EqualUnresolved(f0.Type, f1.Type) {
 		return false
 	}
 	if f0.Body != nil || f1.Body != nil {
@@ -774,7 +608,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Name != y.Name {
 			return false
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if len(x.Methods) != len(y.Methods) {
@@ -793,7 +627,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Name != y.Name {
 			return false
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 	case *stmt.Const:
@@ -804,7 +638,7 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if x.Name != y.Name {
 			return false
 		}
-		if !equalType(x.Type, y.Type) {
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
 		if !EqualExpr(x.Value, y.Value) {
