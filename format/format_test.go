@@ -35,6 +35,16 @@ var roundTripStmts = []string{
 	"path/filepath"
 )`,
 	"type Ints []int",
+
+	`methodik foo struct {
+	S string
+} {}`,
+
+	`methodik foo struct {
+	I int
+} {
+	func (f) F() int {return f.I}
+}`,
 }
 
 func TestRoundTrip(t *testing.T) {

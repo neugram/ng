@@ -48,6 +48,26 @@ func (p *printer) tipe(t tipe.Type) {
 		p.indent--
 		p.newline()
 		p.buf.WriteByte('}')
+	case *tipe.Methodik:
+		p.buf.WriteString("methodik ")
+		p.buf.WriteString(t.Name)
+		p.buf.WriteString(" ")
+		p.tipe(t.Type)
+		p.buf.WriteString(" {")
+		if len(t.Methods) == 0 {
+			p.buf.WriteString("}")
+			return
+		}
+		p.indent++
+		for i, m := range t.Methods {
+			p.newline()
+			p.buf.WriteString("func ")
+			p.buf.WriteString(t.MethodNames[i])
+			p.tipeFuncSig(m)
+		}
+		p.indent--
+		p.newline()
+		p.buf.WriteByte('}')
 	case *tipe.Pointer:
 		p.buf.WriteByte('*')
 		p.tipe(t.Elem)

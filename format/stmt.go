@@ -42,6 +42,24 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.buf.WriteString(s.Name)
 		p.buf.WriteString(" ")
 		p.tipe(s.Type)
+	case *stmt.MethodikDecl:
+		p.buf.WriteString("methodik ")
+		p.buf.WriteString(s.Name)
+		p.buf.WriteString(" ")
+		p.tipe(s.Type.Type)
+		if len(s.Methods) == 0 {
+			p.buf.WriteString(" {}")
+			return
+		}
+		p.buf.WriteString(" {")
+		p.indent++
+		for _, m := range s.Methods {
+			p.newline()
+			p.expr(m)
+		}
+		p.indent--
+		p.newline()
+		p.buf.WriteString("}")
 	case *stmt.Simple:
 		p.expr(s.Expr)
 	case *stmt.Return:
