@@ -29,6 +29,9 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.Unary:
 		p.buf.WriteString(e.Op.String())
 		WriteExpr(p.buf, e.Expr)
+		if e.Op == token.LeftParen {
+			p.buf.WriteByte(')')
+		}
 	case *expr.Bad:
 		fmt.Fprintf(p.buf, "bad(%q)", e.Error)
 	case *expr.Slice:

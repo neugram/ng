@@ -5,11 +5,10 @@ import (
 
 	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
 )
 
-var roundTripTests = []string{
+var roundTripExprs = []string{
 	"$$ sleep 1 && X=V Y=U env | grep X= & echo first || false; echo last $$",
 	"$$ (echo a && echo b); echo c $$",
 	`$$
@@ -28,9 +27,25 @@ $$`,
 	"new(int)",
 }
 
+var roundTripStmts = []string{
+	"import ()",
+	`import stdpath "path"`,
+	`import (
+	stdpath "path"
+	"path/filepath"
+)`,
+	"type Ints []int",
+}
+
 func TestRoundTrip(t *testing.T) {
-	for _, src := range roundTripTests {
-		s, err := parser.ParseStmt([]byte("(" + src + ")"))
+	var srcs []string
+	for _, src := range roundTripExprs {
+		srcs = append(srcs, "("+src+")")
+	}
+	srcs = append(srcs, roundTripStmts...)
+
+	for _, src := range srcs {
+		s, err := parser.ParseStmt([]byte(src))
 		if err != nil {
 			t.Errorf("ParseStmt(%q): error: %v", src, err)
 			continue
@@ -39,8 +54,7 @@ func TestRoundTrip(t *testing.T) {
 			t.Errorf("ParseStmt(%q): nil stmt", src)
 			continue
 		}
-		e := s.(*stmt.Simple).Expr.(*expr.Unary).Expr
-		got := format.Expr(e)
+		got := format.Stmt(s)
 		if got != src {
 			t.Errorf("bad ouput: Expr(%q)=%q", src, got)
 		}
