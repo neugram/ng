@@ -832,8 +832,11 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 			if ft == nil {
 				continue
 			}
-			s.FieldNames = append(s.FieldNames, f.Name())
-			s.Fields = append(s.Fields, ft)
+			s.Fields = append(s.Fields, tipe.StructField{
+				Name: f.Name(),
+				Type: ft,
+				// TODO Embedded
+			})
 		}
 	case *gotypes.Pointer:
 		elem := c.fromGoType(t.Elem())
@@ -1109,10 +1112,10 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 	case *tipe.Struct:
 		usesNum := false
 		resolved := true
-		for i, f := range t.Fields {
-			f, r1 := c.resolve(f)
-			usesNum = usesNum || tipe.UsesNum(f)
-			t.Fields[i] = f
+		for i, sf := range t.Fields {
+			ft, r1 := c.resolve(sf.Type)
+			usesNum = usesNum || tipe.UsesNum(ft)
+			t.Fields[i].Type = ft
 			resolved = resolved && r1
 		}
 		if usesNum {
@@ -1815,8 +1818,8 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				p.mode = modeInvalid
 				return p
 			}
-			for i, ft := range t.Fields {
-				c.assign(&elemsp[i], ft)
+			for i, sf := range t.Fields {
+				c.assign(&elemsp[i], sf.Type)
 				if elemsp[i].mode == modeInvalid {
 					p.mode = modeInvalid
 					return p
@@ -1833,12 +1836,12 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 				namedp[ident.Name] = elemp
 			}
-			for i, ft := range t.Fields {
-				elemp, found := namedp[t.FieldNames[i]]
+			for _, sf := range t.Fields {
+				elemp, found := namedp[sf.Name]
 				if !found {
 					continue
 				}
-				c.assign(&elemp, ft)
+				c.assign(&elemp, sf.Type)
 				if elemp.mode == modeInvalid {
 					p.mode = modeInvalid
 					return p
@@ -2179,10 +2182,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		}
 		switch lt := lt.(type) {
 		case *tipe.Struct:
-			for i, name := range lt.FieldNames {
-				if name == right {
+			for _, sf := range lt.Fields {
+				if sf.Name == right {
 					p.mode = modeVar
-					p.typ = lt.Fields[i]
+					p.typ = sf.Type
 					return
 				}
 			}
@@ -2639,9 +2642,9 @@ func findMember(t tipe.Type, name string) (mt tipe.Type) {
 		}
 
 		if st, isStruct := t.(*tipe.Struct); isStruct {
-			for i, fname := range st.FieldNames {
-				if fname == name {
-					return st.Fields[i]
+			for _, sf := range st.Fields {
+				if sf.Name == name {
+					return sf.Type
 				}
 				// TODO: if the field is an embedding,
 				// collect it onto the list of types
@@ -3037,8 +3040,8 @@ func isComparable(t tipe.Type) bool {
 	case *tipe.Chan, *tipe.Interface, *tipe.Pointer:
 		return true
 	case *tipe.Struct:
-		for _, f := range t.Fields {
-			if !isComparable(f) {
+		for _, sf := range t.Fields {
+			if !isComparable(sf.Type) {
 				return false
 			}
 		}

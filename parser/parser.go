@@ -719,11 +719,13 @@ func (p *Parser) maybeParseType() tipe.Type {
 			n := p.parseIdent().Name
 			t := p.parseType()
 			if tags[n] {
-				p.errorf("field %s redeclared in struct %s", n, s)
+				p.errorf("field %s redeclared in struct %s", n, format.Type(s))
 			} else {
 				tags[n] = true
-				s.FieldNames = append(s.FieldNames, n)
-				s.Fields = append(s.Fields, t)
+				s.Fields = append(s.Fields, tipe.StructField{
+					Name: n,
+					Type: t,
+				})
 			}
 			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
 				p.next()

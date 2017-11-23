@@ -89,7 +89,7 @@ var typeTests = []typeTest{
 			`b := a.X`,
 		},
 		[]identType{
-			{"a", &tipe.Struct{FieldNames: []string{"X"}, Fields: []tipe.Type{tipe.Float64}}},
+			{"a", &tipe.Struct{Fields: []tipe.StructField{{Name: "X", Type: tipe.Float64}}}},
 			{"b", tipe.Float64},
 		},
 	},

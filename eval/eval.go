@@ -871,10 +871,10 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				Anonymous: true,
 			})
 		}
-		for i, f := range st.Fields {
+		for _, f := range st.Fields {
 			fields = append(fields, reflect.StructField{
-				Name: st.FieldNames[i],
-				Type: r.ToRType(f),
+				Name: f.Name,
+				Type: r.ToRType(f.Type),
 			})
 		}
 		rtype := reflect.StructOf(fields)
@@ -1825,10 +1825,10 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 		rtype = reflect.FuncOf(in, out, t.Variadic)
 	case *tipe.Struct:
 		var fields []reflect.StructField
-		for i, f := range t.Fields {
+		for _, f := range t.Fields {
 			fields = append(fields, reflect.StructField{
-				Name: t.FieldNames[i],
-				Type: r.toRType(f),
+				Name: f.Name,
+				Type: r.toRType(f.Type),
 			})
 		}
 		rtype = reflect.StructOf(fields)

@@ -28,22 +28,22 @@ func (p *printer) tipe(t tipe.Type) {
 		p.buf.WriteString("struct {")
 		p.indent++
 		maxlen := 0
-		for _, name := range t.FieldNames {
-			if len(name) > maxlen {
-				maxlen = len(name)
+		for _, sf := range t.Fields {
+			if len(sf.Name) > maxlen {
+				maxlen = len(sf.Name)
 			}
 		}
-		for i, ft := range t.Fields {
+		for _, sf := range t.Fields {
 			p.newline()
-			name := "*ERROR*No*Name*"
-			if i < len(t.FieldNames) {
-				name = t.FieldNames[i]
+			name := sf.Name
+			if name == "" {
+				name = "*ERROR*No*Name*"
 			}
 			p.buf.WriteString(name)
 			for i := len(name); i <= maxlen; i++ {
 				p.buf.WriteByte(' ')
 			}
-			p.tipe(ft)
+			p.tipe(sf.Type)
 		}
 		p.indent--
 		p.newline()

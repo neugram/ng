@@ -671,10 +671,9 @@ var stmtTests = []stmtTest{
 		`type S struct { x integer }`,
 		&stmt.TypeDecl{
 			Name: "S",
-			Type: &tipe.Struct{
-				FieldNames: []string{"x"},
-				Fields:     []tipe.Type{tinteger},
-			},
+			Type: &tipe.Struct{Fields: []tipe.StructField{
+				{Name: "x", Type: tinteger},
+			}},
 		},
 	},
 	{
@@ -718,10 +717,10 @@ var stmtTests = []stmtTest{
 		&stmt.MethodikDecl{
 			Name: "T",
 			Type: &tipe.Methodik{
-				Type: &tipe.Pointer{Elem: &tipe.Struct{
-					FieldNames: []string{"x", "y"},
-					Fields:     []tipe.Type{tinteger, &tipe.Table{tint64}},
-				}},
+				Type: &tipe.Pointer{Elem: &tipe.Struct{Fields: []tipe.StructField{
+					{Name: "x", Type: tinteger},
+					{Name: "y", Type: &tipe.Table{Type: tint64}},
+				}}},
 				MethodNames: []string{"f"},
 				Methods: []*tipe.Func{{
 					Params:  &tipe.Tuple{Elems: []tipe.Type{tinteger}},

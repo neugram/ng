@@ -27,9 +27,15 @@ type Func struct {
 }
 
 type Struct struct {
-	Spec       Specialization
-	FieldNames []string
-	Fields     []Type
+	Spec   Specialization
+	Fields []StructField
+}
+
+// StructField is a field of a Struct. It is not an ng type.
+type StructField struct {
+	Name     string
+	Type     Type
+	Embedded bool
 }
 
 // TODO rename to Named
@@ -273,8 +279,8 @@ func UsesNum(t Type) bool {
 			}
 		}
 	case *Struct:
-		for _, t := range t.Fields {
-			if UsesNum(t) {
+		for _, sf := range t.Fields {
+			if UsesNum(sf.Type) {
 				return true
 			}
 		}
@@ -384,14 +390,17 @@ func (eq *equaler) equal(x, y Type) bool {
 		if x.Spec != y.Spec {
 			return false
 		}
-		if !reflect.DeepEqual(x.FieldNames, y.FieldNames) {
-			return false
-		}
 		if len(x.Fields) != len(y.Fields) {
 			return false
 		}
 		for i := range x.Fields {
-			if !eq.equal(x.Fields[i], y.Fields[i]) {
+			if x.Fields[i].Name != y.Fields[i].Name {
+				return false
+			}
+			if x.Fields[i].Embedded != y.Fields[i].Embedded {
+				return false
+			}
+			if !eq.equal(x.Fields[i].Type, y.Fields[i].Type) {
 				return false
 			}
 		}
