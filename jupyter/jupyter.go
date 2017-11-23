@@ -538,7 +538,7 @@ type executeReply struct {
 func newUUID() string {
 	var uuid [16]byte
 	if _, err := io.ReadFull(rand.Reader, uuid[:]); err != nil {
-		log.Fatal("cannot generate random data for UUID: %v", err)
+		log.Fatalf("cannot generate random data for UUID: %v", err)
 	}
 	uuid[8] = uuid[8]&^0xc0 | 0x80
 	uuid[6] = uuid[6]&^0xf0 | 0x40
