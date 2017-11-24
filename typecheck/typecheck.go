@@ -25,6 +25,7 @@ import (
 	"neugram.io/ng/format"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
+	"neugram.io/ng/syntax"
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
@@ -71,6 +72,18 @@ func New(initPkg string) *Checker {
 		},
 		importWalk: []string{initPkg},
 		memory:     tipe.NewMemory(),
+	}
+}
+
+// Check typechecks a Neugram package.
+// Errors are reported in the Errs field of c.
+func (c *Checker) Check(f *syntax.File) {
+	c.Errs = c.Errs[:0]
+	for _, s := range f.Stmts {
+		c.Add(s)
+		if len(c.Errs) > 5 {
+			return
+		}
 	}
 }
 
