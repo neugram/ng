@@ -43,11 +43,9 @@ type Checker struct {
 	GoPkgs        map[string]*tipe.Package // path -> pkg
 	GoTypes       map[gotypes.Type]tipe.Type
 	goTypesToFill map[gotypes.Type]tipe.Type
-	// TODO: GoEquiv is tricky and deserving of docs. Particular type instance is associated with a Go type. That means EqualType(t1, t2)==true but t1 could have GoEquiv and t2 not.
-	GoEquiv    map[tipe.Type]gotypes.Type
-	NumSpec    map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
-	Errs       []error
-	importWalk []string // in-process pkgs, used to detect cycles
+	NumSpec       map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
+	Errs          []error
+	importWalk    []string // in-process pkgs, used to detect cycles
 
 	cur *Scope
 
@@ -67,7 +65,6 @@ func New(initPkg string) *Checker {
 		GoPkgs:        make(map[string]*tipe.Package),
 		GoTypes:       make(map[gotypes.Type]tipe.Type),
 		goTypesToFill: make(map[gotypes.Type]tipe.Type),
-		GoEquiv:       make(map[tipe.Type]gotypes.Type), // TODO remove?
 		cur: &Scope{
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
@@ -701,9 +698,6 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		} else {
 			c.GoTypes[t] = res
 			c.goTypesToFill[t] = res
-			if _, isBasic := t.(*gotypes.Basic); !isBasic {
-				c.GoEquiv[res] = t
-			}
 		}
 	}()
 	switch t := t.(type) {
@@ -2040,11 +2034,6 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 			p.mode = modeVar
 			p.typ = &tipe.Pointer{Elem: sub.typ}
-			if goElem := c.GoEquiv[sub.typ]; goElem != nil {
-				goType := gotypes.NewPointer(goElem)
-				c.GoEquiv[p.typ] = goType
-				c.GoTypes[goType] = p.typ
-			}
 			return p
 		case token.Mul:
 			sub := c.expr(e.Expr)
