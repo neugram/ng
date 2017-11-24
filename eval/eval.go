@@ -438,9 +438,8 @@ func (p *Program) Eval(s stmt.Stmt, sigint <-chan os.Signal) (res []reflect.Valu
 		}
 	}()
 
-	p.Types.Errs = p.Types.Errs[:0]
 	p.Types.Add(s)
-	if len(p.Types.Errs) > 0 {
+	if errs := p.Types.Errs(); len(errs) > 0 {
 		// Friendly interactive shell error messages.
 		if s, isSimple := s.(*stmt.Simple); isSimple {
 			if e, isIdent := s.Expr.(*expr.Ident); isIdent && (e.Name == "exit" || e.Name == "logout") {
@@ -450,7 +449,7 @@ func (p *Program) Eval(s stmt.Stmt, sigint <-chan os.Signal) (res []reflect.Valu
 			}
 		}
 
-		return nil, fmt.Errorf("typecheck: %v\n", p.Types.Errs[0])
+		return nil, fmt.Errorf("typecheck: %v\n", errs[0])
 	}
 
 	p.branchType = brNone
@@ -625,7 +624,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			path := filepath.Join(filepath.Dir(p.Path), s.Path)
 			pkg = p.Pkgs[path]
 			if pkg == nil {
-				typ := p.Types.NgPkgs[path]
+				typ := p.Types.NgPkg(path)
 				if typ == nil {
 					panic(Panic{val: fmt.Errorf("cannot find package typechecking: %v", path)})
 				}

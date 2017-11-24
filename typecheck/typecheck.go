@@ -35,22 +35,18 @@ import (
 type Checker struct {
 	ImportGo func(path string) (*gotypes.Package, error)
 
-	// TODO: we could put these on our AST. Should we?
-	// TODO: unexport fields that should be guarded by mu
 	mu            *sync.Mutex
-	types         map[expr.Expr]tipe.Type
-	Values        map[expr.Expr]constant.Value
-	NgPkgs        map[string]*tipe.Package // abs file path -> pkg
-	GoPkgs        map[string]*tipe.Package // path -> pkg
-	GoTypes       map[gotypes.Type]tipe.Type
+	types         map[expr.Expr]tipe.Type      // computed type for each expression
+	consts        map[expr.Expr]constant.Value // component constand for const expressions
+	ngPkgs        map[string]*tipe.Package     // abs file path -> neugram pkg
+	goPkgs        map[string]*tipe.Package     // import path -> go pkg
+	goTypes       map[gotypes.Type]tipe.Type   // cache for the fromGoType method
 	goTypesToFill map[gotypes.Type]tipe.Type
-	NumSpec       map[expr.Expr]tipe.Basic // *tipe.Call, *tipe.CompLiteral -> numeric basic type
-	Errs          []error
+	errs          []error
 	importWalk    []string // in-process pkgs, used to detect cycles
+	memory        *tipe.Memory
 
 	cur *Scope
-
-	memory *tipe.Memory
 }
 
 func New(initPkg string) *Checker {
@@ -61,10 +57,10 @@ func New(initPkg string) *Checker {
 		mu:            new(sync.Mutex),
 		types:         make(map[expr.Expr]tipe.Type),
 		ImportGo:      goimporter.Default().Import,
-		Values:        make(map[expr.Expr]constant.Value),
-		NgPkgs:        make(map[string]*tipe.Package),
-		GoPkgs:        make(map[string]*tipe.Package),
-		GoTypes:       make(map[gotypes.Type]tipe.Type),
+		consts:        make(map[expr.Expr]constant.Value),
+		ngPkgs:        make(map[string]*tipe.Package),
+		goPkgs:        make(map[string]*tipe.Package),
+		goTypes:       make(map[gotypes.Type]tipe.Type),
 		goTypesToFill: make(map[gotypes.Type]tipe.Type),
 		cur: &Scope{
 			Parent: Universe,
@@ -76,15 +72,27 @@ func New(initPkg string) *Checker {
 }
 
 // Check typechecks a Neugram package.
-// Errors are reported in the Errs field of c.
+// Errors are reported via the Errs method.
 func (c *Checker) Check(f *syntax.File) {
-	c.Errs = c.Errs[:0]
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.errs = c.errs[:0]
 	for _, s := range f.Stmts {
 		c.Add(s)
-		if len(c.Errs) > 5 {
+		if len(c.errs) > 5 {
 			return
 		}
 	}
+}
+
+// Errs returns any errors encountered during type checking.
+func (c *Checker) Errs() []error {
+	if len(c.errs) == 0 {
+		return nil
+	}
+	res := append([]error{}, c.errs...)
+	c.errs = c.errs[:0]
+	return res
 }
 
 type typeHint int
@@ -702,14 +710,14 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 var goErrorID = gotypes.Universe.Lookup("error").Id()
 
 func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
-	if res = c.GoTypes[t]; res != nil {
+	if res = c.goTypes[t]; res != nil {
 		return res
 	}
 	defer func() {
 		if res == nil {
 			fmt.Printf("typecheck: unknown go type: %v\n", t)
 		} else {
-			c.GoTypes[t] = res
+			c.goTypes[t] = res
 			c.goTypesToFill[t] = res
 		}
 	}()
@@ -874,7 +882,7 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 }
 
 func (c *Checker) goPkg(path string) (*tipe.Package, error) {
-	if pkg := c.GoPkgs[path]; pkg != nil {
+	if pkg := c.goPkgs[path]; pkg != nil {
 		return pkg, nil
 	}
 	goPath := path
@@ -895,7 +903,7 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 		Path:    gopkg.Path(),
 		Exports: make(map[string]tipe.Type),
 	}
-	c.GoPkgs[path] = pkg
+	c.goPkgs[path] = pkg
 
 	for _, name := range gopkg.Scope().Names() {
 		obj := gopkg.Scope().Lookup(name)
@@ -911,6 +919,14 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 		}
 	}
 	return pkg, nil
+}
+
+// NgPkg returns the type-checked neugram package at the absolute path.
+// If the type checker has not processed the package, nil is returned.
+func (c *Checker) NgPkg(path string) *tipe.Package {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ngPkgs[path]
 }
 
 func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
@@ -932,7 +948,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 			return nil, fmt.Errorf("package import cycle: %s", cycle)
 		}
 	}
-	if pkg := c.NgPkgs[path]; pkg != nil {
+	if pkg := c.ngPkgs[path]; pkg != nil {
 		return pkg, nil
 	}
 
@@ -959,7 +975,7 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		Path:    path,
 		Exports: make(map[string]tipe.Type),
 	}
-	c.NgPkgs[path] = pkg
+	c.ngPkgs[path] = pkg
 	for scope := c.cur; scope != Universe; scope = scope.Parent {
 		for name, obj := range scope.Objs {
 			if !isExported(name) {
@@ -991,8 +1007,8 @@ func (c *Checker) parseFile(filename string, f *os.File) error {
 		}
 		for _, s := range res.Stmts {
 			c.stmt(s, nil)
-			if len(c.Errs) > 0 {
-				return fmt.Errorf("%d: typecheck: %v\n", i+1, c.Errs[0])
+			if len(c.errs) > 0 {
+				return fmt.Errorf("%d: typecheck: %v\n", i+1, c.errs[0])
 			}
 		}
 	}
@@ -1688,8 +1704,8 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 	defer func() {
 		if p.mode == modeConst {
-			if _, exists := c.Values[p.expr]; !exists {
-				c.Values[p.expr] = p.val
+			if _, exists := c.consts[p.expr]; !exists {
+				c.consts[p.expr] = p.val
 			}
 		}
 		if p.mode != modeInvalid {
@@ -2576,7 +2592,7 @@ func (c *Checker) constrainExprType(e expr.Expr, t tipe.Type) {
 	case *expr.Bad, *expr.FuncLiteral: // TODO etc
 		return
 	case *expr.Binary:
-		if c.Values[e] != nil {
+		if c.consts[e] != nil {
 			break
 		}
 		switch e.Op {
@@ -2674,7 +2690,7 @@ func (c *Checker) errorfmt(formatstr string, args ...interface{}) {
 	}
 
 	err := fmt.Errorf(formatstr, args...)
-	c.Errs = append(c.Errs, err)
+	c.errs = append(c.errs, err)
 }
 
 func (c *Checker) pushScope() {
@@ -2937,7 +2953,6 @@ type Scope struct {
 	// These are used to build a list of free variables.
 	foundInParent     map[string]bool
 	foundMdikInParent map[*tipe.Methodik]bool
-	// TODO: NumSpec tipe.Type?
 }
 
 func (s *Scope) LookupRec(name string) *Obj {
