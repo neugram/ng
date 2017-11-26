@@ -37,7 +37,7 @@ type TypeDecl struct {
 type MethodikDecl struct {
 	Position src.Pos
 	Name     string
-	Type     *tipe.Methodik
+	Type     *tipe.Named
 	Methods  []*expr.FuncLiteral
 }
 

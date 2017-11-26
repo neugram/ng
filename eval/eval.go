@@ -1634,7 +1634,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", format.Expr(e), e)})
 }
 
-func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Methodik) reflect.Value {
+func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflect.Value {
 	s := &Scope{
 		Parent: p.Universe,
 	}
@@ -1831,7 +1831,7 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 			})
 		}
 		rtype = reflect.StructOf(fields)
-	case *tipe.Methodik:
+	case *tipe.Named:
 		if t.PkgPath != "" {
 			path := t.PkgPath
 			if path == "neugram.io/ng/vendor/mat" {

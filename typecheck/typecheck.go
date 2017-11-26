@@ -413,7 +413,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	case *stmt.MethodikDecl:
 		var usesNum bool
 		t, _ := c.resolve(s.Type)
-		s.Type = t.(*tipe.Methodik)
+		s.Type = t.(*tipe.Named)
 		for _, f := range s.Type.Methods {
 			usesNum = usesNum || tipe.UsesNum(f)
 		}
@@ -785,7 +785,7 @@ func (c *Checker) fromGoType(t gotypes.Type) (res tipe.Type) {
 		if t.Obj().Id() == goErrorID {
 			return Universe.Objs["error"].Type
 		}
-		return new(tipe.Methodik)
+		return new(tipe.Named)
 	case *gotypes.Array:
 		return &tipe.Array{}
 	case *gotypes.Slice:
@@ -814,8 +814,8 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 			return
 		}
 		base := c.fromGoType(t.Underlying())
-		mdik := res.(*tipe.Methodik)
-		*mdik = tipe.Methodik{
+		mdik := res.(*tipe.Named)
+		*mdik = tipe.Named{
 			Type:    base,
 			Name:    t.Obj().Name(),
 			PkgName: t.Obj().Pkg().Name(),
@@ -1140,7 +1140,7 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Key, r1 = c.resolve(t.Key)
 		t.Value, r2 = c.resolve(t.Value)
 		return t, r1 && r2
-	case *tipe.Methodik:
+	case *tipe.Named:
 		t.Type, resolved = c.resolve(t.Type)
 		for i, f := range t.Methods {
 			f, r1 := c.resolve(f)
@@ -1807,7 +1807,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		c.pushScope()
 		defer c.popScope()
 		c.cur.foundInParent = make(map[string]bool)
-		c.cur.foundMdikInParent = make(map[*tipe.Methodik]bool)
+		c.cur.foundMdikInParent = make(map[*tipe.Named]bool)
 		if e.Type.Params != nil {
 			for i, t := range e.Type.Params.Elems {
 				t, _ = c.resolve(t)
@@ -2681,7 +2681,7 @@ func findMember(t tipe.Type, name string) (mt tipe.Type) {
 	}
 
 	for t != nil {
-		if methodik, isNamed := t.(*tipe.Methodik); isNamed {
+		if methodik, isNamed := t.(*tipe.Named); isNamed {
 			for i, mname := range methodik.MethodNames {
 				if mname == name {
 					return methodik.Methods[i]
@@ -2983,7 +2983,7 @@ type Scope struct {
 	// foundMdikInParent tracks any Methodik defined up the scope chain.
 	// These are used to build a list of free variables.
 	foundInParent     map[string]bool
-	foundMdikInParent map[*tipe.Methodik]bool
+	foundMdikInParent map[*tipe.Named]bool
 }
 
 func (s *Scope) LookupRec(name string) *Obj {
@@ -3001,7 +3001,7 @@ func (s *Scope) LookupRec(name string) *Obj {
 		s.foundInParent[name] = true
 	}
 	if s.foundMdikInParent != nil && o.Kind == ObjType {
-		if mdik, ok := o.Type.(*tipe.Methodik); ok {
+		if mdik, ok := o.Type.(*tipe.Named); ok {
 			s.foundMdikInParent[mdik] = true
 		}
 	}

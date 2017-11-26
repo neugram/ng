@@ -683,7 +683,7 @@ var stmtTests = []stmtTest{
 		`,
 		&stmt.MethodikDecl{
 			Name: "AnInt",
-			Type: &tipe.Methodik{
+			Type: &tipe.Named{
 				Type:        tinteger,
 				MethodNames: []string{"f"},
 				Methods: []*tipe.Func{{
@@ -716,7 +716,7 @@ var stmtTests = []stmtTest{
 		`,
 		&stmt.MethodikDecl{
 			Name: "T",
-			Type: &tipe.Methodik{
+			Type: &tipe.Named{
 				Type: &tipe.Pointer{Elem: &tipe.Struct{Fields: []tipe.StructField{
 					{Name: "x", Type: tinteger},
 					{Name: "y", Type: &tipe.Table{Type: tint64}},

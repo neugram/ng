@@ -23,7 +23,7 @@ type Func struct {
 	Results  *Tuple
 	Variadic bool // last value of Params is a slice
 	FreeVars []string
-	FreeMdik []*Methodik
+	FreeMdik []*Named
 }
 
 type Struct struct {
@@ -38,8 +38,18 @@ type StructField struct {
 	Embedded bool
 }
 
-// TODO rename to Named
-type Methodik struct {
+// Named is a named type.
+// A named type is declared either using a type declaration:
+//
+//	type S struct{}
+//
+// or the methodik declaration:
+//
+//	methodik S struct{} {}
+//
+// As in Go, a named type has an underlying type.
+// A named type can also have methods associated with it.
+type Named struct {
 	// TODO: need to track the definition package so the evaluator can
 	// extract the mscope from the right place. Is this the only
 	// instance of needing the source package? What about debug printing?
@@ -120,7 +130,7 @@ var (
 
 // Specialization carries any type specialization data particular to this type.
 //
-// *Func, *Struct, *Methodik can be parameterized over the name num, which can
+// *Func, *Struct, *Named can be parameterized over the name num, which can
 // take any of:
 //
 //	integer, int64, float, float32, float64, complex, complex128
@@ -205,7 +215,7 @@ var (
 	_ = Type(Builtin(""))
 	_ = Type((*Func)(nil))
 	_ = Type((*Struct)(nil))
-	_ = Type((*Methodik)(nil))
+	_ = Type((*Named)(nil))
 	_ = Type((*Ellipsis)(nil))
 	_ = Type((*Array)(nil))
 	_ = Type((*Slice)(nil))
@@ -224,7 +234,7 @@ func (t Basic) tipe()       {}
 func (t Builtin) tipe()     {}
 func (t *Func) tipe()       {}
 func (t *Struct) tipe()     {}
-func (t *Methodik) tipe()   {}
+func (t *Named) tipe()      {}
 func (t *Ellipsis) tipe()   {}
 func (t *Array) tipe()      {}
 func (t *Slice) tipe()      {}
@@ -284,7 +294,7 @@ func UsesNum(t Type) bool {
 				return true
 			}
 		}
-	case *Methodik:
+	case *Named:
 		for _, t := range t.Methods {
 			if UsesNum(t) {
 				return true
@@ -405,8 +415,8 @@ func (eq *equaler) equal(x, y Type) bool {
 			}
 		}
 		return true
-	case *Methodik:
-		y, ok := y.(*Methodik)
+	case *Named:
+		y, ok := y.(*Named)
 		if !ok {
 			return false
 		}
@@ -609,7 +619,7 @@ func Underlying(t Type) Type {
 	switch t := t.(type) {
 	case *Alias:
 		return Underlying(t.Type)
-	case *Methodik:
+	case *Named:
 		return Underlying(t.Type)
 	default:
 		return t
@@ -664,7 +674,6 @@ func (m *Memory) Method(t Type, name string) *Func {
 func methods(t Type, methodset map[string]Type, pointersRemoved int) {
 	t = Unalias(t)
 	switch t := t.(type) {
-	// TODO case *Named:
 	case *Pointer:
 		if pointersRemoved < 1 {
 			methods(t.Elem, methodset, pointersRemoved+1)
@@ -676,7 +685,7 @@ func methods(t Type, methodset map[string]Type, pointersRemoved int) {
 			}
 			methodset[name] = typ
 		}
-	case *Methodik:
+	case *Named:
 		for i, name := range t.MethodNames {
 			if methodset[name] != nil {
 				continue

@@ -636,7 +636,7 @@ func (p *Parser) parseParamTuple() (names []string, params *tipe.Tuple) {
 func (p *Parser) parseMethodik(name string) *stmt.MethodikDecl {
 	c := &stmt.MethodikDecl{
 		Name: name,
-		Type: &tipe.Methodik{
+		Type: &tipe.Named{
 			// TODO Spec
 			Type: p.parseType(),
 		},
