@@ -24,6 +24,7 @@ import (
 	"neugram.io/ng/format"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
+	"neugram.io/ng/syntax"
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
@@ -1035,6 +1036,7 @@ func (c *Checker) parseFile(filename string, source []byte) error {
 	if err != nil {
 		return err
 	}
+	c.curPkg.Syntax = f
 
 	for _, s := range f.Stmts {
 		c.stmt(s, nil)
@@ -3075,6 +3077,7 @@ type Package struct {
 	Type     *tipe.Package
 	Exported []*Obj
 	Exports  map[string]*Obj
+	Syntax   *syntax.File
 }
 
 func isTyped(t tipe.Type) bool {
