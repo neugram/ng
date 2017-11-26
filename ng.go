@@ -23,6 +23,7 @@ import (
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/gengo"
 	"neugram.io/ng/jupyter"
 	"neugram.io/ng/parser"
 
@@ -65,7 +66,7 @@ func mode() liner.ModeApplier {
 	return m
 }
 
-const usageLine = "ng [programfile | -e cmd] [arguments]"
+const usageLine = "ng [programfile | -e cmd | -jupyter file] [arguments]"
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `ng - neugram scripting language and shell
@@ -82,15 +83,16 @@ func main() {
 	shell.Init()
 
 	flagJupyter := flag.String("jupyter", "", "path to jupyter kernel connection file")
-	help := flag.Bool("h", false, "display help message and exit")
-	e := flag.String("e", "", "program passed as a string")
+	flagHelp := flag.Bool("h", false, "display help message and exit")
+	flagE := flag.String("e", "", "program passed as a string")
+	flagO := flag.String("o", "", "compile the program to the named file")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: %s\n", usageLine)
 		os.Exit(1)
 	}
 	flag.Parse()
 
-	if *help {
+	if *flagHelp {
 		usage()
 		os.Exit(0)
 	}
@@ -102,15 +104,24 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	if *e != "" {
+	if *flagE != "" {
 		initProgram(filepath.Join(cwd, "ng-arg"))
-		res := p.ParseLine([]byte(*e))
+		res := p.ParseLine([]byte(*flagE))
 		handleResult(res)
 		return
 	}
 	if args := flag.Args(); len(args) > 0 {
 		// TODO: plumb through the rest of the args
 		path := args[0]
+		if *flagO != "" {
+			res, err := gengo.GenGo(path)
+			if err != nil {
+				exitf("%v", err)
+			}
+			_ = res
+			exitf("TODO gengo")
+			return
+		}
 		initProgram(path)
 		f, err := os.Open(path)
 		if err != nil {
@@ -124,6 +135,9 @@ func main() {
 			exitf("%s: ends in an unclosed shell statement", args[0])
 		}
 		return
+	}
+	if *flagO != "" {
+		exitf("-o specified but no program file provided")
 	}
 
 	lineNg = liner.NewLiner()
