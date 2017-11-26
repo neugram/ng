@@ -6,14 +6,13 @@
 package typecheck
 
 import (
-	"bufio"
 	"fmt"
 	"go/constant"
 	goimporter "go/importer"
 	gotoken "go/token"
 	gotypes "go/types"
+	"io/ioutil"
 	"math/big"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -25,7 +24,6 @@ import (
 	"neugram.io/ng/format"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
-	"neugram.io/ng/syntax"
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
@@ -38,15 +36,16 @@ type Checker struct {
 	mu            *sync.Mutex
 	types         map[expr.Expr]tipe.Type      // computed type for each expression
 	consts        map[expr.Expr]constant.Value // component constand for const expressions
-	ngPkgs        map[string]*tipe.Package     // abs file path -> neugram pkg
-	goPkgs        map[string]*tipe.Package     // import path -> go pkg
+	ngPkgs        map[string]*Package          // abs file path -> neugram pkg
+	goPkgs        map[string]*Package          // import path -> go pkg
 	goTypes       map[gotypes.Type]tipe.Type   // cache for the fromGoType method
 	goTypesToFill map[gotypes.Type]tipe.Type
 	errs          []error
 	importWalk    []string // in-process pkgs, used to detect cycles
 	memory        *tipe.Memory
 
-	cur *Scope
+	cur    *Scope
+	curPkg *Package
 }
 
 func New(initPkg string) *Checker {
@@ -58,8 +57,8 @@ func New(initPkg string) *Checker {
 		types:         make(map[expr.Expr]tipe.Type),
 		ImportGo:      goimporter.Default().Import,
 		consts:        make(map[expr.Expr]constant.Value),
-		ngPkgs:        make(map[string]*tipe.Package),
-		goPkgs:        make(map[string]*tipe.Package),
+		ngPkgs:        make(map[string]*Package),
+		goPkgs:        make(map[string]*Package),
 		goTypes:       make(map[gotypes.Type]tipe.Type),
 		goTypesToFill: make(map[gotypes.Type]tipe.Type),
 		cur: &Scope{
@@ -72,17 +71,19 @@ func New(initPkg string) *Checker {
 }
 
 // Check typechecks a Neugram package.
-// Errors are reported via the Errs method.
-func (c *Checker) Check(f *syntax.File) {
+func (c *Checker) Check(path string) (*Package, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.errs = c.errs[:0]
-	for _, s := range f.Stmts {
-		c.Add(s)
-		if len(c.errs) > 5 {
-			return
-		}
+
+	pkg, err := c.ngPkg(path)
+	if err != nil {
+		return pkg, err
 	}
+	if len(c.errs) > 0 {
+		return pkg, c.errs[0]
+	}
+	return pkg, nil
 }
 
 // Errs returns any errors encountered during type checking.
@@ -251,7 +252,8 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				if isUntyped(p.typ) {
 					c.constrainUntyped(&p, defaultType(p.typ))
 				}
-				if lhs.(*expr.Ident).Name == "_" {
+				name := lhs.(*expr.Ident).Name
+				if name == "_" {
 					if len(s.Left) == 1 {
 						c.errorfmt("no new variables in declaration")
 						return nil
@@ -259,10 +261,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					continue
 				}
 				obj := &Obj{
+					Name: name,
 					Kind: ObjVar,
 					Type: p.typ,
+					Decl: s,
 				}
-				c.cur.Objs[lhs.(*expr.Ident).Name] = obj
+				c.cur.Objs[name] = obj
 			}
 		} else {
 			for i, lhs := range s.Left {
@@ -296,8 +300,10 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			fn := p.expr.(*expr.FuncLiteral)
 			if fn.Name != "" {
 				obj := &Obj{
+					Name: fn.Name,
 					Kind: ObjVar,
 					Type: p.typ,
+					Decl: s,
 				}
 				c.cur.Objs[fn.Name] = obj
 			}
@@ -396,6 +402,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		s.Type = t
 
 		obj := &Obj{
+			Name: s.Name,
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
@@ -430,6 +437,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 
 		obj := &Obj{
+			Name: s.Name,
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
@@ -881,7 +889,7 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 	}
 }
 
-func (c *Checker) goPkg(path string) (*tipe.Package, error) {
+func (c *Checker) goPkg(path string) (*Package, error) {
 	if pkg := c.goPkgs[path]; pkg != nil {
 		return pkg, nil
 	}
@@ -898,19 +906,38 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	pkg := &tipe.Package{
-		GoPkg:   gopkg,
-		Path:    gopkg.Path(),
-		Exports: make(map[string]tipe.Type),
+	pkg := &Package{
+		GoPkg: gopkg,
+		Path:  gopkg.Path(),
+		Type: &tipe.Package{
+			GoPkg:   gopkg,
+			Path:    gopkg.Path(),
+			Exports: make(map[string]tipe.Type),
+		},
+		Exports: make(map[string]*Obj),
 	}
 	c.goPkgs[path] = pkg
 
 	for _, name := range gopkg.Scope().Names() {
-		obj := gopkg.Scope().Lookup(name)
-		if !obj.Exported() {
+		goobj := gopkg.Scope().Lookup(name)
+		if !goobj.Exported() {
 			continue
 		}
-		pkg.Exports[name] = c.fromGoType(obj.Type())
+		obj := &Obj{
+			Name: goobj.Name(), // TODO: use goobj.Id()?
+			Type: c.fromGoType(goobj.Type()),
+		}
+		switch goobj.(type) {
+		case *gotypes.Const:
+			obj.Kind = ObjConst
+		case *gotypes.Var:
+			obj.Kind = ObjVar
+		case *gotypes.TypeName:
+			obj.Kind = ObjType
+		}
+		pkg.Exported = append(pkg.Exported, obj)
+		pkg.Exports[obj.Name] = obj
+		pkg.Type.Exports[obj.Name] = obj.Type
 	}
 	for len(c.goTypesToFill) > 0 {
 		for gotyp, t := range c.goTypesToFill {
@@ -923,13 +950,13 @@ func (c *Checker) goPkg(path string) (*tipe.Package, error) {
 
 // NgPkg returns the type-checked neugram package at the absolute path.
 // If the type checker has not processed the package, nil is returned.
-func (c *Checker) NgPkg(path string) *tipe.Package {
+func (c *Checker) NgPkg(path string) *Package {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.ngPkgs[path]
 }
 
-func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
+func (c *Checker) ngPkg(path string) (*Package, error) {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(filepath.Dir(c.importWalk[len(c.importWalk)-1]), path)
 		var err error
@@ -952,42 +979,49 @@ func (c *Checker) ngPkg(path string) (*tipe.Package, error) {
 		return pkg, nil
 	}
 
-	f, err := os.Open(path)
+	source, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("ng package import: %v", err)
 	}
 	c.importWalk = append(c.importWalk, path)
 	oldcur := c.cur
+	oldcurPkg := c.curPkg
 	defer func() {
-		f.Close()
 		c.importWalk = c.importWalk[:len(c.importWalk)-1]
 		c.cur = oldcur
+		c.curPkg = oldcurPkg
 	}()
 
 	c.cur = &Scope{
 		Parent: Universe,
 		Objs:   make(map[string]*Obj),
 	}
-	if err := c.parseFile(path, f); err != nil {
+	c.curPkg = &Package{
+		Path: path,
+		Type: &tipe.Package{
+			Path:    path,
+			Exports: make(map[string]tipe.Type),
+		},
+		Exports: make(map[string]*Obj),
+	}
+	if err := c.parseFile(path, source); err != nil {
 		return nil, fmt.Errorf("ng import parse: %v", err)
 	}
-	pkg := &tipe.Package{
-		Path:    path,
-		Exports: make(map[string]tipe.Type),
-	}
-	c.ngPkgs[path] = pkg
+	c.ngPkgs[path] = c.curPkg
 	for scope := c.cur; scope != Universe; scope = scope.Parent {
 		for name, obj := range scope.Objs {
 			if !isExported(name) {
 				continue
 			}
-			if _, exists := pkg.Exports[name]; exists {
+			if c.curPkg.Exports[name] != nil {
 				continue
 			}
-			pkg.Exports[name] = obj.Type
+			c.curPkg.Exported = append(c.curPkg.Exported, obj)
+			c.curPkg.Exports[name] = obj
+			c.curPkg.Type.Exports[name] = obj.Type
 		}
 	}
-	return pkg, nil
+	return c.curPkg, nil
 }
 
 func isExported(name string) bool {
@@ -995,24 +1029,21 @@ func isExported(name string) bool {
 	return unicode.IsUpper(ch)
 }
 
-func (c *Checker) parseFile(filename string, f *os.File) error {
+func (c *Checker) parseFile(filename string, source []byte) error {
 	p := parser.New(filename)
+	f, err := p.Parse(source)
+	if err != nil {
+		return err
+	}
 
-	scanner := bufio.NewScanner(f)
-	for i := 0; scanner.Scan(); i++ {
-		line := scanner.Bytes()
-		res := p.ParseLine(line)
-		if len(res.Errs) > 0 {
-			return fmt.Errorf("%d: %v", i+1, res.Errs[0]) // TODO: position information
-		}
-		for _, s := range res.Stmts {
-			c.stmt(s, nil)
-			if len(c.errs) > 0 {
-				return fmt.Errorf("%d: typecheck: %v\n", i+1, c.errs[0])
-			}
+	for _, s := range f.Stmts {
+		c.stmt(s, nil)
+		if len(c.errs) > 0 {
+			return c.errs[0]
 		}
 	}
-	return scanner.Err()
+
+	return nil
 }
 
 func (c *Checker) checkImport(s *stmt.Import) {
@@ -1020,7 +1051,7 @@ func (c *Checker) checkImport(s *stmt.Import) {
 		c.errorfmt("imports do not support absolute paths: %q", s.Path)
 		return
 	}
-	var pkg *tipe.Package
+	var pkg *Package
 	var err error
 	if strings.HasSuffix(s.Path, ".ng") {
 		pkg, err = c.ngPkg(s.Path)
@@ -1038,13 +1069,13 @@ func (c *Checker) checkImport(s *stmt.Import) {
 			return
 		}
 		if s.Name == "" {
-			s.Name = pkg.GoPkg.(*gotypes.Package).Name()
+			s.Name = pkg.GoPkg.Name()
 		}
 	}
 	obj := &Obj{
 		Kind: ObjPkg,
-		Type: pkg,
-		// TODO Decl?
+		Type: pkg.Type,
+		Decl: pkg,
 	}
 	c.cur.Objs[s.Name] = obj
 }
@@ -1194,13 +1225,13 @@ func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
 		c.errorfmt("%s is not a packacge", pkgName)
 		return nil
 	}
-	pkg := obj.Type.(*tipe.Package)
+	pkg := obj.Decl.(*Package)
 	res := pkg.Exports[sel]
 	if res == nil {
 		c.errorfmt("%s not in package %s", name, pkgName)
 		return nil
 	}
-	return res
+	return res.Type
 }
 
 func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
@@ -3031,10 +3062,19 @@ func (o ObjKind) String() string {
 
 // An Obj represents a declared constant, type, variable, or function.
 type Obj struct {
+	Name string
 	Kind ObjKind
 	Type tipe.Type
-	Decl interface{} // *expr.FuncLiteral, *stmt.MethodikDecl, constant.Value
+	Decl interface{} // *expr.FuncLiteral, *stmt.MethodikDecl, constant.Value, *stmt.TypeDecl, *Package
 	Used bool
+}
+
+type Package struct {
+	GoPkg    *gotypes.Package
+	Path     string
+	Type     *tipe.Package
+	Exported []*Obj
+	Exports  map[string]*Obj
 }
 
 func isTyped(t tipe.Type) bool {
