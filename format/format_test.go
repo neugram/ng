@@ -107,7 +107,7 @@ func TestTypes(t *testing.T) {
 			t.Errorf("ParseStmt(%q): nil stmt", src)
 			continue
 		}
-		typ := s.(*stmt.TypeDecl).Type
+		typ := s.(*stmt.TypeDecl).Type.Type
 		got := format.Type(typ)
 		if got != src {
 			t.Errorf("bad ouput: Type(%q)=%q", src, got)

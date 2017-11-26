@@ -7,6 +7,7 @@ package typecheck
 import (
 	"testing"
 
+	"neugram.io/ng/format"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
@@ -89,7 +90,7 @@ var typeTests = []typeTest{
 			`b := a.X`,
 		},
 		[]identType{
-			{"a", &tipe.Struct{Fields: []tipe.StructField{{Name: "X", Type: tipe.Float64}}}},
+			{"a", &tipe.Named{Name: "A", Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "X", Type: tipe.Float64}}}}},
 			{"b", tipe.Float64},
 		},
 	},
@@ -157,26 +158,32 @@ var typeTests = []typeTest{
 			`m := b.M()`,
 		},
 		[]identType{
-			{"a", &tipe.Interface{Methods: map[string]*tipe.Func{
-				"M": {
-					Params:  &tipe.Tuple{},
-					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
-				},
-				"N": {
-					Params: &tipe.Tuple{Elems: []tipe.Type{
-						tipe.Int8, tipe.Int8,
-					}},
-					Results: &tipe.Tuple{Elems: []tipe.Type{
-						tipe.Int32, Universe.Objs["error"].Type,
-					}},
-				},
-			}}},
-			{"b", &tipe.Interface{Methods: map[string]*tipe.Func{
-				"M": {
-					Params:  &tipe.Tuple{},
-					Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
-				},
-			}}},
+			{"a", &tipe.Named{
+				Name: "A",
+				Type: &tipe.Interface{Methods: map[string]*tipe.Func{
+					"M": {
+						Params:  &tipe.Tuple{},
+						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
+					},
+					"N": {
+						Params: &tipe.Tuple{Elems: []tipe.Type{
+							tipe.Int8, tipe.Int8,
+						}},
+						Results: &tipe.Tuple{Elems: []tipe.Type{
+							tipe.Int32, Universe.Objs["error"].Type,
+						}},
+					},
+				}},
+			}},
+			{"b", &tipe.Named{
+				Name: "B",
+				Type: &tipe.Interface{Methods: map[string]*tipe.Func{
+					"M": {
+						Params:  &tipe.Tuple{},
+						Results: &tipe.Tuple{Elems: []tipe.Type{tipe.Int64}},
+					},
+				}},
+			}},
 			{"m", tipe.Int64},
 		},
 	},
@@ -213,7 +220,7 @@ func TestBasic(t *testing.T) {
 				continue
 			}
 			if !tipe.Equal(obj.Type, want.t) {
-				t.Errorf("%d: want %s=%s, got %s", i, want.name, want.t, obj.Type)
+				t.Errorf("%d: want %s=%s, got %s", i, want.name, format.Type(want.t), format.Type(obj.Type))
 			}
 		}
 	}

@@ -665,15 +665,16 @@ var stmtTests = []stmtTest{
 	},
 	{
 		`type A integer`,
-		&stmt.TypeDecl{Name: "A", Type: tinteger},
+		&stmt.TypeDecl{Name: "A", Type: &tipe.Named{Name: "A", Type: tinteger}},
 	},
 	{
 		`type S struct { x integer }`,
 		&stmt.TypeDecl{
 			Name: "S",
-			Type: &tipe.Struct{Fields: []tipe.StructField{
-				{Name: "x", Type: tinteger},
-			}},
+			Type: &tipe.Named{
+				Name: "S",
+				Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "x", Type: tinteger}}},
+			},
 		},
 	},
 	{

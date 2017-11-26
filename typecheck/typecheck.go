@@ -399,7 +399,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.TypeDecl:
 		t, _ := c.resolve(s.Type)
-		s.Type = t
+		s.Type = t.(*tipe.Named)
 
 		obj := &Obj{
 			Name: s.Name,
@@ -1601,7 +1601,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 
 	p.mode = modeVar
 	p.expr = e
-	funct := p.typ.(*tipe.Func)
+	funct := tipe.Underlying(p.typ).(*tipe.Func)
 	var params, results []tipe.Type
 	if funct.Params != nil {
 		params = funct.Params.Elems
@@ -2227,7 +2227,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 
 		lt := tipe.Underlying(left.typ)
 		if t, isPtr := lt.(*tipe.Pointer); isPtr {
-			lt = t.Elem
+			lt = tipe.Underlying(t.Elem)
 		}
 		switch lt := lt.(type) {
 		case *tipe.Struct:

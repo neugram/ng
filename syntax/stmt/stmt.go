@@ -31,7 +31,7 @@ type ImportSet struct {
 type TypeDecl struct {
 	Position src.Pos
 	Name     string
-	Type     tipe.Type
+	Type     *tipe.Named
 }
 
 type MethodikDecl struct {

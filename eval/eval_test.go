@@ -105,7 +105,6 @@ func TestExprs(t *testing.T) {
 			t.Errorf("Eval(%s) want *big.Int, got multi-valued (%d) result: %v", format.Stmt(s), len(res), res)
 			continue
 		}
-		fmt.Printf("Returning Eval: %#+v\n", res)
 		switch want := test.want.(type) {
 		case *big.Int:
 			got, ok := res[0].Interface().(*big.Int)

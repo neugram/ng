@@ -1846,7 +1846,7 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 				rtype = v.Type()
 			}
 		} else {
-			panic("TODO unnamed Methodik")
+			rtype = r.toRType(t.Type)
 		}
 	case *tipe.Array:
 		rtype = reflect.ArrayOf(int(t.Len), r.toRType(t.Elem))

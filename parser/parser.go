@@ -1064,10 +1064,14 @@ func (p *Parser) parseStmt() stmt.Stmt {
 	case token.Type:
 		pos := p.pos()
 		p.next()
+		t := &tipe.Named{
+			Name: p.parseIdent().Name,
+			Type: p.parseType(),
+		}
 		s := &stmt.TypeDecl{
 			Position: pos,
-			Name:     p.parseIdent().Name,
-			Type:     p.parseType(),
+			Name:     t.Name,
+			Type:     t,
 		}
 		p.expectSemi()
 		return s

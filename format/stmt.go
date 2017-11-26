@@ -41,7 +41,7 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.buf.WriteString("type ")
 		p.buf.WriteString(s.Name)
 		p.buf.WriteString(" ")
-		p.tipe(s.Type)
+		p.tipe(s.Type.Type)
 	case *stmt.MethodikDecl:
 		p.buf.WriteString("methodik ")
 		p.buf.WriteString(s.Name)
