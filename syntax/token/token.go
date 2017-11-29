@@ -91,6 +91,7 @@ const (
 	Fallthrough
 
 	Const
+	Var
 
 	If
 	Else
@@ -179,6 +180,7 @@ var Keywords = map[string]Token{
 	"default":     Default,
 	"fallthrough": Fallthrough,
 	"const":       Const,
+	"var":         Var,
 	"if":          If,
 	"else":        Else,
 	"for":         For,

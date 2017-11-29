@@ -1180,6 +1180,43 @@ var stmtTests = []stmtTest{
 	{"return 1", &stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}}}},
 	{"{ return }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{}}}},
 	{"{ return 1 }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}}}}}},
+	{"var i = 10", &stmt.Var{
+		Name:  "i",
+		Value: &expr.BasicLiteral{Value: big.NewInt(10)},
+	}},
+	{"var i int", &stmt.Var{
+		Name: "i",
+		Type: &tipe.Unresolved{Name: "int"},
+	}},
+	{"var i int = 11", &stmt.Var{
+		Name:  "i",
+		Value: &expr.BasicLiteral{Value: big.NewInt(11)},
+		Type:  &tipe.Unresolved{Name: "int"},
+	}},
+	{
+		`var (
+			i int = 11
+			j = 22
+			k float64
+		)
+		`, &stmt.VarSet{
+			Vars: []*stmt.Var{
+				{
+					Name:  "i",
+					Value: &expr.BasicLiteral{Value: big.NewInt(11)},
+					Type:  &tipe.Unresolved{Name: "int"},
+				},
+				{
+					Name:  "j",
+					Value: &expr.BasicLiteral{Value: big.NewInt(22)},
+				},
+				{
+					Name: "k",
+					Type: &tipe.Unresolved{Name: "float64"},
+				},
+			},
+		},
+	},
 }
 
 func TestParseStmt(t *testing.T) {

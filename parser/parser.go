@@ -1057,6 +1057,27 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		s.Value = p.parseExpr()
 		p.expectSemi()
 		return s
+	case token.Var:
+		pos := p.pos()
+		p.next()
+		if p.s.Token == token.LeftParen {
+			p.next()
+			s := &stmt.VarSet{Position: pos}
+			for p.s.Token > 0 && p.s.Token != token.RightParen {
+				s.Vars = append(s.Vars, p.parseVar())
+				if p.s.Token == token.Semicolon {
+					p.next()
+				}
+			}
+			p.expect(token.RightParen)
+			p.next()
+			p.expectSemi()
+			return s
+		}
+		s := p.parseVar()
+		s.Position = pos
+		p.expectSemi()
+		return s
 	case token.Methodik:
 		pos := p.pos()
 		p.next()
@@ -1163,6 +1184,23 @@ func (p *Parser) parseGo() stmt.Stmt {
 	}
 	g.Call = call
 	return g
+}
+
+func (p *Parser) parseVar() *stmt.Var {
+	// a simple 'var f T' or 'var f T = ...'
+	s := &stmt.Var{
+		Position: p.pos(),
+		Name:     p.parseIdent().Name,
+	}
+	if p.s.Token != token.Assign {
+		s.Type = p.parseType()
+	}
+	if p.s.Token == token.Assign {
+		p.expect(token.Assign)
+		p.next()
+		s.Value = p.parseExpr()
+	}
+	return s
 }
 
 func (p *Parser) parseSelect() stmt.Stmt {
