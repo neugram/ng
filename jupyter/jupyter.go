@@ -522,7 +522,7 @@ type kernelInfo struct {
 
 type executeReplyError struct {
 	Status         string   `json:"status"` // set to "error"
-	ExecutionCount int      `json:"status"`
+	ExecutionCount int      `json:"execution_count"`
 	ErrName        string   `json:"ename"`
 	Err            string   `json:"evalue"`
 	Traceback      []string `json:"traceback"`
@@ -530,7 +530,7 @@ type executeReplyError struct {
 
 type executeReply struct {
 	Status          string                   `json:"status"` // set to "ok"
-	ExecutionCount  int                      `json:"status"`
+	ExecutionCount  int                      `json:"execution_count"`
 	Payload         []map[string]interface{} `json:"payload"` // deprecated
 	UserExpressions map[string]interface{}   `json:"user_expressions`
 }
