@@ -40,9 +40,10 @@ var (
 	historySh     = make(chan string, 1)
 	sigint        = make(chan os.Signal)
 
-	p          *parser.Parser
-	prg        *eval.Program
-	shellState *shell.State
+	p            *parser.Parser
+	prg          *eval.Program
+	shellState   *shell.State
+	startInShell bool
 )
 
 func exit(code int) {
@@ -83,6 +84,7 @@ func main() {
 	shell.Init()
 
 	flagJupyter := flag.String("jupyter", "", "path to jupyter kernel connection file")
+	flag.BoolVar(&startInShell, "shell", false, "start in shell mode")
 	flagHelp := flag.Bool("h", false, "display help message and exit")
 	flagE := flag.String("e", "", "program passed as a string")
 	flagO := flag.String("o", "", "compile the program to the named file")
@@ -305,7 +307,7 @@ func loop() {
 	initProgram(path)
 
 	state := parser.StateStmt
-	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
+	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" || startInShell {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
 		if f, err := os.Open(initFile); err == nil {
 			var err error
