@@ -644,6 +644,33 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !EqualExpr(x.Value, y.Value) {
 			return false
 		}
+	case *stmt.Var:
+		y, ok := y.(*stmt.Var)
+		if !ok {
+			return false
+		}
+		if x.Name != y.Name {
+			return false
+		}
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
+			return false
+		}
+		if !EqualExpr(x.Value, y.Value) {
+			return false
+		}
+	case *stmt.VarSet:
+		y, ok := y.(*stmt.VarSet)
+		if !ok {
+			return false
+		}
+		if len(x.Vars) != len(y.Vars) {
+			return false
+		}
+		for i := range x.Vars {
+			if !EqualStmt(x.Vars[i], y.Vars[i]) {
+				return false
+			}
+		}
 	case *stmt.Assign:
 		y, ok := y.(*stmt.Assign)
 		if !ok {

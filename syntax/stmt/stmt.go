@@ -50,6 +50,18 @@ type Const struct {
 	Value    expr.Expr
 }
 
+type VarSet struct {
+	Position src.Pos
+	Vars     []*Var
+}
+
+type Var struct {
+	Position src.Pos
+	Name     string
+	Type     tipe.Type
+	Value    expr.Expr
+}
+
 type Assign struct {
 	Position src.Pos
 	Decl     bool
@@ -171,6 +183,8 @@ func (s *ImportSet) stmt()      {}
 func (s *TypeDecl) stmt()       {}
 func (s *MethodikDecl) stmt()   {}
 func (s *Const) stmt()          {}
+func (s *Var) stmt()            {}
+func (s *VarSet) stmt()         {}
 func (s *Assign) stmt()         {}
 func (s *Block) stmt()          {}
 func (s *If) stmt()             {}
@@ -194,6 +208,8 @@ func (s *ImportSet) Pos() src.Pos     { return s.Position }
 func (s *TypeDecl) Pos() src.Pos      { return s.Position }
 func (s *MethodikDecl) Pos() src.Pos  { return s.Position }
 func (s *Const) Pos() src.Pos         { return s.Position }
+func (s *Var) Pos() src.Pos           { return s.Position }
+func (s *VarSet) Pos() src.Pos        { return s.Position }
 func (s *Assign) Pos() src.Pos        { return s.Position }
 func (s *Block) Pos() src.Pos         { return s.Position }
 func (s *If) Pos() src.Pos            { return s.Position }
