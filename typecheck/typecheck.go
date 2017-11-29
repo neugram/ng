@@ -36,7 +36,7 @@ type Checker struct {
 
 	mu            *sync.Mutex
 	types         map[expr.Expr]tipe.Type      // computed type for each expression
-	consts        map[expr.Expr]constant.Value // component constand for const expressions
+	consts        map[expr.Expr]constant.Value // component constant for const expressions
 	ngPkgs        map[string]*Package          // abs file path -> neugram pkg
 	goPkgs        map[string]*Package          // import path -> go pkg
 	goTypes       map[gotypes.Type]tipe.Type   // cache for the fromGoType method
