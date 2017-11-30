@@ -124,7 +124,7 @@ func nilexpr(t types.Type) string {
 		default:
 			return "(0)"
 		}
-	case *types.Struct:
+	case *types.Array, *types.Struct:
 		return "{}"
 	case *types.Interface, *types.Map, *types.Pointer, *types.Slice, *types.Signature:
 		return "(nil)"
