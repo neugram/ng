@@ -1,0 +1,1 @@
+func f() (int, int) { return 1, 2, 3 } // ERROR: too many arguments to return

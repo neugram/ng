@@ -1,0 +1,13 @@
+ok := false
+func f(x int) {
+	ok = true
+	return
+}
+
+f(42)
+
+if !ok {
+	panic("ERROR")
+}
+
+print("OK")

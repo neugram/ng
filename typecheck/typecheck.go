@@ -447,8 +447,18 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.Return:
-		if retType == nil || len(s.Exprs) > len(retType.Elems) {
+		if retType == nil {
+			if len(s.Exprs) != 0 {
+				c.errorfmt("too many arguments to return")
+			}
+			return nil
+		}
+		switch {
+		case len(s.Exprs) > len(retType.Elems):
 			c.errorfmt("too many arguments to return")
+			return nil
+		case len(s.Exprs) < len(retType.Elems):
+			c.errorfmt("not enough arguments to return")
 			return nil
 		}
 		var partials []partial
