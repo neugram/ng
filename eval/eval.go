@@ -1590,7 +1590,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				v = reflect.New(reflect.TypeOf(false)).Elem()
 			}
 			v.SetBool(!b)
-		case token.Sub:
+		case token.Add, token.Sub:
 			rhs := p.evalExprOne(e.Expr)
 			var lhs interface{}
 			switch rhs.Interface().(type) {
@@ -1613,7 +1613,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			case UntypedComplex:
 				lhs = UntypedComplex{Real: big.NewFloat(0), Imag: big.NewFloat(0)}
 			}
-			res, err := binOp(token.Sub, lhs, rhs.Interface())
+			res, err := binOp(e.Op, lhs, rhs.Interface())
 			if err != nil {
 				panic(interpPanic{err})
 			}
