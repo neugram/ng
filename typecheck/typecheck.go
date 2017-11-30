@@ -2084,10 +2084,11 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 
 	case *expr.Unary:
 		switch e.Op {
-		case token.LeftParen, token.Not, token.Sub:
+		case token.LeftParen, token.Not, token.Sub, token.Add:
 			sub := c.exprPartial(e.Expr, hintElideErr)
 			p.mode = sub.mode
 			p.typ = sub.typ
+			p.val = sub.val
 			return p
 		case token.Ref:
 			sub := c.expr(e.Expr)
