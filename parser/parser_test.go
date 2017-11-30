@@ -1132,6 +1132,54 @@ var stmtTests = []stmtTest{
 			},
 		},
 	},
+	{
+		`
+		select {
+		default:
+		return
+		}
+		`, &stmt.Select{
+			Cases: []stmt.SelectCase{
+				{
+					Default: true,
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Return{},
+						},
+					},
+				},
+			},
+		},
+	},
+	{
+		`
+		select {
+		default:
+		return 1
+		}
+		`, &stmt.Select{
+			Cases: []stmt.SelectCase{
+				{
+					Default: true,
+					Body: &stmt.Block{
+						Stmts: []stmt.Stmt{
+							&stmt.Return{
+								Exprs: []expr.Expr{
+									&expr.BasicLiteral{
+										Value: big.NewInt(1),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	{"return", &stmt.Return{}},
+	{"return 1", &stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}}}},
+	{"{ return }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{}}}},
+	{"{ return 1 }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}}}}}},
 }
 
 func TestParseStmt(t *testing.T) {

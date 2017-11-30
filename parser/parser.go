@@ -1025,7 +1025,10 @@ func (p *Parser) parseStmt() stmt.Stmt {
 	case token.Return:
 		pos := p.pos()
 		p.next()
-		s := &stmt.Return{Position: pos, Exprs: p.parseExprs()}
+		s := &stmt.Return{Position: pos}
+		if p.s.Token != token.Semicolon && p.s.Token != token.RightBrace {
+			s.Exprs = p.parseExprs()
+		}
 		p.expectSemi()
 		return s
 	case token.LeftBrace:
