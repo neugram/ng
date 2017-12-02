@@ -83,6 +83,7 @@ func main() {
 	shell.Init()
 
 	flagJupyter := flag.String("jupyter", "", "path to jupyter kernel connection file")
+	flagShell := flag.Bool("shell", false, "start in shell mode")
 	flagHelp := flag.Bool("h", false, "display help message and exit")
 	flagE := flag.String("e", "", "program passed as a string")
 	flagO := flag.String("o", "", "compile the program to the named file")
@@ -143,7 +144,7 @@ func main() {
 	lineNg = liner.NewLiner()
 	defer lineNg.Close()
 
-	loop()
+	loop(*flagShell)
 }
 
 func setWindowSize(env map[interface{}]interface{}) {
@@ -300,12 +301,12 @@ func runFile(f *os.File) (parser.ParserState, error) {
 	}
 }
 
-func loop() {
+func loop(startInShell bool) {
 	path := filepath.Join(cwd, "ng-interactive")
 	initProgram(path)
 
 	state := parser.StateStmt
-	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" {
+	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" || startInShell {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
 		if f, err := os.Open(initFile); err == nil {
 			var err error
