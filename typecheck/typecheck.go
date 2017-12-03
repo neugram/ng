@@ -37,8 +37,7 @@ type Checker struct {
 	mu            *sync.Mutex
 	types         map[expr.Expr]tipe.Type      // computed type for each expression
 	consts        map[expr.Expr]constant.Value // component constant for const expressions
-	ngPkgs        map[string]*Package          // abs file path -> neugram pkg
-	goPkgs        map[string]*Package          // import path -> go pkg
+	pkgs          map[string]*Package          // (ng abs file path or go import path) -> pkg
 	goTypes       map[gotypes.Type]tipe.Type   // cache for the fromGoType method
 	goTypesToFill map[gotypes.Type]tipe.Type
 	errs          []error
@@ -58,8 +57,7 @@ func New(initPkg string) *Checker {
 		types:         make(map[expr.Expr]tipe.Type),
 		ImportGo:      goimporter.Default().Import,
 		consts:        make(map[expr.Expr]constant.Value),
-		ngPkgs:        make(map[string]*Package),
-		goPkgs:        make(map[string]*Package),
+		pkgs:          make(map[string]*Package),
 		goTypes:       make(map[gotypes.Type]tipe.Type),
 		goTypesToFill: make(map[gotypes.Type]tipe.Type),
 		cur: &Scope{
@@ -901,7 +899,7 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 }
 
 func (c *Checker) goPkg(path string) (*Package, error) {
-	if pkg := c.goPkgs[path]; pkg != nil {
+	if pkg := c.pkgs[path]; pkg != nil {
 		return pkg, nil
 	}
 	goPath := path
@@ -927,7 +925,7 @@ func (c *Checker) goPkg(path string) (*Package, error) {
 		},
 		Exports: make(map[string]*Obj),
 	}
-	c.goPkgs[path] = pkg
+	c.pkgs[path] = pkg
 
 	for _, name := range gopkg.Scope().Names() {
 		goobj := gopkg.Scope().Lookup(name)
@@ -959,12 +957,12 @@ func (c *Checker) goPkg(path string) (*Package, error) {
 	return pkg, nil
 }
 
-// NgPkg returns the type-checked neugram package at the absolute path.
+// Pkg returns the type-checked Neugram or Go package.
 // If the type checker has not processed the package, nil is returned.
-func (c *Checker) NgPkg(path string) *Package {
+func (c *Checker) Pkg(path string) *Package {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.ngPkgs[path]
+	return c.pkgs[path]
 }
 
 func (c *Checker) ngPkg(path string) (*Package, error) {
@@ -986,7 +984,7 @@ func (c *Checker) ngPkg(path string) (*Package, error) {
 			return nil, fmt.Errorf("package import cycle: %s", cycle)
 		}
 	}
-	if pkg := c.ngPkgs[path]; pkg != nil {
+	if pkg := c.pkgs[path]; pkg != nil {
 		return pkg, nil
 	}
 
@@ -1018,7 +1016,7 @@ func (c *Checker) ngPkg(path string) (*Package, error) {
 	if err := c.parseFile(path, source); err != nil {
 		return nil, fmt.Errorf("ng import parse: %v", err)
 	}
-	c.ngPkgs[path] = c.curPkg
+	c.pkgs[path] = c.curPkg
 	for scope := c.cur; scope != Universe; scope = scope.Parent {
 		for name, obj := range scope.Objs {
 			if !isExported(name) {

@@ -624,7 +624,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			path := filepath.Join(filepath.Dir(p.Path), s.Path)
 			pkg = p.Pkgs[path]
 			if pkg == nil {
-				typ := p.Types.NgPkg(path)
+				typ := p.Types.Pkg(path)
 				if typ == nil {
 					panic(Panic{val: fmt.Errorf("cannot find package typechecking: %v", path)})
 				}
