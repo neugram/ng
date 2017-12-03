@@ -166,46 +166,49 @@ type Bad struct {
 	Error    error
 }
 
-func (s *Import) stmt()       {}
-func (s *ImportSet) stmt()    {}
-func (s *TypeDecl) stmt()     {}
-func (s *MethodikDecl) stmt() {}
-func (s *Const) stmt()        {}
-func (s *Assign) stmt()       {}
-func (s *Block) stmt()        {}
-func (s *If) stmt()           {}
-func (s *For) stmt()          {}
-func (s *Switch) stmt()       {}
-func (s *SwitchCase) stmt()   {}
-func (s *TypeSwitch) stmt()   {}
-func (s *Go) stmt()           {}
-func (s *Range) stmt()        {}
-func (s *Return) stmt()       {}
-func (s *Simple) stmt()       {}
-func (s *Send) stmt()         {}
-func (s *Branch) stmt()       {}
-func (s *Labeled) stmt()      {}
-func (s *Select) stmt()       {}
-func (s *Bad) stmt()          {}
+func (s *Import) stmt()         {}
+func (s *ImportSet) stmt()      {}
+func (s *TypeDecl) stmt()       {}
+func (s *MethodikDecl) stmt()   {}
+func (s *Const) stmt()          {}
+func (s *Assign) stmt()         {}
+func (s *Block) stmt()          {}
+func (s *If) stmt()             {}
+func (s *For) stmt()            {}
+func (s *Switch) stmt()         {}
+func (s *SwitchCase) stmt()     {}
+func (s *TypeSwitch) stmt()     {}
+func (s *TypeSwitchCase) stmt() {}
+func (s *Go) stmt()             {}
+func (s *Range) stmt()          {}
+func (s *Return) stmt()         {}
+func (s *Simple) stmt()         {}
+func (s *Send) stmt()           {}
+func (s *Branch) stmt()         {}
+func (s *Labeled) stmt()        {}
+func (s *Select) stmt()         {}
+func (s *Bad) stmt()            {}
 
-func (s *Import) Pos() src.Pos       { return s.Position }
-func (s *ImportSet) Pos() src.Pos    { return s.Position }
-func (s *TypeDecl) Pos() src.Pos     { return s.Position }
-func (s *MethodikDecl) Pos() src.Pos { return s.Position }
-func (s *Const) Pos() src.Pos        { return s.Position }
-func (s *Assign) Pos() src.Pos       { return s.Position }
-func (s *Block) Pos() src.Pos        { return s.Position }
-func (s *If) Pos() src.Pos           { return s.Position }
-func (s *For) Pos() src.Pos          { return s.Position }
-func (s *Switch) Pos() src.Pos       { return s.Position }
-func (s *SwitchCase) Pos() src.Pos   { return s.Position }
-func (s *TypeSwitch) Pos() src.Pos   { return s.Position }
-func (s *Go) Pos() src.Pos           { return s.Position }
-func (s *Range) Pos() src.Pos        { return s.Position }
-func (s *Return) Pos() src.Pos       { return s.Position }
-func (s *Simple) Pos() src.Pos       { return s.Position }
-func (s *Send) Pos() src.Pos         { return s.Position }
-func (s *Branch) Pos() src.Pos       { return s.Position }
-func (s *Labeled) Pos() src.Pos      { return s.Position }
-func (s *Select) Pos() src.Pos       { return s.Position }
-func (s *Bad) Pos() src.Pos          { return s.Position }
+func (s *Import) Pos() src.Pos        { return s.Position }
+func (s *ImportSet) Pos() src.Pos     { return s.Position }
+func (s *TypeDecl) Pos() src.Pos      { return s.Position }
+func (s *MethodikDecl) Pos() src.Pos  { return s.Position }
+func (s *Const) Pos() src.Pos         { return s.Position }
+func (s *Assign) Pos() src.Pos        { return s.Position }
+func (s *Block) Pos() src.Pos         { return s.Position }
+func (s *If) Pos() src.Pos            { return s.Position }
+func (s *For) Pos() src.Pos           { return s.Position }
+func (s *Switch) Pos() src.Pos        { return s.Position }
+func (s SwitchCase) Pos() src.Pos     { return s.Position }
+func (s *TypeSwitch) Pos() src.Pos    { return s.Position }
+func (s TypeSwitchCase) Pos() src.Pos { return s.Position }
+func (s *Go) Pos() src.Pos            { return s.Position }
+func (s *Range) Pos() src.Pos         { return s.Position }
+func (s *Return) Pos() src.Pos        { return s.Position }
+func (s *Simple) Pos() src.Pos        { return s.Position }
+func (s *Send) Pos() src.Pos          { return s.Position }
+func (s *Branch) Pos() src.Pos        { return s.Position }
+func (s *Labeled) Pos() src.Pos       { return s.Position }
+func (s *Select) Pos() src.Pos        { return s.Position }
+func (s SelectCase) Pos() src.Pos     { return s.Position }
+func (s *Bad) Pos() src.Pos           { return s.Position }

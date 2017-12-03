@@ -222,6 +222,7 @@ func (e *TableLiteral) Pos() src.Pos   { return e.Position }
 func (e *Type) Pos() src.Pos           { return e.Position }
 func (e *Ident) Pos() src.Pos          { return e.Position }
 func (e *Call) Pos() src.Pos           { return e.Position }
+func (e *Range) Pos() src.Pos          { return e.Position }
 func (e *Index) Pos() src.Pos          { return e.Position }
 func (e *TypeAssert) Pos() src.Pos     { return e.Position }
 func (e *ShellList) Pos() src.Pos      { return e.Position }
@@ -229,6 +230,6 @@ func (e *ShellAndOr) Pos() src.Pos     { return e.Position }
 func (e *ShellPipeline) Pos() src.Pos  { return e.Position }
 func (e *ShellSimpleCmd) Pos() src.Pos { return e.Position }
 func (e *ShellRedirect) Pos() src.Pos  { return e.Position }
-func (e *ShellAssign) Pos() src.Pos    { return e.Position }
+func (e ShellAssign) Pos() src.Pos     { return e.Position }
 func (e *ShellCmd) Pos() src.Pos       { return e.Position }
 func (e *Shell) Pos() src.Pos          { return e.Position }
