@@ -12,11 +12,14 @@ import (
 
 var Universe = &Scope{Objs: universeObjs}
 
-var errorType = &tipe.Interface{
-	Methods: map[string]*tipe.Func{
-		"Error": {
-			Results: &tipe.Tuple{
-				Elems: []tipe.Type{tipe.String},
+var errorType = &tipe.Named{
+	Name: "error",
+	Type: &tipe.Interface{
+		Methods: map[string]*tipe.Func{
+			"Error": {
+				Results: &tipe.Tuple{
+					Elems: []tipe.Type{tipe.String},
+				},
 			},
 		},
 	},

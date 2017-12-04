@@ -1832,7 +1832,9 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 		}
 		rtype = reflect.StructOf(fields)
 	case *tipe.Named:
-		if t.PkgPath != "" {
+		if typecheck.IsError(t) {
+			rtype = reflect.TypeOf((*error)(nil)).Elem()
+		} else if t.PkgPath != "" {
 			path := t.PkgPath
 			if path == "neugram.io/ng/vendor/mat" {
 				path = "mat" // TODO: remove "mat" exception
@@ -1878,11 +1880,7 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 	//case *Tuple:
 	//case *Package:
 	default:
-		if typecheck.IsError(t) {
-			rtype = reflect.TypeOf((*error)(nil)).Elem()
-		} else {
-			rtype = reflect.TypeOf((*interface{})(nil)).Elem()
-		}
+		rtype = reflect.TypeOf((*interface{})(nil)).Elem()
 	}
 	r.fwd[t] = rtype
 	return rtype
