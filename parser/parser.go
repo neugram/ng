@@ -1196,9 +1196,9 @@ func (p *Parser) parseVar() *stmt.Var {
 		s.Type = p.parseType()
 	}
 	if p.s.Token == token.Assign {
-		p.expect(token.Assign)
 		p.next()
 		s.Value = p.parseExpr()
+		p.expectSemi()
 	}
 	return s
 }
