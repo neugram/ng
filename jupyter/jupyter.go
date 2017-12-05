@@ -89,8 +89,10 @@ func Run(ctx context.Context, connFile string) error {
 	if err := s.iopubListener(info.Transport, info.IP, info.IOPubPort); err != nil {
 		return err
 	}
+	if err := s.heartbeatListener(info.Transport, info.IP, info.HBPort); err != nil {
+		return err
+	}
 
-	// TODO: heartbeat?
 	// TODO: shutdown the sockets on ctx.Done
 
 	<-ctx.Done()
@@ -167,6 +169,32 @@ func (s *server) iopubListener(transport, ip string, port int) error {
 	return nil
 }
 
+func (s *server) heartbeatListener(transport, ip string, port int) error {
+	ln, err := net.Listen(transport, fmt.Sprintf("%s:%d", ip, port))
+	if err != nil {
+		return fmt.Errorf("jupyter: failed to listen on heartbeat socket: %v", err)
+	}
+	go func() {
+		for {
+			netConn, err := ln.Accept()
+			if err != nil {
+				log.Printf("jupyter: heartbeat listener exiting: %v", err)
+				return
+			}
+			zmtpConn := zmtp.NewConnection(netConn)
+			_, err = zmtpConn.Prepare(new(zmtp.SecurityNull), zmtp.RepSocketType, "", true, nil)
+			if err != nil {
+				log.Printf("jupyter: failed prepare heartbeat socket REP: %v", err)
+				netConn.Close()
+				continue
+			}
+			c := &conn{netConn, zmtpConn}
+			go s.heartbeatHandler(c)
+		}
+	}()
+	return nil
+}
+
 func (s *server) shellHandler(c *conn) {
 	if debug {
 		log.Printf("shell handler started\n")
@@ -236,6 +264,43 @@ func (s *server) iopubHandler(c *conn) {
 		if err := c.zmtp.SendMultipart(<-ch); err != nil {
 			log.Printf("iopub send failed: %v", err)
 			return
+		}
+	}
+}
+
+func (s *server) heartbeatHandler(c *conn) {
+	if debug {
+		log.Printf("heartbeat handler started\n")
+	}
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+
+	ticks := time.NewTicker(500 * time.Millisecond)
+	defer ticks.Stop()
+
+	ch := make(chan *zmtp.Message)
+	c.zmtp.Recv(ch)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case zmsg := <-ch:
+			switch zmsg.MessageType {
+			case zmtp.CommandMessage:
+				if err := c.zmtp.SendCommand("PONG", nil); err != nil {
+					log.Printf("jupyter: heartbeat pong msg: %v", err)
+					continue
+				}
+			case zmtp.ErrorMessage:
+				if zmsg.Err == io.EOF {
+					c.conn.Close()
+					return
+				}
+				log.Printf("heartbeat err msg: %v\n", zmsg.Err)
+			}
+		case <-ticks.C:
+			continue
 		}
 	}
 }
