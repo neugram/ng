@@ -32,6 +32,7 @@ func GenGo(filename, outGoPkgName string) (result []byte, err error) {
 		buf:     new(bytes.Buffer),
 		c:       typecheck.New(filename), // TODO: extract a pkg name
 		imports: make(map[*tipe.Package]string),
+		eliders: make(map[tipe.Type]string),
 	}
 
 	abspath, err := filepath.Abs(filename)
@@ -66,13 +67,15 @@ package %s
 				builtins["printf"] = true
 			case "print":
 				builtins["print"] = true
+			case "errorf":
+				builtins["errorf"] = true
 			}
 		}
 		return true
 	}
 	syntax.Walk(pkg.Syntax, preFn, nil)
 
-	importFmt := builtins["printf"] || builtins["print"]
+	importFmt := builtins["printf"] || builtins["print"] || builtins["errorf"]
 
 	// Lift imports to the top-level.
 	if len(importPaths) > 0 || importFmt {
@@ -182,6 +185,60 @@ package %s
 		p.newline()
 		p.print("func printf(f string, args ...interface{}) { fmt.Printf(f, args...) }")
 	}
+	if builtins["errorf"] {
+		p.newline()
+		p.newline()
+		p.print("func errorf(f string, args ...interface{}) error { return fmt.Errorf(f, args...) }")
+	}
+
+	for t, name := range p.eliders {
+		p.newline()
+		p.newline()
+		if typecheck.IsError(t) {
+			p.printf("func %s(err error) {", name)
+			p.indent++
+			p.newline()
+			p.printf("if err != nil { panic(err) }")
+			p.indent++
+			p.newline()
+			p.printf("}")
+			continue
+		}
+
+		p.printf("func %s(", name)
+		elems := t.(*tipe.Tuple).Elems
+		for i, elem := range elems {
+			if i == len(elems)-1 {
+				p.printf("err error")
+				continue
+			}
+			p.printf("arg%d ", i)
+			p.tipe(elem)
+			p.printf(", ")
+		}
+		p.printf(") (")
+		for i, elem := range elems[:len(elems)-1] {
+			if i > 0 {
+				p.printf(", ")
+			}
+			p.tipe(elem)
+		}
+		p.printf(") {")
+		p.indent++
+		p.newline()
+		p.printf("if err != nil { panic(err) }")
+		p.newline()
+		p.printf("return ")
+		for i := range elems[:len(elems)-1] {
+			if i > 0 {
+				p.printf(", ")
+			}
+			p.printf("arg%d", i)
+		}
+		p.indent++
+		p.newline()
+		p.printf("}")
+	}
 
 	res, err := goformat.Source(p.buf.Bytes())
 	if err != nil {
@@ -201,6 +258,7 @@ type printer struct {
 
 	imports map[*tipe.Package]string // import package -> name
 	c       *typecheck.Checker
+	eliders map[tipe.Type]string
 }
 
 func (p *printer) printf(format string, args ...interface{}) {
@@ -231,6 +289,10 @@ func (p *printer) expr(e expr.Expr) {
 		p.printf(" %s ", e.Op)
 		p.expr(e.Right)
 	case *expr.Call:
+		if e.ElideError {
+			fnName := p.elider(p.c.Type(e))
+			p.printf("%s(", fnName)
+		}
 		p.expr(e.Func)
 		p.print("(")
 		for i, arg := range e.Args {
@@ -243,6 +305,9 @@ func (p *printer) expr(e expr.Expr) {
 			p.print("...")
 		}
 		p.print(")")
+		if e.ElideError {
+			p.print(")")
+		}
 	case *expr.CompLiteral:
 		p.tipe(e.Type)
 		p.print("{")
@@ -614,6 +679,15 @@ func (p *printer) tipeFuncSig(t *tipe.Func) {
 			p.print(")")
 		}
 	}
+}
+
+func (p *printer) elider(t tipe.Type) string {
+	name := p.eliders[t]
+	if name == "" {
+		name = fmt.Sprintf("gengo_elider%d", len(p.eliders))
+		p.eliders[t] = name
+	}
+	return name
 }
 
 func isExported(name string) bool {
