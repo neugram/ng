@@ -115,11 +115,11 @@ func main() {
 		// TODO: plumb through the rest of the args
 		path := args[0]
 		if *flagO != "" {
-			res, err := gengo.GenGo(path)
+			res, err := gengo.GenGo(path, "main")
 			if err != nil {
 				exitf("%v", err)
 			}
-			_ = res
+			fmt.Printf("%s\n", res)
 			exitf("TODO gengo")
 			return
 		}
