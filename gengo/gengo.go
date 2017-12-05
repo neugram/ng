@@ -296,13 +296,44 @@ func (p *printer) expr(e expr.Expr) {
 			p.print(e.Name)
 		}
 	case *expr.Index:
+		p.expr(e.Left)
+		p.print("[")
+		for i, index := range e.Indicies {
+			if i > 0 {
+				p.print(", ")
+			}
+			p.expr(index)
+		}
+		p.print("]")
 	case *expr.MapLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		p.indent++
+		for i, key := range e.Keys {
+			p.newline()
+			p.expr(key)
+			p.print(": ")
+			p.expr(e.Values[i])
+			p.print(",")
+		}
+		p.indent--
+		p.newline()
+		p.print("}")
 	case *expr.Selector:
 		p.expr(e.Left)
 		p.print(".")
 		p.expr(e.Right)
 	case *expr.Shell:
 	case *expr.SliceLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		for i, elem := range e.Elems {
+			if i > 0 {
+				p.print(", ")
+			}
+			p.expr(elem)
+		}
+		p.print("}")
 	case *expr.Type:
 		p.tipe(e.Type)
 	case *expr.TypeAssert:
@@ -355,6 +386,19 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.newline()
 		p.print("}")
 	case *stmt.For:
+		p.print("for ")
+		if s.Init != nil {
+			p.stmt(s.Init)
+			p.print("; ")
+		}
+		if s.Cond != nil {
+			p.expr(s.Cond)
+			p.print("; ")
+		}
+		if s.Post != nil {
+			p.stmt(s.Post)
+		}
+		p.stmt(s.Body)
 	case *stmt.Go:
 	case *stmt.If:
 		p.print("if ")
@@ -370,6 +414,23 @@ func (p *printer) stmt(s stmt.Stmt) {
 	case *stmt.Import:
 		// lifted to top-level earlier
 	case *stmt.Range:
+		p.print("for ")
+		if s.Key != nil {
+			p.expr(s.Key)
+		}
+		if s.Val != nil {
+			p.print(", ")
+			p.expr(s.Val)
+		}
+		if s.Decl {
+			p.print(":")
+		}
+		if s.Key != nil || s.Val != nil {
+			p.print("= ")
+		}
+		p.print("range ")
+		p.expr(s.Expr)
+		p.stmt(s.Body)
 	case *stmt.Return:
 		p.print("return")
 		for i, e := range s.Exprs {
