@@ -348,9 +348,11 @@ func (s *server) kernelInfo(c *conn, req *message) error {
 		Impl:        "ng",
 		ImplVersion: "0.1",
 		LangInfo: kernelLangInfo{
-			Name:          "neugram",
-			Version:       "unreleased",
-			FileExtension: ".ng",
+			Name:           "neugram",
+			Version:        "unreleased",
+			FileExtension:  ".ng",
+			PygmentsLexer:  "go",
+			CodeMirrorMode: "go",
 		},
 		Banner: "Neugram",
 		HelpLinks: []helpLink{{
