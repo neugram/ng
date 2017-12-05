@@ -147,6 +147,21 @@ package %s
 	for _, s := range pkg.Syntax.Stmts {
 		p.newline()
 		p.stmt(s)
+
+		if s, isAssign := s.(*stmt.Assign); isAssign {
+			// TODO: look to see if typecheck object is used,
+			//       only emit this if it isn't.
+			if s.Decl {
+				for _, e := range s.Left {
+					if ident, isIdent := e.(*expr.Ident); isIdent && ident.Name == "_" {
+						continue
+					}
+					p.newline()
+					p.print("_ = ")
+					p.expr(e)
+				}
+			}
+		}
 	}
 	p.indent--
 	p.newline()
@@ -155,7 +170,12 @@ package %s
 	if builtins["print"] {
 		p.newline()
 		p.newline()
-		p.print(`func print(arg interface{}) { fmt.Printf("%v\n", arg) }`)
+		p.print(`func print(args ...interface{}) {
+	for _, arg := range args {
+		fmt.Printf("%v", arg)
+	}
+	fmt.Print("\n")
+}`)
 	}
 	if builtins["printf"] {
 		p.newline()
@@ -167,7 +187,7 @@ package %s
 	if err != nil {
 		lines := new(bytes.Buffer)
 		for i, line := range strings.Split(p.buf.String(), "\n") {
-			fmt.Fprintf(lines, "%3d: %s\n", i, line)
+			fmt.Fprintf(lines, "%3d: %s\n", i+1, line)
 		}
 		return nil, fmt.Errorf("gengo: bad generated source: %v\n%s", err, lines.String())
 	}
@@ -204,7 +224,7 @@ func (p *printer) expr(e expr.Expr) {
 		if str, isStr := e.Value.(string); isStr {
 			p.printf("%q", str)
 		} else {
-			p.printf("%s", e.Value)
+			p.printf("%v", e.Value)
 		}
 	case *expr.Binary:
 		p.expr(e.Left)
@@ -286,6 +306,14 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.Type:
 		p.tipe(e.Type)
 	case *expr.TypeAssert:
+		if e.Type == nil {
+			p.print("TODO TypeAssert nil type")
+			return
+		}
+		p.expr(e.Left)
+		p.print(".(")
+		p.tipe(e.Type)
+		p.print(")")
 	case *expr.Unary:
 		p.print(e.Op.String())
 		p.expr(e.Expr)
@@ -322,18 +350,6 @@ func (p *printer) stmt(s stmt.Stmt) {
 		for _, s := range s.Stmts {
 			p.newline()
 			p.stmt(s)
-
-			if s, isAssign := s.(*stmt.Assign); isAssign {
-				// TODO: look to see if typecheck object is used,
-				//       only emit this if it isn't.
-				if s.Decl {
-					p.newline()
-					for _, e := range s.Left {
-						p.print("_ = ")
-						p.expr(e)
-					}
-				}
-			}
 		}
 		p.indent--
 		p.newline()
@@ -355,6 +371,15 @@ func (p *printer) stmt(s stmt.Stmt) {
 		// lifted to top-level earlier
 	case *stmt.Range:
 	case *stmt.Return:
+		p.print("return")
+		for i, e := range s.Exprs {
+			if i == 0 {
+				p.print(" ")
+			} else {
+				p.print(", ")
+			}
+			p.expr(e)
+		}
 	case *stmt.Simple:
 		p.expr(s.Expr)
 	case *stmt.Send:

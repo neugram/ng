@@ -54,16 +54,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"error6",
 			"error7",
 			"error8_error",
-			"func",
-			"func1_error",
-			"func2_error",
-			"func3",
-			"func4",
-			"func6_error",
-			"func7_error",
-			"func8_error",
-			"func9_error",
-			"import1",
 			"import2",
 			"import3_error",
 			"import4",
@@ -85,7 +75,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"select7",
 			"select8",
 			"slice1",
-			"strings",
 			"switch10",
 			"switch11",
 			"switch12_error",
@@ -130,6 +119,9 @@ func TestGeneratedPrograms(t *testing.T) {
 			t.Parallel()
 			res, err := gengo.GenGo(file, "main")
 			if err != nil {
+				if strings.HasSuffix(test, "_error") {
+					return
+				}
 				t.Fatal(err)
 			}
 
@@ -158,7 +150,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				if strings.HasSuffix(test, "_error") {
-					// TODO: check errors make sense
 					return
 				}
 				t.Fatalf("failed to build: %v\n%s", err, out)
@@ -168,6 +159,9 @@ func TestGeneratedPrograms(t *testing.T) {
 			cmd = exec.Command(binname)
 			out, err = cmd.CombinedOutput()
 			if err != nil {
+				if strings.HasSuffix(test, "_error") {
+					return
+				}
 				if strings.HasSuffix(test, "_panic") {
 					// TODO: check errors make sense
 					return
