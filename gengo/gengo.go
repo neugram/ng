@@ -409,6 +409,10 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.expr(s.Cond)
 		p.print(" ")
 		p.stmt(s.Body)
+		if s.Else != nil {
+			p.print(" else ")
+			p.stmt(s.Else)
+		}
 	case *stmt.ImportSet:
 		// lifted to top-level earlier
 	case *stmt.Import:
@@ -450,7 +454,17 @@ func (p *printer) stmt(s stmt.Stmt) {
 	case *stmt.MethodikDecl:
 		// lifted to top-level earlier
 	case *stmt.Labeled:
+		p.indent--
+		p.newline()
+		p.printf("%s:", s.Label)
+		p.indent++
+		p.newline()
+		p.stmt(s.Stmt)
 	case *stmt.Branch:
+		p.printf("%s", s.Type)
+		if s.Label != "" {
+			p.printf(" %s", s.Label)
+		}
 	case *stmt.Switch:
 	case *stmt.TypeSwitch:
 	case *stmt.Select:

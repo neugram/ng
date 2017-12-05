@@ -55,7 +55,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"import4",
 			"import5",
 			"import8",
-			"loop1",
 			"method1",
 			"method2",
 			"numbers1",
