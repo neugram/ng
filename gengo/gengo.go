@@ -744,8 +744,8 @@ func (p *printer) tipe(t tipe.Type) {
 		}
 		p.print(")")
 	case *tipe.Ellipsis:
-		p.tipe(t.Elem)
 		p.print("...")
+		p.tipe(t.Elem)
 	default:
 		panic(fmt.Sprintf("unknown type: %T", t))
 	}

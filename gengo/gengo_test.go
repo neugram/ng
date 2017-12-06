@@ -49,10 +49,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"method2",
 			"op1",
 			"slice1",
-			"varargs",
-			"vardecl1_error",
-			"vardecl2_error",
-			"vardecl3_error",
 		}
 		donotrun := false
 		for _, ex := range exclude {
