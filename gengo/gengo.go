@@ -612,6 +612,25 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.newline()
 		p.print("}")
 	case *stmt.Select:
+		p.print("select {")
+		for _, c := range s.Cases {
+			p.newline()
+			if c.Default {
+				p.print("default:")
+			} else {
+				p.print("case ")
+				p.stmt(c.Stmt)
+				p.print(":")
+			}
+			p.indent++
+			for _, s := range c.Body.Stmts {
+				p.newline()
+				p.stmt(s)
+			}
+			p.indent--
+		}
+		p.newline()
+		p.print("}")
 	}
 }
 

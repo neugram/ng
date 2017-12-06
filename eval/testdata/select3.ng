@@ -10,8 +10,8 @@ go func() {
 ok := false
 
 select {
-case v := <-ch1:
-		panic("ERROR-1")
+case <-ch1:
+	panic("ERROR-1")
 case ch2 <- 1:
 	panic("ERROR-2")
 case v, ok3 := <-ch3:
