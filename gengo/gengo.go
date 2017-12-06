@@ -543,6 +543,41 @@ func (p *printer) stmt(s stmt.Stmt) {
 			p.printf(" %s", s.Label)
 		}
 	case *stmt.Switch:
+		p.print("switch ")
+		if s.Init != nil {
+			p.stmt(s.Init)
+			p.print("; ")
+		}
+		if s.Cond != nil {
+			p.expr(s.Cond)
+		}
+		p.print(" {")
+
+		for _, c := range s.Cases {
+			p.newline()
+			if c.Default {
+				p.print("default:")
+			} else {
+				p.print("case ")
+				for i, e := range c.Conds {
+					if i > 0 {
+						p.print(", ")
+					}
+					p.expr(e)
+				}
+				p.print(":")
+			}
+			p.indent++
+			for _, s := range c.Body.Stmts {
+				p.newline()
+				p.stmt(s)
+			}
+			p.indent--
+		}
+
+		p.newline()
+		p.print("}")
+
 	case *stmt.TypeSwitch:
 		p.print("switch ")
 		if s.Init != nil {
