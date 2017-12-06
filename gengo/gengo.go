@@ -322,6 +322,13 @@ func (p *printer) expr(e expr.Expr) {
 			}
 			p.indent--
 			p.newline()
+		} else if len(e.Elements) > 0 {
+			for i, elem := range e.Elements {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
+			}
 		}
 		p.print("}")
 	case *expr.FuncLiteral:
@@ -465,6 +472,8 @@ func (p *printer) stmt(s stmt.Stmt) {
 		}
 		p.stmt(s.Body)
 	case *stmt.Go:
+		p.print("go ")
+		p.expr(s.Call)
 	case *stmt.If:
 		p.print("if ")
 		if s.Init != nil {
@@ -513,6 +522,9 @@ func (p *printer) stmt(s stmt.Stmt) {
 	case *stmt.Simple:
 		p.expr(s.Expr)
 	case *stmt.Send:
+		p.expr(s.Chan)
+		p.print(" <- ")
+		p.expr(s.Value)
 	case *stmt.TypeDecl:
 		p.printf("type %s ", s.Name)
 		p.tipe(s.Type.Type)
