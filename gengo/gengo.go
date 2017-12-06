@@ -342,7 +342,7 @@ func (p *printer) expr(e expr.Expr) {
 			}
 			p.print(name)
 			p.print(" ")
-			p.print(format.Type(e.Type.Params.Elems[i]))
+			p.tipe(e.Type.Params.Elems[i])
 		}
 		p.print(") ")
 		if len(e.ResultNames) != 0 {
@@ -353,7 +353,7 @@ func (p *printer) expr(e expr.Expr) {
 				}
 				p.print(name)
 				p.print(" ")
-				p.print(format.Type(e.Type.Results.Elems[i]))
+				p.tipe(e.Type.Results.Elems[i])
 			}
 			p.print(")")
 		}
@@ -409,13 +409,13 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.Type:
 		p.tipe(e.Type)
 	case *expr.TypeAssert:
-		if e.Type == nil {
-			p.print("TODO TypeAssert nil type")
-			return
-		}
 		p.expr(e.Left)
 		p.print(".(")
-		p.tipe(e.Type)
+		if e.Type == nil {
+			p.print("type")
+		} else {
+			p.tipe(e.Type)
+		}
 		p.print(")")
 	case *expr.Unary:
 		p.print(e.Op.String())
@@ -544,6 +544,38 @@ func (p *printer) stmt(s stmt.Stmt) {
 		}
 	case *stmt.Switch:
 	case *stmt.TypeSwitch:
+		p.print("switch ")
+		if s.Init != nil {
+			p.stmt(s.Init)
+			p.print("; ")
+		}
+		p.stmt(s.Assign)
+		p.print(" {")
+
+		for _, c := range s.Cases {
+			p.newline()
+			if c.Default {
+				p.print("default:")
+			} else {
+				p.print("case ")
+				for i, t := range c.Types {
+					if i > 0 {
+						p.print(", ")
+					}
+					p.tipe(t)
+				}
+				p.print(":")
+			}
+			p.indent++
+			for _, s := range c.Body.Stmts {
+				p.newline()
+				p.stmt(s)
+			}
+			p.indent--
+		}
+
+		p.newline()
+		p.print("}")
 	case *stmt.Select:
 	}
 }

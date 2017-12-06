@@ -13,7 +13,7 @@ b2 := isBuffer(new(bytes.Reader))
 
 r := io.Reader(new(bytes.Buffer))
 buf := r.(*bytes.Buffer)
-buf.Write("bufval")
+buf.Write([]byte("bufval"))
 
 b3 := buf.String() == "bufval"
 
