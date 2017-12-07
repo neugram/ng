@@ -95,6 +95,8 @@ func isZero(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.Complex64, reflect.Complex128:
 		return v.Complex() == 0
+	case reflect.String:
+		return v.String() == ""
 	}
 	return false
 }
