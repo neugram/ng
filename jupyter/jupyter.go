@@ -351,6 +351,20 @@ func (s *server) execute(c *conn, req *message) error {
 
 	session := s.session(req)
 
+	if err := s.publishIO("status", kernelBusy, req); err != nil {
+		log.Printf("jupyter: failed to communicate busy status: %v", err)
+	}
+	defer func() {
+		if err := s.publishIO("status", kernelIdle, req); err != nil {
+			log.Printf("jupyter: failed to communicate idle status: %v", err)
+		}
+	}()
+
+	code := reqContent["code"].(string)
+	if err := s.publishIO("execute_input", &executeInput{ExecutionCount: session.ExecCount, Code: code}, req); err != nil {
+		return err
+	}
+
 	errResp := func(err error) error {
 		content := &executeReplyError{
 			Status:         "error",
@@ -393,7 +407,7 @@ func (s *server) execute(c *conn, req *message) error {
 		close(done)
 	}()
 
-	err = session.Exec([]byte(reqContent["code"].(string)))
+	err = session.Exec([]byte(code))
 
 	w.Close()
 	<-done
