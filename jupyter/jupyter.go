@@ -73,14 +73,19 @@ func Run(ctx context.Context, connFile string) error {
 		log.Printf("jupyter conn info: %#+v\n", info)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	s := &server{
 		ctx:     ctx,
+		cancel:  cancel,
 		neugram: ngcore.New(),
 		key:     []byte(info.Key),
 		iopubs:  make(map[chan [][]byte]struct{}),
 	}
 
 	if err := s.shellListener(info.Transport, info.IP, info.ShellPort); err != nil {
+		return err
+	}
+	if err := s.ctlListener(info.Transport, info.IP, info.ControlPort); err != nil {
 		return err
 	}
 	if err := s.iopubListener(info.Transport, info.IP, info.IOPubPort); err != nil {
@@ -105,6 +110,7 @@ type conn struct {
 
 type server struct {
 	ctx     context.Context // server lifecycle
+	cancel  context.CancelFunc
 	neugram *ngcore.Neugram
 	key     []byte
 
@@ -133,6 +139,32 @@ func (s *server) shellListener(transport, ip string, port int) error {
 			}
 			c := &conn{netConn, zmtpConn}
 			go s.shellHandler(c)
+		}
+	}()
+	return nil
+}
+
+func (s *server) ctlListener(transport, ip string, port int) error {
+	ln, err := net.Listen(transport, fmt.Sprintf("%s:%d", ip, port))
+	if err != nil {
+		return fmt.Errorf("jupyter: failed to listen on control socket: %v", err)
+	}
+	go func() {
+		for {
+			netConn, err := ln.Accept()
+			if err != nil {
+				log.Printf("jupyter: control listener exiting: %v", err)
+				return
+			}
+			zmtpConn := zmtp.NewConnection(netConn)
+			_, err = zmtpConn.Prepare(new(zmtp.SecurityNull), zmtp.RouterSocketType, "", true, nil)
+			if err != nil {
+				log.Printf("jupyter: failed prepare control socket ROUTER: %v", err)
+				netConn.Close()
+				continue
+			}
+			c := &conn{netConn, zmtpConn}
+			go s.ctlHandler(c)
 		}
 	}()
 	return nil
@@ -195,6 +227,37 @@ func (s *server) shellHandler(c *conn) {
 	}
 }
 
+func (s *server) ctlHandler(c *conn) {
+	if debug {
+		log.Printf("control handler started\n")
+	}
+	ch := make(chan *zmtp.Message)
+	c.zmtp.Recv(ch)
+	for {
+		zmsg := <-ch
+		switch zmsg.MessageType {
+		case zmtp.UserMessage:
+			var msg message
+			if err := msg.decode(zmsg.Body); err != nil {
+				log.Printf("jupyter: control msg: %v", err)
+				continue
+			}
+			s.shellRequest(c, &msg)
+		case zmtp.CommandMessage:
+			log.Printf("TODO control cmd msg body=\n") // TODO
+			for _, b := range zmsg.Body {
+				log.Printf("\t%s\n", b)
+			}
+		case zmtp.ErrorMessage:
+			if zmsg.Err == io.EOF {
+				c.conn.Close()
+				return
+			}
+			log.Printf("control err msg: %v\n", zmsg.Err)
+		}
+	}
+}
+
 func (s *server) publishIO(typeName string, content interface{}, req *message) error {
 	b, err := replyMessage(typeName, s.key, content, req)
 	if err != nil {
@@ -253,6 +316,8 @@ func (s *server) shellRequest(c *conn, req *message) {
 		err = s.kernelInfo(c, req)
 	case "execute_request":
 		err = s.execute(c, req)
+	case "shutdown_request":
+		err = s.shutdown(c, req)
 	default:
 		err = fmt.Errorf("unhandled message: %q", req.Header.Type)
 	}
@@ -260,6 +325,22 @@ func (s *server) shellRequest(c *conn, req *message) {
 	if err != nil {
 		log.Printf("jupyter: %v", err)
 	}
+}
+
+func (s *server) shutdown(c *conn, req *message) error {
+	defer s.cancel()
+
+	reqContent, validContent := req.Content.(map[string]interface{})
+	if !validContent {
+		return fmt.Errorf("malformed request content: %T", req.Content)
+	}
+
+	restart := reqContent["restart"].(bool)
+	if err := s.shellReply(c, "shutdown_reply", &shutdownReply{Restart: restart}, req); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *server) execute(c *conn, req *message) error {
