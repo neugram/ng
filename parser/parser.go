@@ -61,7 +61,10 @@ func (p *Parser) Parse(source []byte) (*syntax.File, error) {
 		if len(res.Cmds) == 1 {
 			s := &stmt.Simple{
 				Position: res.Cmds[0].Pos(),
-				Expr:     res.Cmds[0],
+				Expr: &expr.Shell{
+					Position: res.Cmds[0].Pos(),
+					Cmds:     res.Cmds,
+				},
 			}
 			f.Stmts = append(f.Stmts, s)
 		} else if len(res.Cmds) > 1 {
@@ -71,7 +74,10 @@ func (p *Parser) Parse(source []byte) (*syntax.File, error) {
 			for _, cmd := range res.Cmds {
 				simple := &stmt.Simple{
 					Position: cmd.Pos(),
-					Expr:     cmd,
+					Expr: &expr.Shell{
+						Position: cmd.Pos(),
+						Cmds:     []*expr.ShellList{cmd},
+					},
 				}
 				s.Stmts = append(s.Stmts, simple)
 			}
