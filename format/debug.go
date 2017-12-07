@@ -144,7 +144,8 @@ func (p *debugPrinter) printv(v reflect.Value) {
 			p.indent++
 			for _, key := range v.MapKeys() {
 				p.newline()
-				p.printf("%s: ", key)
+				p.printv(key)
+				p.printf(": ")
 				p.printv(v.MapIndex(key))
 				p.buf.WriteByte(',')
 			}
@@ -194,7 +195,17 @@ func (p *debugPrinter) printv(v reflect.Value) {
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
-		p.printf("%s(%v)", v.Type().Name(), v)
+		str := fmt.Sprintf("%#v", v)
+		p.printf("%s(%s", v.Type(), str)
+		if v.CanInterface() {
+			if stringer, is := v.Interface().(fmt.Stringer); is {
+				str2 := stringer.String()
+				if str2 != str {
+					p.printf(" /* %s */", str2)
+				}
+			}
+		}
+		p.printf(")")
 	default:
 		if !v.IsValid() {
 			p.printf("?")
