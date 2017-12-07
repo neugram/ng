@@ -7,6 +7,7 @@ package shell
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -669,4 +670,66 @@ func (j *Job) export(pairs []string) error {
 		j.State.Env.Set(parts[0], val)
 	}
 	return nil
+}
+
+func Run(shellState *State, p Params, e *expr.Shell) (string, error) {
+	res := make(chan string)
+	out := os.Stdout
+	if e.DropOut {
+		out = devNull
+		close(res)
+	} else if e.TrapOut {
+		r, w, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+		out = w
+		go func() {
+			b, err := ioutil.ReadAll(r)
+			if err != nil {
+				panic(err)
+			}
+			res <- string(b)
+		}()
+	} else {
+		close(res)
+	}
+
+	var err error
+	for _, cmd := range e.Cmds {
+		j := &Job{
+			State:  shellState,
+			Cmd:    cmd,
+			Params: p,
+			Stdin:  os.Stdin,
+			Stdout: out,
+			Stderr: os.Stderr,
+		}
+		if err = j.Start(); err != nil {
+			break
+		}
+		var done bool
+		done, err = j.Wait()
+		if err != nil {
+			break
+		}
+		if !done {
+			break // TODO not right, instead we should just have one cmd, not Cmds here.
+		}
+	}
+	if e.TrapOut {
+		out.Close()
+	}
+	str := <-res
+	return str, err
+}
+
+var devNull *os.File
+
+func init() {
+	var err error
+	devNull, err = os.Open("/dev/null")
+	if err != nil {
+		panic(err)
+	}
 }

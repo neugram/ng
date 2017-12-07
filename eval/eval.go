@@ -1471,53 +1471,8 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 	case *expr.Shell:
 		p.pushScope()
 		defer p.popScope()
-		res := make(chan string)
-		out := os.Stdout
-		if e.DropOut {
-			out = devNull
-			close(res)
-		} else if e.TrapOut {
-			r, w, err := os.Pipe()
-			if err != nil {
-				panic(err)
-			}
-			out = w
-			go func() {
-				b, err := ioutil.ReadAll(r)
-				if err != nil {
-					panic(err)
-				}
-				res <- string(b)
-			}()
-		} else {
-			close(res)
-		}
-		var err error
-		for _, cmd := range e.Cmds {
-			j := &shell.Job{
-				State:  p.ShellState,
-				Cmd:    cmd,
-				Params: p,
-				Stdin:  os.Stdin,
-				Stdout: out,
-				Stderr: os.Stderr,
-			}
-			if err = j.Start(); err != nil {
-				break
-			}
-			var done bool
-			done, err = j.Wait()
-			if err != nil {
-				break
-			}
-			if !done {
-				break // TODO not right, instead we should just have one cmd, not Cmds here.
-			}
-		}
-		if e.TrapOut {
-			out.Close()
-		}
-		str := reflect.ValueOf(<-res)
+		res, err := shell.Run(p.ShellState, p, e)
+		str := reflect.ValueOf(res)
 		if e.ElideError {
 			// Dynamic elision of final error.
 			if err != nil {
@@ -1900,14 +1855,4 @@ type Panic struct {
 
 func (p Panic) Error() string {
 	return fmt.Sprintf("neugram panic: %v", p.val)
-}
-
-var devNull *os.File
-
-func init() {
-	var err error
-	devNull, err = os.Open("/dev/null")
-	if err != nil {
-		panic(err)
-	}
 }
