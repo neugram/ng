@@ -54,6 +54,7 @@ package %s
 
 `, outGoPkgName)
 
+	usesShell := false
 	builtins := make(map[string]bool)
 	importPaths := []string{}
 	preFn := func(c *syntax.Cursor) bool {
@@ -70,53 +71,58 @@ package %s
 			case "errorf":
 				builtins["errorf"] = true
 			}
+		case *expr.ShellList:
+			usesShell = true
 		}
 		return true
 	}
 	syntax.Walk(pkg.Syntax, preFn, nil)
 
-	importFmt := builtins["printf"] || builtins["print"] || builtins["errorf"]
-
 	// Lift imports to the top-level.
-	if len(importPaths) > 0 || importFmt {
-		// De-dup.
-		importSet := make(map[string]bool)
-		for _, imp := range importPaths {
-			importSet[imp] = true
-		}
-		// Name.
-		namedImports := make(map[string]string) // name -> path
-		for imp := range importSet {
-			name := "gengoimp_" + path.Base(imp)
-			i := 0
-			for namedImports[name] != "" {
-				i++
-				name = fmt.Sprintf("gengoimp_%s_%d", path.Base(imp), i)
-			}
-			namedImports[name] = imp
-			p.imports[p.c.Pkg(imp).Type] = name
-		}
-
-		p.printf("import (")
-		p.indent++
-
-		if importFmt {
-			p.newline()
-			p.printf(`"fmt"`)
-		}
-
-		// Stable output is ensured by gofmt's sorting later.
-		for name, imp := range namedImports {
-			p.newline()
-			p.printf("%s %q", name, imp)
-		}
-
-		p.indent--
-		p.newline()
-		p.print(")")
-		p.newline()
-		p.newline()
+	importSet := make(map[string]bool)
+	for _, imp := range importPaths {
+		importSet[imp] = true
 	}
+	// Name.
+	namedImports := make(map[string]string) // name -> path
+	for imp := range importSet {
+		name := "gengoimp_" + path.Base(imp)
+		i := 0
+		for namedImports[name] != "" {
+			i++
+			name = fmt.Sprintf("gengoimp_%s_%d", path.Base(imp), i)
+		}
+		namedImports[name] = imp
+		p.imports[p.c.Pkg(imp).Type] = name
+	}
+
+	p.printf("import (")
+	p.indent++
+
+	if builtins["printf"] || builtins["print"] || builtins["errorf"] {
+		p.newline()
+		p.printf(`"fmt"`)
+	}
+	if usesShell {
+		p.newline()
+		p.printf(`"neugram.io/ng/eval/environ"`)
+		p.newline()
+		p.printf(`"neugram.io/ng/eval/shell"`)
+		p.newline()
+		p.printf(`"neugram.io/ng/syntax/expr"`)
+	}
+
+	// Stable output is ensured by gofmt's sorting later.
+	for name, imp := range namedImports {
+		p.newline()
+		p.printf("%s %q", name, imp)
+	}
+
+	p.indent--
+	p.newline()
+	p.print(")")
+	p.newline()
+	p.newline()
 
 	if outGoPkgName == "main" {
 		p.printf("func main() {}")
@@ -170,6 +176,58 @@ package %s
 	p.newline()
 	p.print("}")
 
+	p.printBuiltins(builtins)
+	p.printEliders()
+	if usesShell {
+		p.printShell()
+	}
+
+	res, err := goformat.Source(p.buf.Bytes())
+	if err != nil {
+		lines := new(bytes.Buffer)
+		for i, line := range strings.Split(p.buf.String(), "\n") {
+			fmt.Fprintf(lines, "%3d: %s\n", i+1, line)
+		}
+		return nil, fmt.Errorf("gengo: bad generated source: %v\n%s", err, lines.String())
+	}
+
+	return res, nil
+}
+
+type printer struct {
+	buf    *bytes.Buffer
+	indent int
+
+	imports map[*tipe.Package]string // import package -> name
+	c       *typecheck.Checker
+	eliders map[tipe.Type]string
+}
+
+func (p *printer) printShell() {
+	p.newline()
+	p.newline()
+	p.printf(`var shellState = &shell.State{
+	Env:   environ.New(),
+	Alias: environ.New(),
+}`)
+
+	p.newline()
+	p.newline()
+	p.printf(`func gengo_shell(e *expr.Shell) (string, error) {
+	str, err := shell.Run(shellState, nil, e)
+	return str, err
+}
+
+func gengo_shell_elide(e *expr.Shell) string {
+	str, err := gengo_shell(e)
+	if err != nil {
+		panic(err)
+	}
+	return str
+}`)
+}
+
+func (p *printer) printBuiltins(builtins map[string]bool) {
 	if builtins["print"] {
 		p.newline()
 		p.newline()
@@ -180,17 +238,21 @@ package %s
 	fmt.Print("\n")
 }`)
 	}
+
 	if builtins["printf"] {
 		p.newline()
 		p.newline()
 		p.print("func printf(f string, args ...interface{}) { fmt.Printf(f, args...) }")
 	}
+
 	if builtins["errorf"] {
 		p.newline()
 		p.newline()
 		p.print("func errorf(f string, args ...interface{}) error { return fmt.Errorf(f, args...) }")
 	}
+}
 
+func (p *printer) printEliders() {
 	for t, name := range p.eliders {
 		p.newline()
 		p.newline()
@@ -239,26 +301,6 @@ package %s
 		p.newline()
 		p.printf("}")
 	}
-
-	res, err := goformat.Source(p.buf.Bytes())
-	if err != nil {
-		lines := new(bytes.Buffer)
-		for i, line := range strings.Split(p.buf.String(), "\n") {
-			fmt.Fprintf(lines, "%3d: %s\n", i+1, line)
-		}
-		return nil, fmt.Errorf("gengo: bad generated source: %v\n%s", err, lines.String())
-	}
-
-	return res, nil
-}
-
-type printer struct {
-	buf    *bytes.Buffer
-	indent int
-
-	imports map[*tipe.Package]string // import package -> name
-	c       *typecheck.Checker
-	eliders map[tipe.Type]string
 }
 
 func (p *printer) printf(format string, args ...interface{}) {
@@ -396,6 +438,11 @@ func (p *printer) expr(e expr.Expr) {
 		p.print(".")
 		p.expr(e.Right)
 	case *expr.Shell:
+		if e.ElideError {
+			p.printf("gengo_shell_elide(%s)", format.Debug(e))
+		} else {
+			p.printf("gengo_shell(%s)", format.Debug(e))
+		}
 	case *expr.SliceLiteral:
 		p.tipe(e.Type)
 		p.print("{")
