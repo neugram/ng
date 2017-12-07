@@ -230,17 +230,13 @@ func init() {
 func initProgram(path string) {
 	p = parser.New(path)
 	shellState = &shell.State{
-		Env:   environ.New(),
+		Env:   environ.NewFrom(os.Environ()),
 		Alias: environ.New(),
 	}
 	prg = eval.New(path, shellState)
 
 	// TODO this env setup could be done in neugram code
 	env := prg.Environ()
-	for _, s := range os.Environ() {
-		i := strings.Index(s, "=")
-		env.Set(s[:i], s[i+1:])
-	}
 	wd, err := os.Getwd()
 	if err == nil {
 		env.Set("PWD", wd)

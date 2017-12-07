@@ -19,6 +19,15 @@ func New() *Environ {
 	return &Environ{m: make(map[string]string)}
 }
 
+func NewFrom(vals []string) *Environ {
+	env := New()
+	for _, s := range vals {
+		i := strings.Index(s, "=")
+		env.Set(s[:i], s[i+1:])
+	}
+	return env
+}
+
 func (e *Environ) GetVal(key interface{}) interface{} { return e.Get(key.(string)) }
 func (e *Environ) SetVal(key, val interface{})        { e.Set(key.(string), val.(string)) }
 

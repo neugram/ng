@@ -105,11 +105,17 @@ package %s
 	}
 	if usesShell {
 		p.newline()
+		p.printf(`"os"`)
+		p.newline()
 		p.printf(`"neugram.io/ng/eval/environ"`)
 		p.newline()
 		p.printf(`"neugram.io/ng/eval/shell"`)
 		p.newline()
 		p.printf(`"neugram.io/ng/syntax/expr"`)
+		p.newline()
+		p.printf(`"neugram.io/ng/syntax/src"`)
+		p.newline()
+		p.printf(`"neugram.io/ng/syntax/token"`)
 	}
 
 	// Stable output is ensured by gofmt's sorting later.
@@ -206,9 +212,22 @@ type printer struct {
 func (p *printer) printShell() {
 	p.newline()
 	p.newline()
+	p.printf(`var _ = src.Pos{} // used in some expr.Shell prints`)
+	p.newline()
+	p.printf(`var _ = token.Token(0)`)
+	p.newline()
 	p.printf(`var shellState = &shell.State{
-	Env:   environ.New(),
+	Env:   environ.NewFrom(os.Environ()),
 	Alias: environ.New(),
+}`)
+
+	p.newline()
+	p.newline()
+	p.printf(`func init() {
+	wd, err := os.Getwd()
+	if err == nil {
+		shellState.Env.Set("PWD", wd)
+	}
 }`)
 
 	p.newline()
