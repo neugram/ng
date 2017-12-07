@@ -407,7 +407,7 @@ func (s *server) execute(c *conn, req *message) error {
 		close(done)
 	}()
 
-	err = session.Exec([]byte(code))
+	vals, err := session.Exec([]byte(code))
 
 	w.Close()
 	<-done
@@ -423,15 +423,43 @@ func (s *server) execute(c *conn, req *message) error {
 		ExecutionCount: session.ExecCount,
 	}
 	// TODO user_expressions
-	s.publishIO("stream", map[string]string{
-		"name": "stdout",
-		"text": buf.String(),
-	}, req)
+	if txt := buf.String(); len(txt) != 0 {
+		// TODO: distinguish b/w stdout/stderr
+		// TODO: publish stderr stream
+		s.publishIO("stream", map[string]string{
+			"name": "stdout",
+			"text": txt,
+		}, req)
+	}
 
 	if err := s.shellReply(c, "execute_reply", content, req); err != nil {
 		return err
 	}
-	return s.publishIO("execute_result", content, req)
+
+	nvals := 0
+	for i := range vals {
+		if len(vals[i]) > 0 {
+			nvals++
+		}
+	}
+	if nvals == 0 {
+		return nil
+	}
+
+	var dd displayData
+	for _, tuple := range vals {
+		dd, err = genDisplayData(session, tuple)
+		if err != nil {
+			return err
+		}
+	}
+
+	result := &executeResult{
+		ExecutionCount: session.ExecCount,
+		Data:           dd.Data,
+		Meta:           dd.Meta,
+	}
+	return s.publishIO("execute_result", result, req)
 }
 
 func (s *server) kernelInfo(c *conn, req *message) error {
