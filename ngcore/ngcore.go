@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -104,22 +105,24 @@ func (n *Neugram) GetOrNewSession(ctx context.Context, name string) *Session {
 	return s
 }
 
-func (s *Session) Exec(src []byte) error {
+func (s *Session) Exec(src []byte) ([][]reflect.Value, error) {
 	var err error
 	stdout := s.Stdout
 	if stdout == nil {
 		stdout, err = os.Create(os.DevNull)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	stderr := s.Stderr
 	if stderr == nil {
 		stdout, err = os.Create(os.DevNull)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
+
+	s.ExecCount++
 
 	res := s.Parser.ParseLine(src)
 	if len(res.Errs) > 0 {
@@ -127,56 +130,24 @@ func (s *Session) Exec(src []byte) error {
 		for i, err := range res.Errs {
 			errs[i] = err
 		}
-		return Error{Phase: "parser", List: errs}
+		return nil, Error{Phase: "parser", List: errs}
 	}
+	out := make([][]reflect.Value, 0, len(res.Stmts))
 	for _, stmt := range res.Stmts {
 		v, err := s.Program.Eval(stmt, nil)
 		if err != nil {
 			str := err.Error()
 			if strings.HasPrefix(str, "typecheck: ") { // TODO: gross
-				return Error{
+				return nil, Error{
 					Phase: "typecheck",
 					List: []error{
 						errors.New(strings.TrimPrefix(str, "typecheck: ")),
 					},
 				}
 			}
-			return Error{Phase: "eval", List: []error{err}}
+			return nil, Error{Phase: "eval", List: []error{err}}
 		}
-		s.ExecCount++
-		if len(v) > 1 {
-			fmt.Fprint(stdout, "(")
-		}
-		for i, val := range v {
-			if i > 0 {
-				fmt.Fprint(stdout, ", ")
-			}
-			if val == (reflect.Value{}) {
-				fmt.Fprint(stdout, "<nil>")
-				continue
-			}
-			switch v := val.Interface().(type) {
-			case eval.UntypedInt:
-				fmt.Fprint(stdout, v.String())
-			case eval.UntypedFloat:
-				fmt.Fprint(stdout, v.String())
-			case eval.UntypedComplex:
-				fmt.Fprint(stdout, v.String())
-			case eval.UntypedString:
-				fmt.Fprint(stdout, v.String)
-			case eval.UntypedRune:
-				fmt.Fprintf(stdout, "%v", v.Rune)
-			case eval.UntypedBool:
-				fmt.Fprint(stdout, v.Bool)
-			default:
-				fmt.Fprint(stdout, format.Debug(v))
-			}
-		}
-		if len(v) > 1 {
-			fmt.Fprintln(stdout, ")")
-		} else if len(v) == 1 {
-			fmt.Fprintln(stdout, "")
-		}
+		out = append(out, v)
 	}
 	for _, cmd := range res.Cmds {
 		j := &shell.Job{
@@ -193,13 +164,50 @@ func (s *Session) Exec(src []byte) error {
 		}
 		done, err := j.Wait()
 		if err != nil {
-			return Error{Phase: "shell", List: []error{err}}
+			return nil, Error{Phase: "shell", List: []error{err}}
 		}
 		if !done {
 			break // TODO not right, instead we should just have one cmd, not Cmds here.
 		}
 	}
-	return nil
+	return out, nil
+}
+
+// Display displays the results of an execution to w.
+func (s *Session) Display(w io.Writer, vals []reflect.Value) {
+	if len(vals) > 1 {
+		fmt.Fprint(w, "(")
+	}
+	for i, val := range vals {
+		if i > 0 {
+			fmt.Fprint(w, ", ")
+		}
+		if val == (reflect.Value{}) {
+			fmt.Fprint(w, "<nil>")
+			continue
+		}
+		switch v := val.Interface().(type) {
+		case eval.UntypedInt:
+			fmt.Fprint(w, v.String())
+		case eval.UntypedFloat:
+			fmt.Fprint(w, v.String())
+		case eval.UntypedComplex:
+			fmt.Fprint(w, v.String())
+		case eval.UntypedString:
+			fmt.Fprint(w, v.String)
+		case eval.UntypedRune:
+			fmt.Fprintf(w, "%v", v.Rune)
+		case eval.UntypedBool:
+			fmt.Fprint(w, v.Bool)
+		default:
+			fmt.Fprint(w, format.Debug(v))
+		}
+	}
+	if len(vals) > 1 {
+		fmt.Fprintln(w, ")")
+	} else if len(vals) == 1 {
+		fmt.Fprintln(w, "")
+	}
 }
 
 func (s *Session) Close() {
