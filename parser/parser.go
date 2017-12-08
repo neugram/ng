@@ -1245,19 +1245,47 @@ items:
 }
 
 func (p *Parser) parseVar() *stmt.Var {
-	// a simple 'var f T' or 'var f T = ...'
 	s := &stmt.Var{
 		Position: p.pos(),
-		Name:     p.parseIdent().Name,
 	}
-	if p.s.Token != token.Assign {
-		s.Type = p.parseType()
-	}
-	if p.s.Token == token.Assign {
+items:
+	for {
+		p.expect(token.Ident)
+		s.NameList = append(s.NameList, p.s.Literal.(string))
 		p.next()
-		s.Value = p.parseExpr()
-		p.expectSemi()
+		switch p.s.Token {
+		case token.Ident:
+			s.Type = p.parseType()
+			if p.s.Token == token.Assign {
+				p.next()
+				s.Values = p.parseExprs()
+			}
+			if p.s.Token == token.Semicolon {
+				break items
+			}
+		case token.Comma:
+			p.next()
+			continue
+		case token.Assign:
+			p.next()
+			s.Values = p.parseExprs()
+			break items
+		case token.Semicolon:
+			break items
+		default:
+			p.errorf("invalid token %v in var declaration", p.s.Token)
+			break items
+		}
 	}
+	p.expectSemi()
+	switch {
+	case len(s.Values) != 0 && len(s.NameList) > len(s.Values):
+		p.errorf("missing value in var declaration")
+
+	case len(s.Values) != 0 && len(s.NameList) < len(s.Values):
+		p.errorf("extra expression in var declaration")
+	}
+
 	return s
 }
 

@@ -103,6 +103,12 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 	case *stmt.ConstSet:
 		w.walkSlice(node, "Consts")
 
+	case *stmt.Var:
+		w.walkSlice(node, "Values")
+
+	case *stmt.VarSet:
+		w.walkSlice(node, "Vars")
+
 	case *stmt.Assign:
 		w.walkSlice(node, "Left")
 		w.walkSlice(node, "Right")

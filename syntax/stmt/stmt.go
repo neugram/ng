@@ -62,9 +62,9 @@ type VarSet struct {
 
 type Var struct {
 	Position src.Pos
-	Name     string
+	NameList []string
 	Type     tipe.Type
-	Value    expr.Expr
+	Values   []expr.Expr
 }
 
 type Assign struct {
