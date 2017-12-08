@@ -159,6 +159,14 @@ func (s *Scanner) scanMantissa() {
 	}
 }
 
+func (s *Scanner) scanHexa() {
+	for ('0' <= s.r && s.r <= '9') ||
+		('a' <= s.r && s.r <= 'f') ||
+		('A' <= s.r && s.r <= 'F') {
+		s.next()
+	}
+}
+
 func (s *Scanner) scanNumber(seenDot bool) (token.Token, interface{}) {
 	off := s.Offset
 	tok := token.Int
@@ -171,6 +179,12 @@ func (s *Scanner) scanNumber(seenDot bool) (token.Token, interface{}) {
 	}
 
 	s.scanMantissa()
+
+	// hexa
+	if (s.r == 'x' || s.r == 'X') && string(s.src[off:s.Offset]) == "0" {
+		s.next()
+		s.scanHexa()
+	}
 
 	// fraction
 	if s.r == '.' {
@@ -198,7 +212,7 @@ exponent:
 	var value interface{}
 	switch tok {
 	case token.Int:
-		i, ok := big.NewInt(0).SetString(str, 10)
+		i, ok := big.NewInt(0).SetString(str, 0)
 		if ok {
 			value = i
 		} else {
