@@ -436,22 +436,13 @@ func (s *server) execute(c *conn, req *message) error {
 		return err
 	}
 
-	nvals := 0
-	for i := range vals {
-		if len(vals[i]) > 0 {
-			nvals++
-		}
-	}
-	if nvals == 0 {
+	if len(vals) == 0 {
 		return nil
 	}
 
-	var dd displayData
-	for _, tuple := range vals {
-		dd, err = genDisplayData(session, tuple)
-		if err != nil {
-			return err
-		}
+	dd, err := genDisplayData(session, vals)
+	if err != nil {
+		return err
 	}
 
 	result := &executeResult{
