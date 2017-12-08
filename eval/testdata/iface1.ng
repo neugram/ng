@@ -1,0 +1,16 @@
+import (
+	"io"
+	"os"
+)
+
+w := io.Writer(nil)
+w = os.Stderr
+
+e := interface{}(nil)
+e = os.Stderr
+e = w
+
+wc := io.WriteCloser(os.Stderr)
+w = wc
+
+print("OK")
