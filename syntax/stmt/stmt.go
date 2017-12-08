@@ -45,9 +45,14 @@ type MethodikDecl struct {
 
 type Const struct {
 	Position src.Pos
-	Name     string
+	NameList []string
 	Type     tipe.Type
-	Value    expr.Expr
+	Values   []expr.Expr
+}
+
+type ConstSet struct {
+	Position src.Pos
+	Consts   []*Const
 }
 
 type VarSet struct {
@@ -183,6 +188,7 @@ func (s *ImportSet) stmt()      {}
 func (s *TypeDecl) stmt()       {}
 func (s *MethodikDecl) stmt()   {}
 func (s *Const) stmt()          {}
+func (s *ConstSet) stmt()       {}
 func (s *Var) stmt()            {}
 func (s *VarSet) stmt()         {}
 func (s *Assign) stmt()         {}
@@ -208,6 +214,7 @@ func (s *ImportSet) Pos() src.Pos     { return s.Position }
 func (s *TypeDecl) Pos() src.Pos      { return s.Position }
 func (s *MethodikDecl) Pos() src.Pos  { return s.Position }
 func (s *Const) Pos() src.Pos         { return s.Position }
+func (s *ConstSet) Pos() src.Pos      { return s.Position }
 func (s *Var) Pos() src.Pos           { return s.Position }
 func (s *VarSet) Pos() src.Pos        { return s.Position }
 func (s *Assign) Pos() src.Pos        { return s.Position }

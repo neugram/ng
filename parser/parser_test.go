@@ -269,6 +269,7 @@ var parserTests = []parserTest{
 
 var tint64 = &tipe.Unresolved{Name: "int64"}
 var tinteger = &tipe.Unresolved{Name: "integer"}
+var tfloat64 = &tipe.Unresolved{Name: "float64"}
 
 func TestParseExpr(t *testing.T) {
 	for _, test := range parserTests {
@@ -653,16 +654,122 @@ var stmtTests = []stmtTest{
 			}}},
 		},
 	},
-	{"const x = 4", &stmt.Const{Name: "x", Value: &expr.BasicLiteral{Value: big.NewInt(4)}}},
-	{"x.y", &stmt.Simple{Expr: &expr.Selector{Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}}},
+	{
+		"const x = 4",
+		&stmt.Const{NameList: []string{"x"}, Values: []expr.Expr{basic(4)}},
+	},
 	{
 		"const x int64 = 4",
+		&stmt.Const{NameList: []string{"x"}, Type: tint64, Values: []expr.Expr{basic(4)}},
+	},
+	{
+		"const x int64",
+		&stmt.Const{NameList: []string{"x"}, Type: tint64},
+	},
+	{
+		"const i, j = 4, 5",
 		&stmt.Const{
-			Name:  "x",
-			Type:  tint64,
-			Value: &expr.BasicLiteral{Value: big.NewInt(4)},
+			NameList: []string{"i", "j"},
+			Values:   []expr.Expr{basic(4), basic(5)},
 		},
 	},
+	{
+		"const i, j int64 = 4, 5",
+		&stmt.Const{
+			NameList: []string{"i", "j"},
+			Type:     tint64,
+			Values:   []expr.Expr{basic(4), basic(5)},
+		},
+	},
+	{
+		"const i, j int64",
+		&stmt.Const{
+			NameList: []string{"i", "j"},
+			Type:     tint64,
+		},
+	},
+	{
+		"const i, j = 4, 5.0",
+		&stmt.Const{
+			NameList: []string{"i", "j"},
+			Values:   []expr.Expr{basic(4), basic(5.0)},
+		},
+	},
+	{
+		`const (
+			x = 4
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x"}, Values: []expr.Expr{basic(4)}},
+			},
+		},
+	},
+	{
+		`const (
+			x int64
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x"}, Type: tint64},
+			},
+		},
+	},
+	{
+		`const (
+			x int64 = 4
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x"}, Type: tint64, Values: []expr.Expr{basic(4)}},
+			},
+		},
+	},
+	{
+		`const (
+			x, y = 4, 5
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x", "y"}, Values: []expr.Expr{basic(4), basic(5)}},
+			},
+		},
+	},
+	{
+		`const (
+			x, y int64 = 4, 5
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x", "y"}, Type: tint64, Values: []expr.Expr{basic(4), basic(5)}},
+			},
+		},
+	},
+	{
+		`const (
+			x, y = 1, 2
+			z, w = 3, 4
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x", "y"}, Values: []expr.Expr{basic(1), basic(2)}},
+				{NameList: []string{"z", "w"}, Values: []expr.Expr{basic(3), basic(4)}},
+			},
+		},
+	},
+	{
+		`const (
+			x, y int64   = 1, 2
+			z, w float64 = 3, 4
+		)`,
+		&stmt.ConstSet{
+			Consts: []*stmt.Const{
+				{NameList: []string{"x", "y"}, Type: tint64, Values: []expr.Expr{basic(1), basic(2)}},
+				{NameList: []string{"z", "w"}, Type: tfloat64, Values: []expr.Expr{basic(3), basic(4)}},
+			},
+		},
+	},
+	{"x.y", &stmt.Simple{Expr: &expr.Selector{Left: &expr.Ident{Name: "x"}, Right: &expr.Ident{Name: "y"}}}},
 	{
 		`type A integer`,
 		&stmt.TypeDecl{Name: "A", Type: &tipe.Named{Name: "A", Type: tinteger}},
@@ -1260,6 +1367,8 @@ func basic(x interface{}) *expr.BasicLiteral {
 		return &expr.BasicLiteral{Value: big.NewInt(x)}
 	case string:
 		return &expr.BasicLiteral{Value: x}
+	case float64:
+		return &expr.BasicLiteral{Value: big.NewFloat(x)}
 	default:
 		panic(fmt.Sprintf("unknown basic %v (%T)", x, x))
 	}

@@ -98,7 +98,10 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 		w.walkSlice(node, "Methods")
 
 	case *stmt.Const:
-		w.walk(node, node.Value, "Value", nil)
+		w.walkSlice(node, "Values")
+
+	case *stmt.ConstSet:
+		w.walkSlice(node, "Consts")
 
 	case *stmt.Assign:
 		w.walkSlice(node, "Left")
