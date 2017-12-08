@@ -1288,17 +1288,30 @@ var stmtTests = []stmtTest{
 	{"{ return }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{}}}},
 	{"{ return 1 }", &stmt.Block{Stmts: []stmt.Stmt{&stmt.Return{Exprs: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(1)}}}}}},
 	{"var i = 10", &stmt.Var{
-		Name:  "i",
-		Value: &expr.BasicLiteral{Value: big.NewInt(10)},
+		NameList: []string{"i"},
+		Values:   []expr.Expr{basic(10)},
 	}},
 	{"var i int", &stmt.Var{
-		Name: "i",
-		Type: &tipe.Unresolved{Name: "int"},
+		NameList: []string{"i"},
+		Type:     &tipe.Unresolved{Name: "int"},
 	}},
 	{"var i int = 11", &stmt.Var{
-		Name:  "i",
-		Value: &expr.BasicLiteral{Value: big.NewInt(11)},
-		Type:  &tipe.Unresolved{Name: "int"},
+		NameList: []string{"i"},
+		Values:   []expr.Expr{basic(11)},
+		Type:     &tipe.Unresolved{Name: "int"},
+	}},
+	{"var i, j = 1, 2", &stmt.Var{
+		NameList: []string{"i", "j"},
+		Values:   []expr.Expr{basic(1), basic(2)},
+	}},
+	{"var i, j int64 = 1, 2", &stmt.Var{
+		NameList: []string{"i", "j"},
+		Type:     tint64,
+		Values:   []expr.Expr{basic(1), basic(2)},
+	}},
+	{"var i, j int64", &stmt.Var{
+		NameList: []string{"i", "j"},
+		Type:     tint64,
 	}},
 	{
 		`var (
@@ -1309,17 +1322,17 @@ var stmtTests = []stmtTest{
 		`, &stmt.VarSet{
 			Vars: []*stmt.Var{
 				{
-					Name:  "i",
-					Value: &expr.BasicLiteral{Value: big.NewInt(11)},
-					Type:  &tipe.Unresolved{Name: "int"},
+					NameList: []string{"i"},
+					Values:   []expr.Expr{basic(11)},
+					Type:     &tipe.Unresolved{Name: "int"},
 				},
 				{
-					Name:  "j",
-					Value: &expr.BasicLiteral{Value: big.NewInt(22)},
+					NameList: []string{"j"},
+					Values:   []expr.Expr{basic(22)},
 				},
 				{
-					Name: "k",
-					Type: &tipe.Unresolved{Name: "float64"},
+					NameList: []string{"k"},
+					Type:     tfloat64,
 				},
 			},
 		},
