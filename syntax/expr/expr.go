@@ -180,6 +180,14 @@ type Shell struct {
 	TrapOut    bool // override os.Stdout, outer language collect it
 	DropOut    bool // send stdout to /dev/null (just an optimization)
 	ElideError bool
+
+	// FreeVars is a list of $-parameters referred to in this
+	// shell expression that are declared statically in the
+	// scope of the expression. Not all parameters have to be
+	// declared statically in the scope, as they may be
+	// referring to run time environment variables.
+	FreeVars []string
+
 	// TODO: Shell object for err := $$(stdin, stdout, stderr) cmd $$
 }
 

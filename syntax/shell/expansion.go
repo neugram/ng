@@ -14,7 +14,35 @@ import (
 	"unicode/utf8"
 )
 
-func expansion(argv1 []string, params paramset) ([]string, error) {
+type Params interface {
+	Get(name string) string
+}
+
+type paramCollector map[string]bool
+
+func (p paramCollector) Get(name string) string {
+	p[name] = true
+	return ""
+}
+
+func Parameters(argv1 []string) ([]string, error) {
+	collector := make(paramCollector)
+	_, err := expansion(argv1, collector, []expander{braceExpand, paramExpand})
+	if err != nil {
+		return nil, err
+	}
+	var params []string
+	for param := range collector {
+		params = append(params, param)
+	}
+	return params, nil
+}
+
+func Expansion(argv1 []string, params Params) ([]string, error) {
+	return expansion(argv1, params, expanders)
+}
+
+func expansion(argv1 []string, params Params, expanders []expander) ([]string, error) {
 	var err error
 	var argv2 []string
 
@@ -61,15 +89,17 @@ func expansion(argv1 []string, params paramset) ([]string, error) {
 var quoteUnescaper = strings.NewReplacer(`\"`, `"`, "\\`", "`")
 var unquoteUnescape = regexp.MustCompile(`\\(.)`)
 
-var expanders = []func([]string, string, paramset) ([]string, error){
+var expanders = []expander{
 	braceExpand,
 	tildeExpand,
 	paramExpand,
 	pathsExpand,
 }
 
+type expander func([]string, string, Params) ([]string, error)
+
 // brace expansion (for example: "c{d,e}" becomes "cd ce")
-func braceExpand(src []string, arg string, _ paramset) (res []string, err error) {
+func braceExpand(src []string, arg string, _ Params) (res []string, err error) {
 	res = src
 	var i1 int
 	for start := 0; ; {
@@ -147,7 +177,7 @@ func ExpandTilde(arg string) (res string, err error) {
 }
 
 // tilde expansion (important: cd ~, cd ~/foo, less so: cd ~user1)
-func tildeExpand(src []string, arg string, params paramset) (res []string, err error) {
+func tildeExpand(src []string, arg string, params Params) (res []string, err error) {
 	expanded, err := ExpandTilde(arg)
 	if err != nil {
 		return nil, err
@@ -156,7 +186,7 @@ func tildeExpand(src []string, arg string, params paramset) (res []string, err e
 }
 
 // expandBraceParam expands the ${braced param} at the beginning of arg.
-func expandBraceParam(arg string, params paramset) (string, error) {
+func expandBraceParam(arg string, params Params) (string, error) {
 	var r rune
 	var i2 int
 	for i2, r = range arg[1:] {
@@ -179,7 +209,7 @@ func expandBraceParam(arg string, params paramset) (string, error) {
 }
 
 // ExpandParams expands $ variables.
-func ExpandParams(arg string, params paramset) (string, error) {
+func ExpandParams(arg string, params Params) (string, error) {
 	skip := 0
 	for {
 		i1 := indexParam(arg[skip:])
@@ -222,7 +252,7 @@ func ExpandParams(arg string, params paramset) (string, error) {
 }
 
 // param expansion ($x, $PATH, ${x}, long tail of questionable sh features)
-func paramExpand(src []string, arg string, params paramset) ([]string, error) {
+func paramExpand(src []string, arg string, params Params) ([]string, error) {
 	expanded, err := ExpandParams(arg, params)
 	if err != nil {
 		return nil, err
@@ -231,7 +261,7 @@ func paramExpand(src []string, arg string, params paramset) ([]string, error) {
 }
 
 // paths expansion (*, ?, [)
-func pathsExpand(src []string, arg string, params paramset) (res []string, err error) {
+func pathsExpand(src []string, arg string, params Params) (res []string, err error) {
 	res = src
 	isGlob := false
 	for i := 0; i < len(arg); i++ {

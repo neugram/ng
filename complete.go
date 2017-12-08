@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"neugram.io/ng/eval/shell"
+	"neugram.io/ng/syntax/shell"
 	"neugram.io/ng/syntax/token"
 )
 

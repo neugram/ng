@@ -19,6 +19,7 @@ import (
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/format"
 	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/shell"
 	"neugram.io/ng/syntax/token"
 )
 
@@ -304,7 +305,7 @@ func (j *Job) setupSimpleCmd(cmd *expr.ShellSimpleCmd, sio stdio) (*proc, error)
 		}
 		return nil, nil
 	}
-	argv, err := expansion(cmd.Args, j.Params)
+	argv, err := shell.Expansion(cmd.Args, j.Params)
 	if err != nil {
 		return nil, err
 	}

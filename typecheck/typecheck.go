@@ -26,6 +26,7 @@ import (
 	"neugram.io/ng/parser"
 	"neugram.io/ng/syntax"
 	"neugram.io/ng/syntax/expr"
+	"neugram.io/ng/syntax/shell"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
 	"neugram.io/ng/syntax/token"
@@ -2380,6 +2381,10 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 
 		panic(fmt.Sprintf("typecheck.expr TODO Index: %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
 	case *expr.Shell:
+		c.pushScope()
+		defer c.popScope()
+		c.cur.foundInParent = make(map[string]bool)
+
 		p.mode = modeVar
 		if hint == hintElideErr {
 			p.typ = tipe.String
@@ -2389,9 +2394,92 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				tipe.String, Universe.Objs["error"].Type,
 			}}
 		}
+
+		for _, cmd := range e.Cmds {
+			c.shell(cmd)
+		}
+
+		for name := range c.cur.foundInParent {
+			e.FreeVars = append(e.FreeVars, name)
+		}
+
 		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %s", format.Debug(e)))
+}
+
+func (c *Checker) shell(cmd expr.Expr) {
+	switch cmd := cmd.(type) {
+	case *expr.ShellList:
+		for _, andor := range cmd.AndOr {
+			c.shell(andor)
+		}
+	case *expr.ShellAndOr:
+		if len(cmd.Pipeline) == 1 {
+			c.shell(cmd.Pipeline[0])
+		}
+		for _, pipeline := range cmd.Pipeline {
+			c.pushScope()
+			c.shell(pipeline)
+			c.popScope()
+		}
+	case *expr.ShellPipeline:
+		if len(cmd.Cmd) == 1 {
+			c.shell(cmd.Cmd[0])
+		}
+		for _, cmd := range cmd.Cmd {
+			c.pushScope()
+			c.shell(cmd)
+			c.popScope()
+		}
+	case *expr.ShellCmd:
+		if cmd.SimpleCmd != nil {
+			c.shell(cmd.SimpleCmd)
+		}
+		if cmd.Subshell != nil {
+			c.pushScope()
+			defer c.popScope()
+			c.shell(cmd.Subshell)
+		}
+	case *expr.ShellSimpleCmd:
+		if len(cmd.Args) > 0 {
+			if cmd.Args[0] == "export" {
+				// TODO: pull out export in parser and give it a syntax node?
+				for _, p := range cmd.Args[1:] {
+					name := strings.SplitN(p, "=", 2)[0]
+					obj := &Obj{
+						Name: name,
+						Kind: ObjVar,
+						Type: tipe.String,
+						Decl: cmd,
+					}
+					c.cur.Objs[name] = obj
+				}
+				return
+			}
+
+			c.pushScope()
+			defer c.popScope()
+		}
+
+		for _, assign := range cmd.Assign {
+			obj := &Obj{
+				Name: assign.Key,
+				Kind: ObjVar,
+				Type: tipe.String,
+				Decl: cmd,
+			}
+			c.cur.Objs[assign.Key] = obj
+		}
+
+		params, err := shell.Parameters(cmd.Args)
+		if err != nil {
+			c.errorfmt("%v", err)
+		}
+		for _, name := range params {
+			c.cur.LookupRec(name) // foundInParent
+		}
+	}
 }
 
 // unpackExprs evaluates a list of expr.Exprs using the hint.
