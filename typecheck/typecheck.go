@@ -2463,7 +2463,15 @@ func (c *Checker) assign(p *partial, t tipe.Type) {
 		c.constrainUntyped(p, t)
 		return
 	}
-	if !tipe.Equal(p.typ, t) { // TODO interfaces, etc
+	if !tipe.Equal(p.typ, t) {
+		switch iface := tipe.Underlying(t).(type) {
+		case *tipe.Interface:
+			// make sure p.typ implements all methods of iface.
+			if c.typeAssert(iface, p.typ) {
+				return
+			}
+			// TODO: explain why p.typ does not implement t
+		}
 		c.errorfmt("cannot assign %s to %s", p.typ, t)
 		p.mode = modeInvalid
 	}

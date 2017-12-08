@@ -1,0 +1,7 @@
+import "io"
+
+w := io.Writer(nil)
+r := io.Reader(nil)
+w = r  // ERROR: cannot assign
+
+print("OK")
