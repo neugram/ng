@@ -13,11 +13,6 @@ then you already know a lot about the Neugram shell.
 This document assumes no familiarity with any Unix shell, and is
 intended as an introduction and reference.
 
-_As of January 2017 the Neugram scripting language itself is an early
-prototype and not ready for anything more than experimentation.
-However the embedded shell has enough features to be used as an
-interactive shell replacement._
-
 ## A shell session
 
 ```
