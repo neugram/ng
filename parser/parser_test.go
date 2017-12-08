@@ -1217,6 +1217,16 @@ var stmtTests = []stmtTest{
 			},
 		},
 	},
+	{"0x0", &stmt.Simple{Expr: basic(0x0)}},
+	{"0x1", &stmt.Simple{Expr: basic(0x1)}},
+	{"0xdeadbeef", &stmt.Simple{Expr: basic(0xdeadbeef)}},
+	{"0xDEADBEEF", &stmt.Simple{Expr: basic(0xDEADBEEF)}},
+	{"0xdEadb33f", &stmt.Simple{Expr: basic(0xdEadb33f)}},
+	{"0X0", &stmt.Simple{Expr: basic(0X0)}},
+	{"0X1", &stmt.Simple{Expr: basic(0X1)}},
+	{"0Xdeadbeef", &stmt.Simple{Expr: basic(0Xdeadbeef)}},
+	{"0XDEADBEEF", &stmt.Simple{Expr: basic(0XDEADBEEF)}},
+	{"0XdEadb33f", &stmt.Simple{Expr: basic(0XdEadb33f)}},
 }
 
 func TestParseStmt(t *testing.T) {
