@@ -1050,17 +1050,24 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		p.expectSemi()
 		return s
 	case token.Const:
-		s := &stmt.Const{
-			Position: p.pos(),
-		}
+		pos := p.pos()
 		p.next()
-		s.Name = p.parseIdent().Name
-		if p.s.Token != token.Assign {
-			s.Type = p.parseType()
+		if p.s.Token == token.LeftParen {
+			p.next()
+			s := &stmt.ConstSet{Position: pos}
+			for p.s.Token > 0 && p.s.Token != token.RightParen {
+				s.Consts = append(s.Consts, p.parseConst())
+				if p.s.Token == token.Semicolon {
+					p.next()
+				}
+			}
+			p.expect(token.RightParen)
+			p.next()
+			p.expectSemi()
+			return s
 		}
-		p.expect(token.Assign)
-		p.next()
-		s.Value = p.parseExpr()
+		s := p.parseConst()
+		s.Position = pos
 		p.expectSemi()
 		return s
 	case token.Var:
@@ -1190,6 +1197,51 @@ func (p *Parser) parseGo() stmt.Stmt {
 	}
 	g.Call = call
 	return g
+}
+
+func (p *Parser) parseConst() *stmt.Const {
+	s := &stmt.Const{
+		Position: p.pos(),
+	}
+items:
+	for {
+		p.expect(token.Ident)
+		s.NameList = append(s.NameList, p.s.Literal.(string))
+		p.next()
+		switch p.s.Token {
+		case token.Ident:
+			s.Type = p.parseType()
+			if p.s.Token == token.Assign {
+				p.next()
+				s.Values = p.parseExprs()
+			}
+			if p.s.Token == token.Semicolon {
+				break items
+			}
+		case token.Comma:
+			p.next()
+			continue
+		case token.Assign:
+			p.next()
+			s.Values = p.parseExprs()
+			break items
+		case token.Semicolon:
+			break items
+		default:
+			p.errorf("invalid token %v in const declaration", p.s.Token)
+			break items
+		}
+	}
+	p.expectSemi()
+	switch {
+	case len(s.Values) != 0 && len(s.NameList) > len(s.Values):
+		p.errorf("missing value in const declaration")
+
+	case len(s.Values) != 0 && len(s.NameList) < len(s.Values):
+		p.errorf("extra expression in const declaration")
+	}
+
+	return s
 }
 
 func (p *Parser) parseVar() *stmt.Var {
