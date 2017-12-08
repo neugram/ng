@@ -1347,6 +1347,23 @@ var stmtTests = []stmtTest{
 	{"0Xdeadbeef", &stmt.Simple{Expr: basic(0Xdeadbeef)}},
 	{"0XDEADBEEF", &stmt.Simple{Expr: basic(0XDEADBEEF)}},
 	{"0XdEadb33f", &stmt.Simple{Expr: basic(0XdEadb33f)}},
+	{"defer f()", &stmt.Defer{Expr: &expr.Call{Func: &expr.Ident{Name: "f"}}}},
+	{"defer f.Close()", &stmt.Defer{Expr: &expr.Call{
+		Func: &expr.Selector{
+			Left:  &expr.Ident{Name: "f"},
+			Right: &expr.Ident{Name: "Close"},
+		},
+	}}},
+	{"defer f(a, b)", &stmt.Defer{Expr: &expr.Call{
+		Func: &expr.Ident{Name: "f"},
+		Args: []expr.Expr{&expr.Ident{Name: "a"}, &expr.Ident{Name: "b"}},
+	}}},
+	{"defer func(){}()", &stmt.Defer{Expr: &expr.Call{
+		Func: &expr.FuncLiteral{
+			Type: &tipe.Func{Params: &tipe.Tuple{}},
+			Body: &stmt.Block{},
+		},
+	}}},
 }
 
 func TestParseStmt(t *testing.T) {

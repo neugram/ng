@@ -1037,6 +1037,22 @@ func (p *Parser) parseStmt() stmt.Stmt {
 		}
 		p.expectSemi()
 		return s
+	case token.Defer:
+		pos := p.pos()
+		p.next()
+		fct := p.parseExpr()
+		if _, ok := fct.(*expr.Call); !ok {
+			return &stmt.Bad{
+				Position: pos,
+				Error:    p.error("expression in defer must be function call"),
+			}
+		}
+		s := &stmt.Defer{
+			Position: pos,
+			Expr:     fct,
+		}
+		p.expectSemi()
+		return s
 	case token.LeftBrace:
 		s := p.parseBlock()
 		p.expectSemi()
