@@ -83,6 +83,7 @@ const (
 
 	Func
 	Return
+	Defer
 
 	Select
 	Switch
@@ -178,6 +179,7 @@ var Keywords = map[string]Token{
 	"switch":      Switch,
 	"case":        Case,
 	"default":     Default,
+	"defer":       Defer,
 	"fallthrough": Fallthrough,
 	"const":       Const,
 	"var":         Var,

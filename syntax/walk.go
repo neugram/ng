@@ -157,6 +157,9 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 	case *stmt.Return:
 		w.walkSlice(node, "Exprs")
 
+	case *stmt.Defer:
+		w.walk(node, node.Expr, "Expr", nil)
+
 	case *stmt.Simple:
 		w.walk(node, node.Expr, "Expr", nil)
 

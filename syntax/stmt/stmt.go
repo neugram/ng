@@ -142,6 +142,11 @@ type Return struct {
 	Exprs    []expr.Expr
 }
 
+type Defer struct {
+	Position src.Pos
+	Expr     expr.Expr
+}
+
 type Simple struct {
 	Position src.Pos
 	Expr     expr.Expr
@@ -202,6 +207,7 @@ func (s *TypeSwitchCase) stmt() {}
 func (s *Go) stmt()             {}
 func (s *Range) stmt()          {}
 func (s *Return) stmt()         {}
+func (s *Defer) stmt()          {}
 func (s *Simple) stmt()         {}
 func (s *Send) stmt()           {}
 func (s *Branch) stmt()         {}
@@ -228,6 +234,7 @@ func (s TypeSwitchCase) Pos() src.Pos { return s.Position }
 func (s *Go) Pos() src.Pos            { return s.Position }
 func (s *Range) Pos() src.Pos         { return s.Position }
 func (s *Return) Pos() src.Pos        { return s.Position }
+func (s *Defer) Pos() src.Pos         { return s.Position }
 func (s *Simple) Pos() src.Pos        { return s.Position }
 func (s *Send) Pos() src.Pos          { return s.Position }
 func (s *Branch) Pos() src.Pos        { return s.Position }

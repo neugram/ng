@@ -576,6 +576,14 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !equalExprs(x.Exprs, y.Exprs) {
 			return false
 		}
+	case *stmt.Defer:
+		y, ok := y.(*stmt.Defer)
+		if !ok {
+			return false
+		}
+		if !EqualExpr(x.Expr, y.Expr) {
+			return false
+		}
 	case *stmt.Import:
 		y, ok := y.(*stmt.Import)
 		if !ok {
