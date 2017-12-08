@@ -105,7 +105,9 @@ func (n *Neugram) GetOrNewSession(ctx context.Context, name string) *Session {
 	return s
 }
 
-func (s *Session) Exec(src []byte) ([][]reflect.Value, error) {
+// Exec returns the evaluation of the content of src and an error, if any.
+// If src contains multiple statements, Exec returns the value of the last one.
+func (s *Session) Exec(src []byte) ([]reflect.Value, error) {
 	var err error
 	stdout := s.Stdout
 	if stdout == nil {
@@ -132,7 +134,7 @@ func (s *Session) Exec(src []byte) ([][]reflect.Value, error) {
 		}
 		return nil, Error{Phase: "parser", List: errs}
 	}
-	out := make([][]reflect.Value, 0, len(res.Stmts))
+	var out []reflect.Value
 	for _, stmt := range res.Stmts {
 		v, err := s.Program.Eval(stmt, nil)
 		if err != nil {
@@ -147,7 +149,7 @@ func (s *Session) Exec(src []byte) ([][]reflect.Value, error) {
 			}
 			return nil, Error{Phase: "eval", List: []error{err}}
 		}
-		out = append(out, v)
+		out = v
 	}
 	for _, cmd := range res.Cmds {
 		j := &shell.Job{
