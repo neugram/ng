@@ -129,6 +129,13 @@ func IsError(t tipe.Type) bool {
 
 func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	switch s := s.(type) {
+	case *stmt.ConstSet:
+		for _, v := range s.Consts {
+			c.checkConst(v)
+		}
+		return nil
+	case *stmt.Const:
+		return c.checkConst(s)
 	case *stmt.VarSet:
 		for _, v := range s.Vars {
 			c.checkVar(v)
@@ -662,6 +669,98 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	default:
 		panic("typecheck: unknown stmt: " + format.Debug(s))
 	}
+}
+
+func (c *Checker) checkConst(s *stmt.Const) tipe.Type {
+	if s.Type != nil {
+		if t, ok := c.resolve(s.Type); ok {
+			s.Type = t
+		}
+	}
+	var partials []partial
+	for _, rhs := range s.Values {
+		p := c.exprNoElide(rhs)
+		if p.mode == modeInvalid {
+			return nil
+		}
+		if tuple, isTuple := p.typ.(*tipe.Tuple); isTuple {
+			if len(s.Values) > 1 {
+				c.errorfmt("multiple value %s in single-value context", rhs)
+				return nil
+			}
+			for _, t := range tuple.Elems {
+				partials = append(partials, partial{
+					mode: modeConst,
+					typ:  t,
+				})
+			}
+			continue
+		}
+		partials = append(partials, c.exprNoElide(rhs))
+	}
+	if len(s.Values) == 1 && len(s.NameList) == 2 && len(s.NameList) == len(partials)+1 {
+		partials = c.checkCommaOK(s.Values[0], partials)
+	}
+
+	if len(s.Values) == 1 && len(s.NameList) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
+		markElideError(s.Values[0])
+		partials = partials[:len(partials)-1]
+	}
+
+	if len(s.NameList) != len(partials) {
+		if s.Type == nil || len(partials) != 0 {
+			c.errorfmt("arity mismatch, left %d != right %d", len(s.NameList), len(partials))
+			return nil
+		}
+	}
+
+	// make sure none of the lhs have been previously declared.
+	for _, name := range s.NameList {
+		if name == "_" {
+			continue
+		}
+		if obj := c.cur.Objs[name]; obj != nil {
+			c.errorfmt("%s redeclared in this block", name)
+			return nil
+		}
+	}
+
+	for i, name := range s.NameList {
+		if name == "_" {
+			continue
+		}
+		var typ tipe.Type
+		if len(partials) > i {
+			p := partials[i]
+			if isUntyped(p.typ) {
+				if s.Type != nil {
+					c.constrainUntyped(&p, s.Type)
+				}
+			}
+			typ = p.typ
+
+			if s.Type != nil && !c.assignable(s.Type, p.typ) {
+				switch len(s.NameList) {
+				case 1:
+					c.errorfmt("cannot use %v (type %v) as type %v in assignment", format.Expr(s.Values[i]), format.Type(p.typ), format.Type(s.Type))
+				default:
+					c.errorfmt("cannot assign %v to %s (type %v) in multiple assignment", format.Type(p.typ), name, format.Type(s.Type))
+				}
+				return nil
+			}
+		}
+		if s.Type != nil {
+			typ = s.Type
+		}
+		obj := &Obj{
+			Name: name,
+			Kind: ObjConst,
+			Type: typ,
+			Decl: s,
+		}
+		c.cur.Objs[name] = obj
+	}
+	return nil
 }
 
 func (c *Checker) checkVar(s *stmt.Var) tipe.Type {
