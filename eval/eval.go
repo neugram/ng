@@ -475,6 +475,13 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 	mostRecentLabel := p.mostRecentLabel
 	p.mostRecentLabel = ""
 	switch s := s.(type) {
+	case *stmt.Const:
+		return p.evalConst(s)
+	case *stmt.ConstSet:
+		for _, v := range s.Consts {
+			p.evalConst(v)
+		}
+		return nil
 	case *stmt.Var:
 		return p.evalVar(s)
 	case *stmt.VarSet:
@@ -1100,6 +1107,58 @@ func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
 	return v[0]
 }
 
+func (p *Program) evalConst(s *stmt.Const) []reflect.Value {
+	types := make([]tipe.Type, 0, len(s.NameList))
+	vals := make([]reflect.Value, 0, len(s.NameList))
+	for _, rhs := range s.Values {
+		v := p.evalExpr(rhs)
+		t := p.Types.Type(rhs)
+		if tuple, isTuple := t.(*tipe.Tuple); isTuple {
+			types = append(types, tuple.Elems...)
+		} else {
+			types = append(types, t)
+		}
+		// TODO: insert an implicit interface type conversion here
+		vals = append(vals, v...)
+	}
+	if s.Type != nil {
+		types = make([]tipe.Type, len(s.NameList))
+		for i := range types {
+			types[i] = s.Type
+		}
+	}
+
+	vars := make([]reflect.Value, len(s.NameList))
+	for i, name := range s.NameList {
+		if name == "_" {
+			continue
+		}
+		t := p.reflector.ToRType(types[i])
+		s := &Scope{
+			Parent:   p.Cur,
+			VarName:  name,
+			Var:      reflect.New(t).Elem(),
+			Implicit: true,
+		}
+		p.Cur = s
+		vars[i] = s.Var
+	}
+	for i := range vars {
+		if !vars[i].IsValid() {
+			continue
+		}
+		if len(vals) <= i {
+			continue
+		}
+		v := vals[i]
+		if vars[i].Type() != v.Type() {
+			v = v.Convert(vars[i].Type())
+		}
+		vars[i].Set(v)
+	}
+	return nil
+}
+
 func (p *Program) evalVar(s *stmt.Var) []reflect.Value {
 	types := make([]tipe.Type, 0, len(s.NameList))
 	vals := make([]reflect.Value, 0, len(s.NameList))
@@ -1149,7 +1208,6 @@ func (p *Program) evalVar(s *stmt.Var) []reflect.Value {
 		}
 		vars[i].Set(v)
 	}
-
 	return nil
 }
 
