@@ -1,0 +1,7 @@
+func get() (float64, float64) {
+	return 1, 2
+}
+
+var x, y int = get() // ERROR: cannot assign float64 to x (type int) in multiple assignment
+
+print("OK")

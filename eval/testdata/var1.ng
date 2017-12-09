@@ -1,0 +1,56 @@
+var v1 = 1
+if v1 != int(1) {
+	panic("ERROR 1")
+}
+
+var v2 int64 = 2
+if v2 != int64(2) {
+	panic("ERROR 2")
+}
+
+var v3 int64
+if v3 != int64(0) {
+	panic("ERROR 3")
+}
+
+var v4, v5 = 1, 2
+if v4 != int(1) {
+	panic("ERROR 4")
+}
+if v5 != int(2) {
+	panic("ERROR 5")
+}
+
+var v6, v7 = 3.3, 4
+if v6 != float64(3.3) {
+	panic("ERROR 6")
+}
+if v7 != int(4) {
+	panic("ERROR 7")
+}
+
+var u1, u2 float64
+if u1 != float64(0) {
+	panic("ERROR 8")
+}
+if u2 != float64(0) {
+	panic("ERROR 9")
+}
+
+var u3, u4 float64 = 3, 4
+if u3 != float64(3) {
+	panic("ERROR 10")
+}
+if u4 != float64(4) {
+	panic("ERROR 11")
+}
+
+var u5, u6 float64 = 7.7, 8.8
+if u5 != float64(7.7) {
+	panic("ERROR 12")
+}
+if u6 != float64(8.8) {
+	panic("ERROR 13")
+}
+
+print("OK")

@@ -1,0 +1,7 @@
+func get() float64 {
+	return 1
+}
+
+var x int = get() // ERROR: cannot use get() (type float64) as type int in assignment
+
+print("OK")
