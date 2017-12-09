@@ -537,6 +537,19 @@ func (p *printer) expr(e expr.Expr) {
 
 func (p *printer) stmt(s stmt.Stmt) {
 	switch s := s.(type) {
+	case *stmt.ConstSet:
+		p.print("const (")
+		p.indent++
+		for _, v := range s.Consts {
+			p.newline()
+			p.stmtConst(v)
+		}
+		p.indent--
+		p.newline()
+		p.print(")")
+	case *stmt.Const:
+		p.print("const ")
+		p.stmtConst(s)
 	case *stmt.VarSet:
 		p.print("var (")
 		p.indent++
@@ -753,6 +766,29 @@ func (p *printer) stmt(s stmt.Stmt) {
 		}
 		p.newline()
 		p.print("}")
+	}
+}
+
+func (p *printer) stmtConst(s *stmt.Const) {
+	for i, n := range s.NameList {
+		if i != 0 {
+			p.print(", ")
+		}
+		p.print(n)
+	}
+	if s.Type != nil {
+		p.print(" ")
+		p.tipe(s.Type)
+	}
+	if len(s.Values) == 0 {
+		return
+	}
+	p.print(" = ")
+	for i, e := range s.Values {
+		if i != 0 {
+			p.print(", ")
+		}
+		p.expr(e)
 	}
 }
 
