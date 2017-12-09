@@ -105,7 +105,11 @@ package %s
 	}
 	if usesShell {
 		p.newline()
+		p.printf(`"fmt"`)
+		p.newline()
 		p.printf(`"os"`)
+		p.newline()
+		p.printf(`"reflect"`)
 		p.newline()
 		p.printf(`"neugram.io/ng/eval/environ"`)
 		p.newline()
@@ -232,18 +236,47 @@ func (p *printer) printShell() {
 
 	p.newline()
 	p.newline()
-	p.printf(`func gengo_shell(e *expr.Shell) (string, error) {
-	str, err := shell.Run(shellState, nil, e)
+	p.printf(`func gengo_shell(e *expr.Shell, p gengo_shell_params) (string, error) {
+	str, err := shell.Run(shellState, p, e)
 	return str, err
 }
 
-func gengo_shell_elide(e *expr.Shell) string {
-	str, err := gengo_shell(e)
+func gengo_shell_elide(e *expr.Shell, p gengo_shell_params) string {
+	str, err := gengo_shell(e, p)
 	if err != nil {
 		panic(err)
 	}
 	return str
-}`)
+}
+
+type gengo_shell_params map[string]reflect.Value
+
+func (p gengo_shell_params) Get(name string) string {
+	if v, found := p[name]; found {
+		vi := v.Interface()
+		if s, ok := vi.(string); ok {
+			return s
+		}
+		return fmt.Sprint(vi)
+	}
+	return shellState.Env.Get(name)
+}
+
+func (p gengo_shell_params) Set(name, value string) {
+	v, found := p[name]
+	if !found {
+		v = reflect.ValueOf(&value).Elem()
+		p[name] = v
+	}
+	if v.Kind() == reflect.String {
+		v.SetString(value)
+	} else {
+		fmt.Sscan(value, v)
+	}
+}
+
+func init() { shell.Init() }
+`)
 }
 
 func (p *printer) printBuiltins(builtins map[string]bool) {
@@ -458,10 +491,20 @@ func (p *printer) expr(e expr.Expr) {
 		p.expr(e.Right)
 	case *expr.Shell:
 		if e.ElideError {
-			p.printf("gengo_shell_elide(%s)", format.Debug(e))
+			p.printf("gengo_shell_elide(%s, gengo_shell_params{", format.Debug(e))
 		} else {
-			p.printf("gengo_shell(%s)", format.Debug(e))
+			p.printf("gengo_shell(%s, gengo_shell_params{", format.Debug(e))
 		}
+		if len(e.FreeVars) > 0 {
+			p.indent++
+			for _, name := range e.FreeVars {
+				p.newline()
+				p.printf("%q: reflect.ValueOf(&%s).Elem(),", name, name)
+			}
+			p.indent--
+			p.newline()
+		}
+		p.printf("})")
 	case *expr.SliceLiteral:
 		p.tipe(e.Type)
 		p.print("{")

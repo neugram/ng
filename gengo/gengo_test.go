@@ -29,9 +29,6 @@ func TestGeneratedPrograms(t *testing.T) {
 		file := file
 		test := file[len("../eval/testdata/") : len(file)-3]
 		exclude := []string{ // TODO remove this list
-			"shell4",
-			"shell5",
-			"export",
 			"import3",
 			"vec",
 			"complex",
