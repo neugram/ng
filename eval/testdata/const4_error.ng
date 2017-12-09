@@ -1,0 +1,3 @@
+const x, y = 1 // ERROR: missing value in const declaration
+
+print("OK")

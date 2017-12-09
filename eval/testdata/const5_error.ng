@@ -1,0 +1,3 @@
+const x = 1, 2 // ERROR: extra expression in const declaration
+
+print("OK")

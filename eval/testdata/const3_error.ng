@@ -1,0 +1,3 @@
+const i int // ERROR: const declaration cannot have type without expression
+
+print("OK")
