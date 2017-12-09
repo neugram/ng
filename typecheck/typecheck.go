@@ -152,68 +152,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			partials = append(partials, c.exprNoElide(rhs))
 		}
 		if len(s.Right) == 1 && len(s.Left) == 2 && len(s.Left) == len(partials)+1 {
-			switch e := s.Right[0].(type) {
-			case *expr.Index:
-				// v, ok = m[key]
-				switch typ := c.types[e.Left].(type) {
-				case *tipe.Map:
-					// the general case for a map-index is to only typecheck
-					// for returning the map-value.
-					// in the case of indexing into a map with a comma-ok,
-					// we need to also return the boolean indicating whther
-					// the key was found in the map.
-					// so, replace the original tipe.Type with the tuple:
-					//  (tipe.Type, tipe.Bool)
-					// this way, the eval of that stmt.Assign will do the right thing.
-					// we still need to add the boolean to the partials, though.
-					t := &tipe.Tuple{Elems: []tipe.Type{typ.Value, tipe.Bool}}
-					partials = append(partials, partial{
-						mode: modeVar,
-						typ:  tipe.Bool,
-					})
-					if curTyp := c.types[e]; curTyp != t {
-						c.types[e] = t
-					}
-				}
-			case *expr.Unary:
-				// v, ok = <-ch
-				switch e.Op {
-				case token.ChanOp:
-					// the general case for a chan-receive is to only typecheck
-					// for the chan element.
-					// in the case of a chan-receive with a comma-ok, we need to
-					// also get the boolean indicating whether the value received
-					// corresponds to a send.
-					// so, replace the original tipe.Type with the tuple:
-					//   (tipe.Type,tipe.Bool)
-					// this way, the eval of that stmt.Assign will do the right thing.
-					// we still need to add the boolean to the partials, though.
-					typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
-					if curTyp := c.types[e]; curTyp != typ {
-						c.types[e] = typ
-					}
-					partials = append(partials, partial{
-						mode: modeVar,
-						typ:  tipe.Bool,
-					})
-				}
-			case *expr.TypeAssert:
-				// v, ok = rhs.(T)
-				//
-				// A type assertion can return its typical one value,
-				// the value as the asserted type, or the value and a
-				// comma-ok for whether the assertion was successful.
-				// This is the latter case, so we replace the
-				// original return type with a tuple.
-				typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
-				if curTyp := c.types[e]; curTyp != typ {
-					c.types[e] = typ
-				}
-				partials = append(partials, partial{
-					mode: modeVar,
-					typ:  tipe.Bool,
-				})
-			}
+			partials = c.checkCommaOK(s.Right[0], partials)
 		}
 
 		if len(s.Right) == 1 && len(s.Left) == len(partials)-1 && IsError(partials[len(partials)-1].typ) {
@@ -716,6 +655,72 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 	default:
 		panic("typecheck: unknown stmt: " + format.Debug(s))
 	}
+}
+
+func (c *Checker) checkCommaOK(e expr.Expr, partials []partial) []partial {
+	switch e := e.(type) {
+	case *expr.Index:
+		// v, ok = m[key]
+		switch typ := c.types[e.Left].(type) {
+		case *tipe.Map:
+			// the general case for a map-index is to only typecheck
+			// for returning the map-value.
+			// in the case of indexing into a map with a comma-ok,
+			// we need to also return the boolean indicating whther
+			// the key was found in the map.
+			// so, replace the original tipe.Type with the tuple:
+			//  (tipe.Type, tipe.Bool)
+			// this way, the eval of that statement will do the right thing.
+			// we still need to add the boolean to the partials, though.
+			t := &tipe.Tuple{Elems: []tipe.Type{typ.Value, tipe.Bool}}
+			partials = append(partials, partial{
+				mode: modeVar,
+				typ:  tipe.Bool,
+			})
+			if curTyp := c.types[e]; curTyp != t {
+				c.types[e] = t
+			}
+		}
+	case *expr.Unary:
+		// v, ok = <-ch
+		switch e.Op {
+		case token.ChanOp:
+			// the general case for a chan-receive is to only typecheck
+			// for the chan element.
+			// in the case of a chan-receive with a comma-ok, we need to
+			// also get the boolean indicating whether the value received
+			// corresponds to a send.
+			// so, replace the original tipe.Type with the tuple:
+			//   (tipe.Type,tipe.Bool)
+			// this way, the eval of that statement will do the right thing.
+			// we still need to add the boolean to the partials, though.
+			typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
+			if curTyp := c.types[e]; curTyp != typ {
+				c.types[e] = typ
+			}
+			partials = append(partials, partial{
+				mode: modeVar,
+				typ:  tipe.Bool,
+			})
+		}
+	case *expr.TypeAssert:
+		// v, ok = rhs.(T)
+		//
+		// A type assertion can return its typical one value,
+		// the value as the asserted type, or the value and a
+		// comma-ok for whether the assertion was successful.
+		// This is the latter case, so we replace the
+		// original return type with a tuple.
+		typ := &tipe.Tuple{Elems: []tipe.Type{partials[0].typ, tipe.Bool}}
+		if curTyp := c.types[e]; curTyp != typ {
+			c.types[e] = typ
+		}
+		partials = append(partials, partial{
+			mode: modeVar,
+			typ:  tipe.Bool,
+		})
+	}
+	return partials
 }
 
 var goErrorID = gotypes.Universe.Lookup("error").Id()
