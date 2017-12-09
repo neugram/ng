@@ -475,6 +475,13 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 	mostRecentLabel := p.mostRecentLabel
 	p.mostRecentLabel = ""
 	switch s := s.(type) {
+	case *stmt.Var:
+		return p.evalVar(s)
+	case *stmt.VarSet:
+		for _, v := range s.Vars {
+			p.evalVar(v)
+		}
+		return nil
 	case *stmt.Assign:
 		types := make([]tipe.Type, 0, len(s.Left))
 		vals := make([]reflect.Value, 0, len(s.Left))
@@ -1091,6 +1098,59 @@ func (p *Program) evalExprOne(e expr.Expr) reflect.Value {
 		panic(interpPanic{fmt.Errorf("expression returns %d values instead of 1", len(v))})
 	}
 	return v[0]
+}
+
+func (p *Program) evalVar(s *stmt.Var) []reflect.Value {
+	types := make([]tipe.Type, 0, len(s.NameList))
+	vals := make([]reflect.Value, 0, len(s.NameList))
+	for _, rhs := range s.Values {
+		v := p.evalExpr(rhs)
+		t := p.Types.Type(rhs)
+		if tuple, isTuple := t.(*tipe.Tuple); isTuple {
+			types = append(types, tuple.Elems...)
+		} else {
+			types = append(types, t)
+		}
+		// TODO: insert an implicit interface type conversion here
+		vals = append(vals, v...)
+	}
+	if s.Type != nil {
+		types = make([]tipe.Type, len(s.NameList))
+		for i := range types {
+			types[i] = s.Type
+		}
+	}
+
+	vars := make([]reflect.Value, len(s.NameList))
+	for i, name := range s.NameList {
+		if name == "_" {
+			continue
+		}
+		t := p.reflector.ToRType(types[i])
+		s := &Scope{
+			Parent:   p.Cur,
+			VarName:  name,
+			Var:      reflect.New(t).Elem(),
+			Implicit: true,
+		}
+		p.Cur = s
+		vars[i] = s.Var
+	}
+	for i := range vars {
+		if !vars[i].IsValid() {
+			continue
+		}
+		if len(vals) <= i {
+			continue
+		}
+		v := vals[i]
+		if vars[i].Type() != v.Type() {
+			v = v.Convert(vars[i].Type())
+		}
+		vars[i].Set(v)
+	}
+
+	return nil
 }
 
 type UntypedInt struct{ *big.Int }

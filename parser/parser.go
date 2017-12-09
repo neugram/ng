@@ -1294,14 +1294,6 @@ items:
 		}
 	}
 	p.expectSemi()
-	switch {
-	case len(s.Values) != 0 && len(s.NameList) > len(s.Values):
-		p.errorf("missing value in var declaration")
-
-	case len(s.Values) != 0 && len(s.NameList) < len(s.Values):
-		p.errorf("extra expression in var declaration")
-	}
-
 	return s
 }
 

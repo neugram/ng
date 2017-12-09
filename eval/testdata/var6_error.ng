@@ -1,0 +1,3 @@
+var x, y = 3 // ERROR: arity mismatch, left 2 != right 1
+
+print("OK")

@@ -722,22 +722,30 @@ func (c *Checker) checkVar(s *stmt.Var) tipe.Type {
 		if name == "_" {
 			continue
 		}
-		typ := s.Type
+		var typ tipe.Type
 		if len(partials) > i {
 			p := partials[i]
 			if isUntyped(p.typ) {
-				c.constrainUntyped(&p, defaultType(p.typ))
+				if s.Type != nil {
+					c.constrainUntyped(&p, s.Type)
+				} else {
+					c.constrainUntyped(&p, defaultType(p.typ))
+				}
 			}
 			typ = p.typ
 
 			if s.Type != nil && !c.assignable(s.Type, p.typ) {
 				switch len(s.NameList) {
 				case 1:
-					c.errorfmt("cannot use %v (%v) as %v in assignement", format.Expr(s.Values[i]), format.Type(p.typ), format.Type(s.Type))
+					c.errorfmt("cannot use %v (type %v) as type %v in assignment", format.Expr(s.Values[i]), format.Type(p.typ), format.Type(s.Type))
 				default:
-					c.errorfmt("cannot assign %v to %s (%v) in multiple assignement", format.Type(p.typ), name, format.Type(s.Type))
+					c.errorfmt("cannot assign %v to %s (type %v) in multiple assignment", format.Type(p.typ), name, format.Type(s.Type))
 				}
+				return nil
 			}
+		}
+		if s.Type != nil {
+			typ = s.Type
 		}
 		obj := &Obj{
 			Name: name,

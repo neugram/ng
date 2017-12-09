@@ -1,0 +1,3 @@
+var x int64 = 3.3 // ERROR: cannot convert const untyped float to int64
+
+print("OK")
