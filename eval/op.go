@@ -21,6 +21,16 @@ func valEq(x, y interface{}) bool {
 		return false
 	}
 	switch x := x.(type) {
+	case UntypedInt:
+		switch y := y.(type) {
+		case UntypedInt:
+			return x.Int.Cmp(y.Int) == 0
+		}
+	case UntypedFloat:
+		switch y := y.(type) {
+		case UntypedFloat:
+			return x.Float.Cmp(y.Float) == 0
+		}
 	case *big.Int:
 		switch y := y.(type) {
 		case *big.Int:
