@@ -1249,6 +1249,9 @@ items:
 		}
 	}
 	p.expectSemi()
+	if len(s.Values) == 0 && s.Type != nil {
+		p.errorf("const declaration cannot have type without expression")
+	}
 	switch {
 	case len(s.Values) != 0 && len(s.NameList) > len(s.Values):
 		p.errorf("missing value in const declaration")
