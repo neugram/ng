@@ -663,10 +663,6 @@ var stmtTests = []stmtTest{
 		&stmt.Const{NameList: []string{"x"}, Type: tint64, Values: []expr.Expr{basic(4)}},
 	},
 	{
-		"const x int64",
-		&stmt.Const{NameList: []string{"x"}, Type: tint64},
-	},
-	{
 		"const i, j = 4, 5",
 		&stmt.Const{
 			NameList: []string{"i", "j"},
@@ -679,13 +675,6 @@ var stmtTests = []stmtTest{
 			NameList: []string{"i", "j"},
 			Type:     tint64,
 			Values:   []expr.Expr{basic(4), basic(5)},
-		},
-	},
-	{
-		"const i, j int64",
-		&stmt.Const{
-			NameList: []string{"i", "j"},
-			Type:     tint64,
 		},
 	},
 	{
@@ -702,16 +691,6 @@ var stmtTests = []stmtTest{
 		&stmt.ConstSet{
 			Consts: []*stmt.Const{
 				{NameList: []string{"x"}, Values: []expr.Expr{basic(4)}},
-			},
-		},
-	},
-	{
-		`const (
-			x int64
-		)`,
-		&stmt.ConstSet{
-			Consts: []*stmt.Const{
-				{NameList: []string{"x"}, Type: tint64},
 			},
 		},
 	},
