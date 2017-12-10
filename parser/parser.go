@@ -1291,7 +1291,7 @@ items:
 		s.NameList = append(s.NameList, p.s.Literal.(string))
 		p.next()
 		switch p.s.Token {
-		case token.Ident:
+		case token.Chan, token.Ident, token.LeftBracket, token.Map, token.Struct:
 			s.Type = p.parseType()
 			if p.s.Token == token.Assign {
 				p.next()

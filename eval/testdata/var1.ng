@@ -53,4 +53,40 @@ if u6 != float64(8.8) {
 	panic("ERROR 13")
 }
 
+var m map[string]int
+if len(m) != 0 {
+	panic("ERROR 14")
+}
+
+var ch chan int
+if ch != nil {
+	panic("ERROR 15")
+}
+
+var slice []int
+if len(slice) != 0 {
+	panic("ERROR 16")
+}
+
+var str string
+if str != "" {
+	panic("ERROR 17")
+}
+
+var st struct{N int}
+if st.N != 0 {
+	panic("ERROR 18")
+}
+
+var arr1 [2]int
+if len(arr1) != 2 {
+	panic("ERROR 19")
+}
+
+// TODO
+// var arr2 = [...]int{1, 2}
+// if len(arr2) != 2 {
+// 	panic("ERROR 20")
+// }
+
 print("OK")

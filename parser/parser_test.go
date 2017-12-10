@@ -1319,6 +1319,36 @@ var stmtTests = []stmtTest{
 		NameList: []string{"i", "j"},
 		Type:     tint64,
 	}},
+	{"var i map[string]int", &stmt.Var{
+		NameList: []string{"i"},
+		Type: &tipe.Map{
+			Key:   &tipe.Unresolved{Name: "string"},
+			Value: &tipe.Unresolved{Name: "int"},
+		},
+	}},
+	{"var i chan int", &stmt.Var{
+		NameList: []string{"i"},
+		Type:     &tipe.Chan{Elem: &tipe.Unresolved{Name: "int"}},
+	}},
+	{"var i []int", &stmt.Var{
+		NameList: []string{"i"},
+		Type:     &tipe.Slice{Elem: &tipe.Unresolved{Name: "int"}},
+	}},
+	{"var i [2]int", &stmt.Var{
+		NameList: []string{"i"},
+		Type: &tipe.Array{
+			Len:  2,
+			Elem: &tipe.Unresolved{Name: "int"},
+		},
+	}},
+	{"var i string", &stmt.Var{
+		NameList: []string{"i"},
+		Type:     &tipe.Unresolved{Name: "string"},
+	}},
+	{"var i struct{}", &stmt.Var{
+		NameList: []string{"i"},
+		Type:     &tipe.Struct{},
+	}},
 	{
 		`var (
 			i int = 11
