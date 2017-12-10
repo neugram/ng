@@ -705,12 +705,23 @@ func (p *Parser) maybeParseType() tipe.Type {
 			table = true
 			p.next()
 		}
-		p.expect(token.RightBracket)
-		p.next()
-		if table {
-			return &tipe.Table{Type: p.parseType()}
-		} else {
-			return &tipe.Slice{Elem: p.parseType()}
+		switch p.s.Token {
+		case token.RightBracket:
+			p.next()
+			if table {
+				return &tipe.Table{Type: p.parseType()}
+			} else {
+				return &tipe.Slice{Elem: p.parseType()}
+			}
+		case token.Int:
+			sz := p.s.Literal.(*big.Int).Int64()
+			p.next()
+			p.expect(token.RightBracket)
+			p.next()
+			return &tipe.Array{Len: sz, Elem: p.parseType()}
+		default:
+			p.errorf("invalid token=%v in type declaration", p.s.Token)
+			return nil
 		}
 	case token.Mul:
 		p.next()
