@@ -166,6 +166,9 @@ func New(path string, shellState *shell.State) *Program {
 		c = promoteUntyped(c)
 		panic(Panic{c})
 	})
+	addUniverse("recover", func() interface{} {
+		return recover()
+	})
 	addUniverse("close", func(ch interface{}) {
 		rv := reflect.ValueOf(ch)
 		rv.Close()

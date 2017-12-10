@@ -1804,6 +1804,14 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			return p
 		}
 		return p
+	case tipe.Recover:
+		if len(e.Args) != 0 {
+			p.mode = modeInvalid
+			c.errorfmt("too many arguments to recover")
+			return p
+		}
+		p.typ = &tipe.Interface{}
+		return p
 	case tipe.Real:
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
@@ -1827,7 +1835,6 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			return p
 		}
 		return p
-	case tipe.Recover:
 	default:
 		panic(fmt.Sprintf("unknown builtin: %s", p.typ))
 	}
