@@ -773,6 +773,24 @@ var stmtTests = []stmtTest{
 		},
 	},
 	{
+		`type (
+			T int64
+			S struct { x int64 }
+		)`,
+		&stmt.TypeDeclSet{TypeDecls: []*stmt.TypeDecl{
+			{Name: "T", Type: &tipe.Named{
+				Name: "T",
+				Type: &tipe.Unresolved{Name: "int64"},
+			}},
+			{Name: "S", Type: &tipe.Named{
+				Name: "S",
+				Type: &tipe.Struct{Fields: []tipe.StructField{{
+					Name: "x",
+					Type: &tipe.Unresolved{Name: "int64"},
+				}}},
+			}}}},
+	},
+	{
 		`methodik AnInt integer {
 			func (a) f() integer { return a }
 		}

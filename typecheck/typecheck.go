@@ -356,6 +356,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.cur.Objs[s.Name] = obj
 		return nil
 
+	case *stmt.TypeDeclSet:
+		for _, s := range s.TypeDecls {
+			c.stmt(s, retType)
+		}
+		return nil
+
 	case *stmt.MethodikDecl:
 		var usesNum bool
 		t, _ := c.resolve(s.Type)

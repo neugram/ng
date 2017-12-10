@@ -1128,15 +1128,22 @@ func (p *Parser) parseStmt() stmt.Stmt {
 	case token.Type:
 		pos := p.pos()
 		p.next()
-		t := &tipe.Named{
-			Name: p.parseIdent().Name,
-			Type: p.parseType(),
+		if p.s.Token == token.LeftParen {
+			p.next()
+			s := &stmt.TypeDeclSet{Position: pos}
+			for p.s.Token > 0 && p.s.Token != token.RightParen {
+				s.TypeDecls = append(s.TypeDecls, p.parseTypeDecl())
+				if p.s.Token == token.Semicolon {
+					p.next()
+				}
+			}
+			p.expect(token.RightParen)
+			p.next()
+			p.expectSemi()
+			return s
 		}
-		s := &stmt.TypeDecl{
-			Position: pos,
-			Name:     t.Name,
-			Type:     t,
-		}
+		s := p.parseTypeDecl()
+		s.Position = pos
 		p.expectSemi()
 		return s
 	case token.Import:
@@ -1308,6 +1315,20 @@ items:
 		}
 	}
 	p.expectSemi()
+	return s
+}
+
+func (p *Parser) parseTypeDecl() *stmt.TypeDecl {
+	pos := p.pos()
+	t := &tipe.Named{
+		Name: p.parseIdent().Name,
+		Type: p.parseType(),
+	}
+	s := &stmt.TypeDecl{
+		Position: pos,
+		Name:     t.Name,
+		Type:     t,
+	}
 	return s
 }
 

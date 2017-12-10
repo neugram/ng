@@ -94,6 +94,9 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 	case *stmt.TypeDecl:
 		// done
 
+	case *stmt.TypeDeclSet:
+		w.walkSlice(node, "TypeDecls")
+
 	case *stmt.MethodikDecl:
 		w.walkSlice(node, "Methods")
 

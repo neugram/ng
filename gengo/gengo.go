@@ -663,6 +663,17 @@ func (p *printer) stmt(s stmt.Stmt) {
 	case *stmt.TypeDecl:
 		p.printf("type %s ", s.Name)
 		p.tipe(s.Type.Type)
+	case *stmt.TypeDeclSet:
+		p.print("type (")
+		p.indent++
+		for _, t := range s.TypeDecls {
+			p.newline()
+			p.printf("%s ", t.Name)
+			p.tipe(t.Type.Type)
+		}
+		p.indent--
+		p.newline()
+		p.print(")")
 	case *stmt.MethodikDecl:
 		// lifted to top-level earlier
 	case *stmt.Labeled:

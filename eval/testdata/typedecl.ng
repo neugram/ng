@@ -1,0 +1,14 @@
+type T1 int
+type (
+	T2 int64
+	T3 struct {
+		F1 int
+		F2 string
+	}
+	T4 []int
+	T5 [2]int
+	T6 []T3
+	T7 map[string]T6
+)
+
+print("OK")

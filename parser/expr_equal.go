@@ -638,6 +638,19 @@ func EqualStmt(x, y stmt.Stmt) bool {
 		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
+	case *stmt.TypeDeclSet:
+		y, ok := y.(*stmt.TypeDeclSet)
+		if !ok {
+			return false
+		}
+		if len(x.TypeDecls) != len(y.TypeDecls) {
+			return false
+		}
+		for i := range x.TypeDecls {
+			if !EqualStmt(x.TypeDecls[i], y.TypeDecls[i]) {
+				return false
+			}
+		}
 	case *stmt.Const:
 		y, ok := y.(*stmt.Const)
 		if !ok {
