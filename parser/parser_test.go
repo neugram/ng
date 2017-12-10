@@ -754,6 +754,15 @@ var stmtTests = []stmtTest{
 		&stmt.TypeDecl{Name: "A", Type: &tipe.Named{Name: "A", Type: tinteger}},
 	},
 	{
+		"type Array [2]int",
+		&stmt.TypeDecl{
+			Name: "Array",
+			Type: &tipe.Named{
+				Name: "Array",
+				Type: &tipe.Array{Len: 2, Elem: &tipe.Unresolved{Name: "int"}},
+			}},
+	},
+	{
 		`type S struct { x integer }`,
 		&stmt.TypeDecl{
 			Name: "S",
