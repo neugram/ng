@@ -8,6 +8,16 @@ var (
 	u1, u2 float64
 	u3, u4 float64 = 3, 4
 	u5, u6 float64 = 7.7, 8.8
+
+	m     map[string]int
+	ch    chan int
+	slice []int
+	str   string
+	st    struct{N int}
+	arr1  [2]int
+
+	// TODO
+	// arr2 = [...]int{1, 2}
 )
 
 if v1 != int(1) {
@@ -56,5 +66,34 @@ if u5 != float64(7.7) {
 if u6 != float64(8.8) {
 	panic("ERROR 13")
 }
+
+if len(m) != 0 {
+	panic("ERROR 14")
+}
+
+if ch != nil {
+	panic("ERROR 15")
+}
+
+if len(slice) != 0 {
+	panic("ERROR 16")
+}
+
+if str != "" {
+	panic("ERROR 17")
+}
+
+if st.N != 0 {
+	panic("ERROR 18")
+}
+
+if len(arr1) != 2 {
+	panic("ERROR 19")
+}
+
+// TODO
+// if len(arr2) != 2 {
+// 	panic("ERROR 20")
+// }
 
 print("OK")
