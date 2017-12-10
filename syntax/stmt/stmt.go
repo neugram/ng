@@ -34,6 +34,11 @@ type TypeDecl struct {
 	Type     *tipe.Named
 }
 
+type TypeDeclSet struct {
+	Position  src.Pos
+	TypeDecls []*TypeDecl
+}
+
 type MethodikDecl struct {
 	Position src.Pos
 	Name     string
@@ -191,6 +196,7 @@ type Bad struct {
 func (s *Import) stmt()         {}
 func (s *ImportSet) stmt()      {}
 func (s *TypeDecl) stmt()       {}
+func (s *TypeDeclSet) stmt()    {}
 func (s *MethodikDecl) stmt()   {}
 func (s *Const) stmt()          {}
 func (s *ConstSet) stmt()       {}
@@ -218,6 +224,7 @@ func (s *Bad) stmt()            {}
 func (s *Import) Pos() src.Pos        { return s.Position }
 func (s *ImportSet) Pos() src.Pos     { return s.Position }
 func (s *TypeDecl) Pos() src.Pos      { return s.Position }
+func (s *TypeDeclSet) Pos() src.Pos   { return s.Position }
 func (s *MethodikDecl) Pos() src.Pos  { return s.Position }
 func (s *Const) Pos() src.Pos         { return s.Position }
 func (s *ConstSet) Pos() src.Pos      { return s.Position }

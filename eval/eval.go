@@ -861,7 +861,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		v := p.evalExprOne(s.Value)
 		ch.Send(v)
 		return nil
-	case *stmt.TypeDecl:
+	case *stmt.TypeDecl, *stmt.TypeDeclSet:
 		return nil
 	case *stmt.MethodikDecl:
 		t := s.Type
