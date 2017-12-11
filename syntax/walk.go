@@ -218,17 +218,19 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 
 	case *expr.CompLiteral:
 		w.walkSlice(node, "Keys")
-		w.walkSlice(node, "Elements")
+		w.walkSlice(node, "Values")
 
 	case *expr.MapLiteral:
 		w.walkSlice(node, "Keys")
 		w.walkSlice(node, "Values")
 
 	case *expr.ArrayLiteral:
-		w.walkSlice(node, "Elems")
+		w.walkSlice(node, "Keys")
+		w.walkSlice(node, "Values")
 
 	case *expr.SliceLiteral:
-		w.walkSlice(node, "Elems")
+		w.walkSlice(node, "Keys")
+		w.walkSlice(node, "Values")
 
 	case *expr.TableLiteral:
 		w.walkSlice(node, "ColNames")

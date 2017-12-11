@@ -1,0 +1,46 @@
+sli1 := []int{1, 2}
+if sli1[0] != 1 {
+	panic("ERROR 1")
+}
+if sli1[1] != 2 {
+	panic("ERROR 2")
+}
+if len(sli1) != 2 {
+	panic("ERROR 3")
+}
+
+type Slice []int
+sli2 := Slice{1, 2}
+if sli2[0] != 1 {
+	panic("ERROR 4")
+}
+if sli2[1] != 2 {
+	panic("ERROR 5")
+}
+if len(sli2) != 2 {
+	panic("ERROR 6")
+}
+
+sli3 := []int{1: 2}
+if sli3[0] != 0 {
+	panic("ERROR 7")
+}
+if sli3[1] != 2 {
+	panic("ERROR 8")
+}
+if len(sli3) != 2 {
+	panic("ERROR 9")
+}
+
+sli4 := Slice{1: 2}
+if sli4[0] != 0 {
+	panic("ERROR 10")
+}
+if sli4[1] != 2 {
+	panic("ERROR 11")
+}
+if len(sli4) != 2 {
+	panic("ERROR 12")
+}
+
+print("OK")

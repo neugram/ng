@@ -79,7 +79,7 @@ type CompLiteral struct {
 	Position src.Pos
 	Type     tipe.Type
 	Keys     []Expr // TODO: could make this []string
-	Elements []Expr
+	Values   []Expr
 }
 
 type MapLiteral struct {
@@ -92,13 +92,15 @@ type MapLiteral struct {
 type ArrayLiteral struct {
 	Position src.Pos
 	Type     *tipe.Array
-	Elems    []Expr
+	Keys     []Expr // TODO: could make this []int
+	Values   []Expr
 }
 
 type SliceLiteral struct {
 	Position src.Pos
 	Type     *tipe.Slice
-	Elems    []Expr
+	Keys     []Expr // TODO: could make this []int
+	Values   []Expr
 }
 
 type TableLiteral struct {

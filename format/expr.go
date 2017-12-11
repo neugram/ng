@@ -105,15 +105,90 @@ func (p *printer) expr(e expr.Expr) {
 			p.stmt(e.Body.(*stmt.Block))
 		}
 		/* TODO
-		case *expr.CompLiteral:
-			panic("not implemented")
-		case *expr.MapLiteral:
-			panic("not implemented")
-		case *expr.SliceLiteral:
-			panic("not implemented")
 		case *expr.TableLiteral:
 			panic("not implemented")
 		*/
+	case *expr.CompLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		if len(e.Keys) > 0 {
+			p.indent++
+			for i, key := range e.Keys {
+				p.newline()
+				p.expr(key)
+				p.print(": ")
+				p.expr(e.Values[i])
+				p.print(",")
+			}
+			p.indent--
+			p.newline()
+		} else if len(e.Values) > 0 {
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
+			}
+		}
+		p.print("}")
+	case *expr.MapLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		p.indent++
+		for i, key := range e.Keys {
+			p.newline()
+			p.expr(key)
+			p.print(": ")
+			p.expr(e.Values[i])
+			p.print(",")
+		}
+		p.indent--
+		p.newline()
+		p.print("}")
+	case *expr.ArrayLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		switch len(e.Keys) {
+		case 0:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
+			}
+		default:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(e.Keys[i])
+				p.print(": ")
+				p.expr(elem)
+			}
+		}
+		p.print("}")
+	case *expr.SliceLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		switch len(e.Keys) {
+		case 0:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
+			}
+		default:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(e.Keys[i])
+				p.print(": ")
+				p.expr(elem)
+			}
+		}
+		p.print("}")
 	case *expr.Type:
 		p.tipe(e.Type)
 	case *expr.Ident:
@@ -251,6 +326,10 @@ func (p *printer) expr(e expr.Expr) {
 
 func (p *printer) printf(format string, args ...interface{}) {
 	fmt.Fprintf(p.buf, format, args...)
+}
+
+func (p *printer) print(args ...interface{}) {
+	fmt.Fprint(p.buf, args...)
 }
 
 func (p *printer) newline() {

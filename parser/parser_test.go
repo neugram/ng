@@ -860,9 +860,9 @@ var stmtTests = []stmtTest{
 		},
 	},
 	{"S{ X: 7 }", &stmt.Simple{Expr: &expr.CompLiteral{
-		Type:     &tipe.Unresolved{Name: "S"},
-		Keys:     []expr.Expr{&expr.Ident{Name: "X"}},
-		Elements: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(7)}},
+		Type:   &tipe.Unresolved{Name: "S"},
+		Keys:   []expr.Expr{&expr.Ident{Name: "X"}},
+		Values: []expr.Expr{&expr.BasicLiteral{Value: big.NewInt(7)}},
 	}}},
 	{`map[string]string{ "foo": "bar" }`, &stmt.Simple{Expr: &expr.MapLiteral{
 		Type:   &tipe.Map{Key: &tipe.Unresolved{Name: "string"}, Value: &tipe.Unresolved{Name: "string"}},
@@ -1348,7 +1348,18 @@ var stmtTests = []stmtTest{
 				Len:  2,
 				Elem: &tipe.Unresolved{Name: "int"},
 			},
-			Elems: []expr.Expr{basic(1), basic(2)},
+			Values: []expr.Expr{basic(1), basic(2)},
+		}},
+	}},
+	{"var i = [2]int{1:2}", &stmt.Var{
+		NameList: []string{"i"},
+		Values: []expr.Expr{&expr.ArrayLiteral{
+			Type: &tipe.Array{
+				Len:  2,
+				Elem: &tipe.Unresolved{Name: "int"},
+			},
+			Keys:   []expr.Expr{basic(1)},
+			Values: []expr.Expr{basic(2)},
 		}},
 	}},
 	{"var i = [...]int{1,2}", &stmt.Var{
@@ -1359,7 +1370,29 @@ var stmtTests = []stmtTest{
 				Elem:     &tipe.Unresolved{Name: "int"},
 				Ellipsis: true,
 			},
-			Elems: []expr.Expr{basic(1), basic(2)},
+			Values: []expr.Expr{basic(1), basic(2)},
+		}},
+	}},
+	{"var i = [...]int{1:2}", &stmt.Var{
+		NameList: []string{"i"},
+		Values: []expr.Expr{&expr.ArrayLiteral{
+			Type: &tipe.Array{
+				Len:      2,
+				Elem:     &tipe.Unresolved{Name: "int"},
+				Ellipsis: true,
+			},
+			Keys:   []expr.Expr{basic(1)},
+			Values: []expr.Expr{basic(2)},
+		}},
+	}},
+	{"var i = []int{1:2}", &stmt.Var{
+		NameList: []string{"i"},
+		Values: []expr.Expr{&expr.SliceLiteral{
+			Type: &tipe.Slice{
+				Elem: &tipe.Unresolved{Name: "int"},
+			},
+			Keys:   []expr.Expr{basic(1)},
+			Values: []expr.Expr{basic(2)},
 		}},
 	}},
 	{"var i string", &stmt.Var{

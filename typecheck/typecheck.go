@@ -2079,7 +2079,6 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		return p
 	case *expr.CompLiteral:
 		p.mode = modeVar
-		structName := fmt.Sprintf("%s", e.Type)
 		if t, resolved := c.resolve(e.Type); resolved {
 			e.Type = t
 			p.typ = t
@@ -2087,65 +2086,22 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
-		t, isStruct := tipe.Underlying(e.Type).(*tipe.Struct)
-		if !isStruct {
+		switch t := tipe.Underlying(e.Type).(type) {
+		case *tipe.Struct:
+			return c.checkStructLiteral(e, t, p)
+		case *tipe.Array:
+			p = c.checkArrayLiteral(e, e.Keys, e.Values, t, p)
+		case *tipe.Slice:
+			p = c.checkSliceLiteral(e, e.Keys, e.Values, t, p)
+		case *tipe.Map:
+			p = c.checkMapLiteral(e, e.Keys, e.Values, t, p)
+		default:
 			c.errorfmt("cannot construct type %s with a composite literal", e.Type)
 			p.mode = modeInvalid
 			return p
 		}
-		elemsp := make([]partial, len(e.Elements))
-		for i, elem := range e.Elements {
-			elemsp[i] = c.expr(elem)
-			if elemsp[i].mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-		}
-		if len(e.Keys) == 0 {
-			if len(e.Elements) == 0 {
-				return p
-			}
-			if len(e.Elements) != len(t.Fields) {
-				c.errorfmt("wrong number of elements, %d, when %s expects %d", len(e.Elements), structName, len(t.Fields))
-				p.mode = modeInvalid
-				return p
-			}
-			for i, sf := range t.Fields {
-				c.assign(&elemsp[i], sf.Type)
-				if elemsp[i].mode == modeInvalid {
-					p.mode = modeInvalid
-					return p
-				}
-			}
-		} else {
-			namedp := make(map[string]partial)
-			for i, elemp := range elemsp {
-				ident, ok := e.Keys[i].(*expr.Ident)
-				if !ok {
-					c.errorfmt("invalid field name %s in struct initializer", e.Keys[i])
-					p.mode = modeInvalid
-					return p
-				}
-				namedp[ident.Name] = elemp
-			}
-			for _, sf := range t.Fields {
-				elemp, found := namedp[sf.Name]
-				if !found {
-					continue
-				}
-				c.assign(&elemp, sf.Type)
-				if elemp.mode == modeInvalid {
-					p.mode = modeInvalid
-					return p
-				}
-			}
-			//panic("TODO: named CompLiteral")
-		}
-		if p.mode != modeInvalid {
-			p.expr = e
-		}
+		p.expr = e
 		return p
-
 	case *expr.MapLiteral:
 		p.mode = modeVar
 		if t, resolved := c.resolve(e.Type); resolved {
@@ -2161,32 +2117,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
-		for _, k := range e.Keys {
-			kp := c.expr(k)
-			if kp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-			c.assign(&kp, t.Key)
-			if kp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-		}
-		for _, v := range e.Values {
-			vp := c.expr(v)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-			c.assign(&vp, t.Value)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-		}
-		p.expr = e
-		return p
+		return c.checkMapLiteral(e, e.Keys, e.Values, t, p)
 
 	case *expr.ArrayLiteral:
 		p.mode = modeVar
@@ -2205,21 +2136,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
-
-		for _, v := range e.Elems {
-			vp := c.expr(v)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-			c.assign(&vp, arrayType.Elem)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-		}
-		p.expr = e
-		return p
+		return c.checkArrayLiteral(e, e.Keys, e.Values, arrayType, p)
 
 	case *expr.SliceLiteral:
 		p.mode = modeVar
@@ -2238,21 +2155,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
-
-		for _, v := range e.Elems {
-			vp := c.expr(v)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-			c.assign(&vp, sliceType.Elem)
-			if vp.mode == modeInvalid {
-				p.mode = modeInvalid
-				return p
-			}
-		}
-		p.expr = e
-		return p
+		return c.checkSliceLiteral(e, e.Keys, e.Values, sliceType, p)
 
 	case *expr.TableLiteral:
 		p.mode = modeVar
@@ -2687,6 +2590,150 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		return p
 	}
 	panic(fmt.Sprintf("expr TODO: %s", format.Debug(e)))
+}
+
+func (c *Checker) checkStructLiteral(e *expr.CompLiteral, t *tipe.Struct, p partial) partial {
+	structName := fmt.Sprintf("%s", e.Type)
+	elemsp := make([]partial, len(e.Values))
+	for i, elem := range e.Values {
+		elemsp[i] = c.expr(elem)
+		if elemsp[i].mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	if len(e.Keys) == 0 {
+		if len(e.Values) == 0 {
+			return p
+		}
+		if len(e.Values) != len(t.Fields) {
+			c.errorfmt("wrong number of elements, %d, when %s expects %d", len(e.Values), structName, len(t.Fields))
+			p.mode = modeInvalid
+			return p
+		}
+		for i, sf := range t.Fields {
+			c.assign(&elemsp[i], sf.Type)
+			if elemsp[i].mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+	} else {
+		namedp := make(map[string]partial)
+		for i, elemp := range elemsp {
+			ident, ok := e.Keys[i].(*expr.Ident)
+			if !ok {
+				c.errorfmt("invalid field name %s in struct initializer", e.Keys[i])
+				p.mode = modeInvalid
+				return p
+			}
+			namedp[ident.Name] = elemp
+		}
+		for _, sf := range t.Fields {
+			elemp, found := namedp[sf.Name]
+			if !found {
+				continue
+			}
+			c.assign(&elemp, sf.Type)
+			if elemp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		//panic("TODO: named CompLiteral")
+	}
+	if p.mode != modeInvalid {
+		p.expr = e
+	}
+	return p
+
+}
+
+func (c *Checker) checkMapLiteral(e expr.Expr, keys, vals []expr.Expr, t *tipe.Map, p partial) partial {
+	for _, k := range keys {
+		kp := c.expr(k)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&kp, t.Key)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	for _, v := range vals {
+		vp := c.expr(v)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&vp, t.Value)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	p.expr = e
+	return p
+}
+
+func (c *Checker) checkArrayLiteral(e expr.Expr, keys, vals []expr.Expr, t *tipe.Array, p partial) partial {
+	for _, k := range keys {
+		kp := c.expr(k)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&kp, tipe.Int)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	for _, v := range vals {
+		vp := c.expr(v)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&vp, t.Elem)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	p.expr = e
+	return p
+}
+
+func (c *Checker) checkSliceLiteral(e expr.Expr, keys, vals []expr.Expr, t *tipe.Slice, p partial) partial {
+	for _, k := range keys {
+		kp := c.expr(k)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&kp, tipe.Int)
+		if kp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	for _, v := range vals {
+		vp := c.expr(v)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+		c.assign(&vp, t.Elem)
+		if vp.mode == modeInvalid {
+			p.mode = modeInvalid
+			return p
+		}
+	}
+	p.expr = e
+	return p
 }
 
 func (c *Checker) shell(cmd expr.Expr) {
