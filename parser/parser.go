@@ -386,6 +386,8 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 		case token.LeftBrace:
 			if tExpr, isType := x.(*expr.Type); isType {
 				switch t := tExpr.Type.(type) {
+				case *tipe.Array:
+					x = p.parseArrayLiteral(t)
 				case *tipe.Slice:
 					x = p.parseSliceLiteral(t)
 				case *tipe.Table:
@@ -719,6 +721,11 @@ func (p *Parser) maybeParseType() tipe.Type {
 			p.expect(token.RightBracket)
 			p.next()
 			return &tipe.Array{Len: sz, Elem: p.parseType()}
+		case token.Ellipsis:
+			p.next()
+			p.expect(token.RightBracket)
+			p.next()
+			return &tipe.Array{Elem: p.parseType(), Ellipsis: true}
 		default:
 			p.errorf("invalid token=%v in type declaration", p.s.Token)
 			return nil
@@ -1796,6 +1803,25 @@ func (p *Parser) parseOperand() expr.Expr {
 		Error:    p.errorf("expected operand, got %s", p.s.Token),
 	}
 	return res
+}
+
+func (p *Parser) parseArrayLiteral(t tipe.Type) *expr.ArrayLiteral {
+	x := &expr.ArrayLiteral{Position: p.pos(), Type: t.(*tipe.Array)}
+	p.next()
+	for p.s.Token > 0 && p.s.Token != token.RightBrace {
+		e := p.parseExpr()
+		x.Elems = append(x.Elems, e)
+		if p.s.Token != token.Comma {
+			break
+		}
+		p.next()
+	}
+	p.expect(token.RightBrace)
+	p.next()
+	if x.Type.Ellipsis {
+		x.Type.Len = int64(len(x.Elems))
+	}
+	return x
 }
 
 func (p *Parser) parseSliceLiteral(t tipe.Type) *expr.SliceLiteral {

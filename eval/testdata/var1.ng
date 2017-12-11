@@ -83,10 +83,9 @@ if len(arr1) != 2 {
 	panic("ERROR 19")
 }
 
-// TODO
-// var arr2 = [...]int{1, 2}
-// if len(arr2) != 2 {
-// 	panic("ERROR 20")
-// }
+var arr2 = [...]int{1, 2}
+if len(arr2) != 2 {
+	panic("ERROR 20")
+}
 
 print("OK")

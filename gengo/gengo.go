@@ -505,6 +505,16 @@ func (p *printer) expr(e expr.Expr) {
 			p.newline()
 		}
 		p.printf("})")
+	case *expr.ArrayLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		for i, elem := range e.Elems {
+			if i > 0 {
+				p.print(", ")
+			}
+			p.expr(elem)
+		}
+		p.print("}")
 	case *expr.SliceLiteral:
 		p.tipe(e.Type)
 		p.print("{")

@@ -16,8 +16,7 @@ var (
 	st    struct{N int}
 	arr1  [2]int
 
-	// TODO
-	// arr2 = [...]int{1, 2}
+	arr2 = [...]int{1, 2}
 )
 
 if v1 != int(1) {
@@ -91,9 +90,8 @@ if len(arr1) != 2 {
 	panic("ERROR 19")
 }
 
-// TODO
-// if len(arr2) != 2 {
-// 	panic("ERROR 20")
-// }
+if len(arr2) != 2 {
+	panic("ERROR 20")
+}
 
 print("OK")
