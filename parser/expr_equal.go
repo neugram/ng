@@ -80,7 +80,7 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !equalExprs(x.Keys, y.Keys) {
 			return false
 		}
-		if !equalExprs(x.Elements, y.Elements) {
+		if !equalExprs(x.Values, y.Values) {
 			return false
 		}
 		return true
@@ -113,7 +113,10 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
-		if !equalExprs(x.Elems, y.Elems) {
+		if !equalExprs(x.Keys, y.Keys) {
+			return false
+		}
+		if !equalExprs(x.Values, y.Values) {
 			return false
 		}
 		return true
@@ -128,7 +131,10 @@ func EqualExpr(x, y expr.Expr) bool {
 		if !tipe.EqualUnresolved(x.Type, y.Type) {
 			return false
 		}
-		if !equalExprs(x.Elems, y.Elems) {
+		if !equalExprs(x.Keys, y.Keys) {
+			return false
+		}
+		if !equalExprs(x.Values, y.Values) {
 			return false
 		}
 		return true

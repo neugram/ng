@@ -1808,36 +1808,25 @@ func (p *Parser) parseOperand() expr.Expr {
 
 func (p *Parser) parseArrayLiteral(t tipe.Type) *expr.ArrayLiteral {
 	x := &expr.ArrayLiteral{Position: p.pos(), Type: t.(*tipe.Array)}
-	p.next()
-	for p.s.Token > 0 && p.s.Token != token.RightBrace {
-		e := p.parseExpr()
-		x.Elems = append(x.Elems, e)
-		if p.s.Token != token.Comma {
-			break
+	x.Keys, x.Values = p.parseKeyedLiteral()
+	if x.Type.Ellipsis || len(x.Keys) > 0 {
+		n := int64(len(x.Values))
+		if len(x.Keys) > 0 {
+			for _, k := range x.Keys {
+				i := k.(*expr.BasicLiteral).Value.(*big.Int).Int64()
+				if i+1 > n {
+					n = i + 1
+				}
+			}
 		}
-		p.next()
-	}
-	p.expect(token.RightBrace)
-	p.next()
-	if x.Type.Ellipsis {
-		x.Type.Len = int64(len(x.Elems))
+		x.Type.Len = n
 	}
 	return x
 }
 
 func (p *Parser) parseSliceLiteral(t tipe.Type) *expr.SliceLiteral {
 	x := &expr.SliceLiteral{Position: p.pos(), Type: t.(*tipe.Slice)}
-	p.next()
-	for p.s.Token > 0 && p.s.Token != token.RightBrace {
-		e := p.parseExpr()
-		x.Elems = append(x.Elems, e)
-		if p.s.Token != token.Comma {
-			break
-		}
-		p.next()
-	}
-	p.expect(token.RightBrace)
-	p.next()
+	x.Keys, x.Values = p.parseKeyedLiteral()
 	return x
 }
 
@@ -1886,26 +1875,17 @@ func (p *Parser) parseTableLiteral(t tipe.Type) *expr.TableLiteral {
 
 func (p *Parser) parseMapLiteral(t tipe.Type) *expr.MapLiteral {
 	x := &expr.MapLiteral{Position: p.pos(), Type: t}
-	p.next()
-	for p.s.Token > 0 && p.s.Token != token.RightBrace {
-		k := p.parseExpr()
-		p.expect(token.Colon)
-		p.next()
-		v := p.parseExpr()
-		x.Keys = append(x.Keys, k)
-		x.Values = append(x.Values, v)
-		if p.s.Token != token.Comma {
-			break
-		}
-		p.next()
-	}
-	p.expect(token.RightBrace)
-	p.next()
+	x.Keys, x.Values = p.parseKeyedLiteral()
 	return x
 }
 
 func (p *Parser) parseCompLiteral(t tipe.Type) *expr.CompLiteral {
 	x := &expr.CompLiteral{Position: p.pos(), Type: t}
+	x.Keys, x.Values = p.parseKeyedLiteral()
+	return x
+}
+
+func (p *Parser) parseKeyedLiteral() (keys []expr.Expr, values []expr.Expr) {
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
 		e := p.parseExpr()
@@ -1913,19 +1893,19 @@ func (p *Parser) parseCompLiteral(t tipe.Type) *expr.CompLiteral {
 			p.next()
 			v := p.parseExpr()
 
-			if len(x.Elements) > 0 && len(x.Keys) == 0 {
+			if len(values) > 0 && len(keys) == 0 {
 				p.errorf("mixture of keyed fields and value initializers")
 				continue
 			}
 
-			x.Keys = append(x.Keys, e)
-			x.Elements = append(x.Elements, v)
+			keys = append(keys, e)
+			values = append(values, v)
 		} else {
-			if len(x.Elements) > 0 && len(x.Keys) > 0 {
+			if len(values) > 0 && len(keys) > 0 {
 				p.errorf("mixture of keyed fields and value initializers")
 				continue
 			}
-			x.Elements = append(x.Elements, e)
+			values = append(values, e)
 		}
 		if p.s.Token != token.Comma {
 			break
@@ -1934,7 +1914,7 @@ func (p *Parser) parseCompLiteral(t tipe.Type) *expr.CompLiteral {
 	}
 	p.expect(token.RightBrace)
 	p.next()
-	return x
+	return keys, values
 }
 
 type Errors []Error

@@ -1,0 +1,48 @@
+arr1 := [...]int{1, 2}
+if arr1[0] != 1 {
+	panic("ERROR 1")
+}
+if arr1[1] != 2 {
+	panic("ERROR 2")
+}
+if len(arr1) != 2 {
+	panic("ERROR 3")
+}
+
+arr2 := [2]int{1, 2}
+if arr2[0] != 1 {
+	panic("ERROR 4")
+}
+if arr2[1] != 2 {
+	panic("ERROR 5")
+}
+
+type Array [2]int
+arr3 := Array{1, 2}
+if arr3[0] != 1 {
+	panic("ERROR 6")
+}
+if arr3[1] != 2 {
+	panic("ERROR 7")
+}
+
+arr4 := [...]int{1: 2}
+if arr4[0] != 0 {
+	panic("ERROR 8")
+}
+if arr4[1] != 2 {
+	panic("ERROR 9")
+}
+if len(arr4) != 2 {
+	panic("ERROR 10")
+}
+
+arr5 := Array{1: 2}
+if arr5[0] != 0 {
+	panic("ERROR 11")
+}
+if arr5[1] != 2 {
+	panic("ERROR 12")
+}
+
+print("OK")

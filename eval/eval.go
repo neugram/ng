@@ -1479,20 +1479,30 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		case reflect.Struct:
 			st := reflect.New(t).Elem()
 			if len(e.Keys) > 0 {
-				for i, elem := range e.Elements {
+				for i, elem := range e.Values {
 					name := e.Keys[i].(*expr.Ident).Name
 					v := p.evalExprOne(elem)
 					st.FieldByName(name).Set(v)
 				}
 			} else {
-				for i, expr := range e.Elements {
+				for i, expr := range e.Values {
 					v := p.evalExprOne(expr)
 					st.Field(i).Set(v)
 				}
 			}
 			return []reflect.Value{st}
+		case reflect.Array:
+			return p.evalArrayLiteral(t, e.Keys, e.Values)
+		case reflect.Slice:
+			return p.evalSliceLiteral(t, e.Keys, e.Values)
 		case reflect.Map:
-			panic("TODO CompLiteral map")
+			m := reflect.MakeMap(t)
+			for i, kexpr := range e.Keys {
+				k := p.evalExprOne(kexpr)
+				v := p.evalExprOne(e.Values[i])
+				m.SetMapIndex(k, v)
+			}
+			return []reflect.Value{m}
 		}
 	case *expr.FuncLiteral:
 		return []reflect.Value{p.evalFuncLiteral(e, nil)}
@@ -1606,20 +1616,10 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{str, nilerr}
 	case *expr.ArrayLiteral:
 		t := p.reflector.ToRType(e.Type)
-		array := reflect.New(t).Elem()
-		for i, elem := range e.Elems {
-			v := p.evalExprOne(elem)
-			array.Index(i).Set(v)
-		}
-		return []reflect.Value{array}
+		return p.evalArrayLiteral(t, e.Keys, e.Values)
 	case *expr.SliceLiteral:
 		t := p.reflector.ToRType(e.Type)
-		slice := reflect.MakeSlice(t, len(e.Elems), len(e.Elems))
-		for i, elem := range e.Elems {
-			v := p.evalExprOne(elem)
-			slice.Index(i).Set(v)
-		}
-		return []reflect.Value{slice}
+		return p.evalSliceLiteral(t, e.Keys, e.Values)
 	case *expr.Type:
 		t := p.reflector.ToRType(e.Type)
 		return []reflect.Value{reflect.ValueOf(t)}
@@ -1780,6 +1780,52 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 		return res
 	})
 	return fn
+}
+
+func (p *Program) evalArrayLiteral(t reflect.Type, keys, values []expr.Expr) []reflect.Value {
+	array := reflect.New(t).Elem()
+	switch len(keys) {
+	case 0:
+		for i, elem := range values {
+			v := p.evalExprOne(elem)
+			array.Index(i).Set(v)
+		}
+	default:
+		for i := range keys {
+			k := int(p.evalExprOne(keys[i]).Int())
+			v := p.evalExprOne(values[i])
+			array.Index(k).Set(v)
+		}
+	}
+	return []reflect.Value{array}
+}
+
+func (p *Program) evalSliceLiteral(t reflect.Type, keys, values []expr.Expr) []reflect.Value {
+	switch len(keys) {
+	case 0:
+		slice := reflect.MakeSlice(t, len(values), len(values))
+		for i, elem := range values {
+			v := p.evalExprOne(elem)
+			slice.Index(i).Set(v)
+		}
+		return []reflect.Value{slice}
+	default:
+		n := len(values)
+		indices := make([]int, n)
+		for i := range keys {
+			k := int(keys[i].(*expr.BasicLiteral).Value.(*big.Int).Int64())
+			if k+1 > n {
+				n = k + 1
+			}
+			indices[i] = k
+		}
+		slice := reflect.MakeSlice(t, n, n)
+		for i, elem := range values {
+			v := p.evalExprOne(elem)
+			slice.Index(indices[i]).Set(v)
+		}
+		return []reflect.Value{slice}
+	}
 }
 
 type reflector struct {

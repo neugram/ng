@@ -485,13 +485,13 @@ func (p *printer) expr(e expr.Expr) {
 				p.newline()
 				p.expr(key)
 				p.print(": ")
-				p.expr(e.Elements[i])
+				p.expr(e.Values[i])
 				p.print(",")
 			}
 			p.indent--
 			p.newline()
-		} else if len(e.Elements) > 0 {
-			for i, elem := range e.Elements {
+		} else if len(e.Values) > 0 {
+			for i, elem := range e.Values {
 				if i > 0 {
 					p.print(", ")
 				}
@@ -557,21 +557,45 @@ func (p *printer) expr(e expr.Expr) {
 	case *expr.ArrayLiteral:
 		p.tipe(e.Type)
 		p.print("{")
-		for i, elem := range e.Elems {
-			if i > 0 {
-				p.print(", ")
+		switch len(e.Keys) {
+		case 0:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
 			}
-			p.expr(elem)
+		default:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(e.Keys[i])
+				p.print(": ")
+				p.expr(elem)
+			}
 		}
 		p.print("}")
 	case *expr.SliceLiteral:
 		p.tipe(e.Type)
 		p.print("{")
-		for i, elem := range e.Elems {
-			if i > 0 {
-				p.print(", ")
+		switch len(e.Keys) {
+		case 0:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(elem)
 			}
-			p.expr(elem)
+		default:
+			for i, elem := range e.Values {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(e.Keys[i])
+				p.print(": ")
+				p.expr(elem)
+			}
 		}
 		p.print("}")
 	case *expr.Type:
