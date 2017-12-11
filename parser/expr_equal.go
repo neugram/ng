@@ -102,6 +102,21 @@ func EqualExpr(x, y expr.Expr) bool {
 			return false
 		}
 		return true
+	case *expr.ArrayLiteral:
+		y, ok := y.(*expr.ArrayLiteral)
+		if !ok {
+			return false
+		}
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		if !tipe.EqualUnresolved(x.Type, y.Type) {
+			return false
+		}
+		if !equalExprs(x.Elems, y.Elems) {
+			return false
+		}
+		return true
 	case *expr.SliceLiteral:
 		y, ok := y.(*expr.SliceLiteral)
 		if !ok {

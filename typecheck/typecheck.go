@@ -2165,6 +2165,39 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		p.expr = e
 		return p
 
+	case *expr.ArrayLiteral:
+		p.mode = modeVar
+		var arrayType *tipe.Array
+		if t, resolved := c.resolve(e.Type); resolved {
+			t, isArray := t.(*tipe.Array)
+			if !isArray {
+				c.errorfmt("type %s is not an array", t)
+				p.mode = modeInvalid
+				return p
+			}
+			e.Type = t
+			p.typ = t
+			arrayType = t
+		} else {
+			p.mode = modeInvalid
+			return p
+		}
+
+		for _, v := range e.Elems {
+			vp := c.expr(v)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+			c.assign(&vp, arrayType.Elem)
+			if vp.mode == modeInvalid {
+				p.mode = modeInvalid
+				return p
+			}
+		}
+		p.expr = e
+		return p
+
 	case *expr.SliceLiteral:
 		p.mode = modeVar
 		var sliceType *tipe.Slice

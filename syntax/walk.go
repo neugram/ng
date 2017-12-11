@@ -224,6 +224,9 @@ func (w *walker) walk(parent, node Node, fieldName string, iter *iterator) {
 		w.walkSlice(node, "Keys")
 		w.walkSlice(node, "Values")
 
+	case *expr.ArrayLiteral:
+		w.walkSlice(node, "Elems")
+
 	case *expr.SliceLiteral:
 		w.walkSlice(node, "Elems")
 

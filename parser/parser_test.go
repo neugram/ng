@@ -1341,6 +1341,27 @@ var stmtTests = []stmtTest{
 			Elem: &tipe.Unresolved{Name: "int"},
 		},
 	}},
+	{"var i = [2]int{1,2}", &stmt.Var{
+		NameList: []string{"i"},
+		Values: []expr.Expr{&expr.ArrayLiteral{
+			Type: &tipe.Array{
+				Len:  2,
+				Elem: &tipe.Unresolved{Name: "int"},
+			},
+			Elems: []expr.Expr{basic(1), basic(2)},
+		}},
+	}},
+	{"var i = [...]int{1,2}", &stmt.Var{
+		NameList: []string{"i"},
+		Values: []expr.Expr{&expr.ArrayLiteral{
+			Type: &tipe.Array{
+				Len:      2,
+				Elem:     &tipe.Unresolved{Name: "int"},
+				Ellipsis: true,
+			},
+			Elems: []expr.Expr{basic(1), basic(2)},
+		}},
+	}},
 	{"var i string", &stmt.Var{
 		NameList: []string{"i"},
 		Type:     &tipe.Unresolved{Name: "string"},

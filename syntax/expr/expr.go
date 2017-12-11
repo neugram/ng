@@ -89,6 +89,12 @@ type MapLiteral struct {
 	Values   []Expr
 }
 
+type ArrayLiteral struct {
+	Position src.Pos
+	Type     *tipe.Array
+	Elems    []Expr
+}
+
 type SliceLiteral struct {
 	Position src.Pos
 	Type     *tipe.Slice
@@ -200,6 +206,7 @@ func (e *BasicLiteral) expr()   {}
 func (e *FuncLiteral) expr()    {}
 func (e *CompLiteral) expr()    {}
 func (e *MapLiteral) expr()     {}
+func (e *ArrayLiteral) expr()   {}
 func (e *SliceLiteral) expr()   {}
 func (e *TableLiteral) expr()   {}
 func (e *Type) expr()           {}
@@ -225,6 +232,7 @@ func (e *BasicLiteral) Pos() src.Pos   { return e.Position }
 func (e *FuncLiteral) Pos() src.Pos    { return e.Position }
 func (e *CompLiteral) Pos() src.Pos    { return e.Position }
 func (e *MapLiteral) Pos() src.Pos     { return e.Position }
+func (e *ArrayLiteral) Pos() src.Pos   { return e.Position }
 func (e *SliceLiteral) Pos() src.Pos   { return e.Position }
 func (e *TableLiteral) Pos() src.Pos   { return e.Position }
 func (e *Type) Pos() src.Pos           { return e.Position }

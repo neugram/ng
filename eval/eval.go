@@ -1604,6 +1604,14 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		errt := reflect.TypeOf((*error)(nil)).Elem()
 		nilerr := reflect.New(errt).Elem()
 		return []reflect.Value{str, nilerr}
+	case *expr.ArrayLiteral:
+		t := p.reflector.ToRType(e.Type)
+		array := reflect.New(t).Elem()
+		for i, elem := range e.Elems {
+			v := p.evalExprOne(elem)
+			array.Index(i).Set(v)
+		}
+		return []reflect.Value{array}
 	case *expr.SliceLiteral:
 		t := p.reflector.ToRType(e.Type)
 		slice := reflect.MakeSlice(t, len(e.Elems), len(e.Elems))
