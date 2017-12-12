@@ -1,0 +1,13 @@
+var m1 map[int]int
+if m1 != nil {
+	panic("ERROR 1")
+}
+
+var m2 map[int]int
+if m2 != nil {
+	panic("ERROR 2")
+}
+
+m1 == m2 // ERROR: type map[int]int only comparable to nil
+
+print("OK")
