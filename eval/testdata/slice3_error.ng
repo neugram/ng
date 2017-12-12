@@ -1,0 +1,13 @@
+var s1 []int
+if s1 != nil {
+	panic("ERROR 1")
+}
+
+var s2 []int
+if s2 != nil {
+	panic("ERROR 2")
+}
+
+s1 == s2 // ERROR: type []int only comparable to nil
+
+print("OK")

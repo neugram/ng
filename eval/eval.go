@@ -1425,18 +1425,38 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{reflect.ValueOf(v)}
 		}
 		rhs := p.evalExpr(e.Right)
-		if (e.Op == token.Equal || e.Op == token.NotEqual) && (lhs[0].Kind() == reflect.Func || rhs[0].Kind() == reflect.Func) {
-			// functions can only be compared to nil
-			if lhs[0].IsNil() || rhs[0].IsNil() {
-				v := lhs[0].IsNil()
-				if e.Op == token.Equal {
-					v = v == rhs[0].IsNil()
-				} else {
-					v = v != rhs[0].IsNil()
+		if e.Op == token.Equal || e.Op == token.NotEqual {
+			lk := lhs[0].Kind()
+			rk := rhs[0].Kind()
+			switch {
+			case lk == reflect.Func || rk == reflect.Func:
+				// functions can only be compared to nil
+				lv := lhs[0].IsNil()
+				rv := rhs[0].IsNil()
+				if lv || rv {
+					switch e.Op {
+					case token.Equal:
+						return []reflect.Value{reflect.ValueOf(lv == rv)}
+					case token.NotEqual:
+						return []reflect.Value{reflect.ValueOf(lv != rv)}
+					}
 				}
-				return []reflect.Value{reflect.ValueOf(v)}
+				panic("comparing uncomparable type " + format.Type(p.Types.Type(e.Left)))
+
+			case lk == reflect.Map || rk == reflect.Map,
+				lk == reflect.Chan || rk == reflect.Chan,
+				lk == reflect.Slice || rk == reflect.Slice:
+				lv := lhs[0].IsNil()
+				rv := rhs[0].IsNil()
+				if lv || rv {
+					switch e.Op {
+					case token.Equal:
+						return []reflect.Value{reflect.ValueOf(lv == rv)}
+					case token.NotEqual:
+						return []reflect.Value{reflect.ValueOf(lv != rv)}
+					}
+				}
 			}
-			panic("comparing uncomparable type " + format.Type(p.Types.Type(e.Left)))
 		}
 		x := lhs[0].Interface()
 		y := rhs[0].Interface()

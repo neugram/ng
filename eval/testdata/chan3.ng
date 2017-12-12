@@ -1,0 +1,27 @@
+ok := 0
+
+var ch1 chan int
+if ch1 != nil {
+	panic("ERROR 1")
+}
+if ch1 == nil {
+	ok++
+}
+
+var ch2 chan int
+if ch2 != nil {
+	panic("ERROR 2")
+}
+if ch2 == nil {
+	ok++
+}
+
+if ch1 == ch2 {
+	ok++
+}
+
+if ok != 3 {
+	panic("ERROR 3")
+}
+
+print("OK")
