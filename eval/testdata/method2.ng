@@ -5,8 +5,8 @@ methodik myReader struct { Source string } {
 		n := copy(b, r.Source)
 		r.Source = r.Source[n:]
 		if n == 0 {
-			// TODO import "io"
-			//return 0, io.EOF
+			import "io"
+			return 0, io.EOF
 		}
 		return n, nil
 	}

@@ -2520,7 +2520,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 					if lt.GoPkg != nil {
 						s := lt.GoPkg.(*gotypes.Package).Scope()
 						obj := s.Lookup(name)
-						if _, isAType := obj.Type().(*gotypes.Named); isAType {
+						if _, isAType := obj.(*gotypes.TypeName); isAType {
 							p.mode = modeTypeExpr
 							return p
 						}
