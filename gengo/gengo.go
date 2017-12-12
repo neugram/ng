@@ -9,7 +9,6 @@ package gengo
 import (
 	"bytes"
 	"fmt"
-	"go/constant"
 	goformat "go/format"
 	"path"
 	"path/filepath"
@@ -33,6 +32,7 @@ func GenGo(filename, outGoPkgName string) (result []byte, err error) {
 		c:       typecheck.New(filename), // TODO: extract a pkg name
 		imports: make(map[*tipe.Package]string),
 		eliders: make(map[tipe.Type]string),
+		global:  make(map[string]*typecheck.Obj),
 	}
 
 	abspath, err := filepath.Abs(filename)
@@ -141,29 +141,102 @@ package %s
 	}
 
 	// Lift export declarations to the top-level.
-	for _, obj := range pkg.Exported {
+	for _, s := range pkg.Syntax.Stmts {
+		switch s := s.(type) {
+		// TODO case *stmt.ConstSet:
+		// TODO case *stmt.Const:
+		// TODO case *stmt.VarSet:
+		// TODO case *stmt.Var:
+		case *stmt.TypeDecl:
+			p.stmt(s)
+			p.newline()
+			p.newline()
+		case *stmt.Assign:
+			if !s.Decl {
+				continue
+			}
+			for _, lhs := range s.Left {
+				id := lhs.(*expr.Ident)
+				if id.Name == "_" {
+					continue
+				}
+				if p.global[id.Name] != nil {
+					continue
+				}
+				obj := p.c.Ident(id)
+				if obj != nil {
+					p.global[id.Name] = obj
+				}
+			}
+		}
+	}
+	for _, obj := range p.global {
 		switch obj.Kind {
-		case typecheck.ObjType:
-			p.printf("type %s %s", obj.Name, format.Type(obj.Type.(*tipe.Named).Type))
-			p.newline()
-			p.newline()
 		case typecheck.ObjVar:
-			p.printf("var %s %s", obj.Name, format.Type(obj.Type))
-			p.newline()
-			p.newline()
-		case typecheck.ObjConst:
-			p.printf("const %s %s = %s", obj.Name, format.Type(obj.Type), obj.Decl.(constant.Value))
+			p.printf("var %s ", obj.Name)
+			p.tipe(obj.Type)
+		}
+		p.newline()
+		p.newline()
+	}
+
+	// Lift methodik declarations to the top-level.
+	methodiks := make(map[string][]*stmt.MethodikDecl)
+	preFn = func(c *syntax.Cursor) bool {
+		switch node := c.Node.(type) {
+		case *stmt.MethodikDecl:
+			methodiks[node.Name] = append(methodiks[node.Name], node)
+		}
+		return true
+	}
+	syntax.Walk(pkg.Syntax, preFn, nil)
+	methodiksFlat := make(map[string]*stmt.MethodikDecl)
+	for name, ms := range methodiks {
+		methodiksFlat[name] = ms[0]
+		if len(ms) == 1 {
+			continue
+		}
+		for i, m := range ms[1:] {
+			var newName string
+			for {
+				newName = fmt.Sprintf("%s_gengo%d", name, i)
+				if _, exists := methodiks[newName]; !exists {
+					break
+				}
+				i++
+			}
+			methodiksFlat[newName] = m
+			m.Type.Name = newName
+		}
+	}
+	var methodikNames []string
+	for name := range methodiksFlat {
+		methodikNames = append(methodikNames, name)
+	}
+	sort.Strings(methodikNames)
+	for _, name := range methodikNames {
+		m := methodiksFlat[name]
+		p.printf("// methodik %s", m.Name)
+		p.newline()
+		p.printf("type %s %s", m.Name, format.Type(m.Type.Type))
+		p.newline()
+		p.newline()
+		for _, method := range m.Methods {
+			p.funcLiteral(method, m.Name)
 			p.newline()
 			p.newline()
 		}
 	}
 
-	// TODO: Lift methodik declarations to the top-level.
-	//       (Both of these are blocked on a visitor API.)
-
 	p.print("func init() {")
 	p.indent++
 	for _, s := range pkg.Syntax.Stmts {
+		switch s.(type) {
+		case *stmt.TypeDecl:
+			// handled above
+			continue
+		}
+
 		p.newline()
 		p.stmt(s)
 
@@ -211,6 +284,7 @@ type printer struct {
 	imports map[*tipe.Package]string // import package -> name
 	c       *typecheck.Checker
 	eliders map[tipe.Type]string
+	global  map[string]*typecheck.Obj
 }
 
 func (p *printer) printShell() {
@@ -429,32 +503,7 @@ func (p *printer) expr(e expr.Expr) {
 		if e.Name != "" {
 			p.printf("%s := ", e.Name)
 		}
-		p.print("func(")
-		for i, name := range e.ParamNames {
-			if i != 0 {
-				p.print(", ")
-			}
-			p.print(name)
-			p.print(" ")
-			p.tipe(e.Type.Params.Elems[i])
-		}
-		p.print(") ")
-		if len(e.ResultNames) != 0 {
-			p.print("(")
-			for i, name := range e.ResultNames {
-				if i != 0 {
-					p.print(", ")
-				}
-				p.print(name)
-				p.print(" ")
-				p.tipe(e.Type.Results.Elems[i])
-			}
-			p.print(")")
-		}
-		if e.Body != nil {
-			p.print(" ")
-			p.stmt(e.Body.(*stmt.Block))
-		}
+		p.funcLiteral(e, "")
 	case *expr.Ident:
 		if pkgType, isPkg := p.c.Type(e).(*tipe.Package); isPkg {
 			p.print(p.imports[pkgType])
@@ -581,7 +630,12 @@ func (p *printer) stmt(s stmt.Stmt) {
 			p.expr(e)
 		}
 		// TODO: A, b := ...
-		if ident, isIdent := s.Left[0].(*expr.Ident); !isIdent || isExported(ident.Name) || !s.Decl {
+		ident, _ := s.Left[0].(*expr.Ident)
+		var obj *typecheck.Obj
+		if ident != nil {
+			obj = p.c.Ident(ident)
+		}
+		if !s.Decl || (obj != nil && p.global[obj.Name] == obj) {
 			p.print(" = ")
 		} else {
 			p.print(" := ")
@@ -978,6 +1032,43 @@ func (p *printer) tipeFuncSig(t *tipe.Func) {
 		if len(t.Results.Elems) > 1 {
 			p.print(")")
 		}
+	}
+}
+
+func (p *printer) funcLiteral(e *expr.FuncLiteral, recvTypeName string) {
+	if recvTypeName != "" {
+		ptr := ""
+		if e.PointerReceiver {
+			ptr = "*"
+		}
+		p.printf("func (%s %s%s) %s(", e.ReceiverName, ptr, recvTypeName, e.Name)
+	} else {
+		p.print("func(")
+	}
+	for i, name := range e.ParamNames {
+		if i != 0 {
+			p.print(", ")
+		}
+		p.print(name)
+		p.print(" ")
+		p.tipe(e.Type.Params.Elems[i])
+	}
+	p.print(") ")
+	if len(e.ResultNames) != 0 {
+		p.print("(")
+		for i, name := range e.ResultNames {
+			if i != 0 {
+				p.print(", ")
+			}
+			p.print(name)
+			p.print(" ")
+			p.tipe(e.Type.Results.Elems[i])
+		}
+		p.print(")")
+	}
+	if e.Body != nil {
+		p.print(" ")
+		p.stmt(e.Body.(*stmt.Block))
 	}
 }
 

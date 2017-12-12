@@ -38,6 +38,7 @@ type Checker struct {
 	mu            *sync.Mutex
 	types         map[expr.Expr]tipe.Type      // computed type for each expression
 	consts        map[expr.Expr]constant.Value // component constant for const expressions
+	idents        map[*expr.Ident]*Obj         // map of idents to the Obj they represent
 	pkgs          map[string]*Package          // (ng abs file path or go import path) -> pkg
 	goTypes       map[gotypes.Type]tipe.Type   // cache for the fromGoType method
 	goTypesToFill map[gotypes.Type]tipe.Type
@@ -58,6 +59,7 @@ func New(initPkg string) *Checker {
 		types:         make(map[expr.Expr]tipe.Type),
 		ImportGo:      goimporter.Default().Import,
 		consts:        make(map[expr.Expr]constant.Value),
+		idents:        make(map[*expr.Ident]*Obj),
 		pkgs:          make(map[string]*Package),
 		goTypes:       make(map[gotypes.Type]tipe.Type),
 		goTypesToFill: make(map[gotypes.Type]tipe.Type),
@@ -216,6 +218,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Decl: s,
 				}
 				c.cur.Objs[name] = obj
+				c.idents[lhs.(*expr.Ident)] = obj
 			}
 		} else {
 			for i, lhs := range s.Left {
@@ -321,11 +324,13 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
 				obj := &Obj{Kind: ObjVar, Type: kt}
 				c.cur.Objs[s.Key.(*expr.Ident).Name] = obj
+				c.idents[s.Key.(*expr.Ident)] = obj
 				c.types[s.Key] = kt
 			}
 			if _, exists := c.types[s.Val]; s.Val != nil && !exists {
 				obj := &Obj{Kind: ObjVar, Type: vt}
 				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
+				c.idents[s.Key.(*expr.Ident)] = obj
 				c.types[s.Val] = vt
 			}
 		} else {
@@ -1988,6 +1993,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeTypeExpr
 		}
 		p.typ = obj.Type
+		c.idents[e] = obj
 		return p
 	case *expr.BasicLiteral:
 		// TODO: use constant.Value in BasicLiteral directly.
@@ -3085,6 +3091,14 @@ func (c *Checker) Type(e expr.Expr) (t tipe.Type) {
 	return t
 }
 
+// Ident reports the object an identifier refers to.
+func (c *Checker) Ident(e *expr.Ident) *Obj {
+	c.mu.Lock()
+	id := c.idents[e]
+	c.mu.Unlock()
+	return id
+}
+
 // NewScope make a copy of Checker with a new, blank current scope.
 // The two checkers share all type checked data.
 func (c *Checker) NewScope() *Checker {
@@ -3494,6 +3508,8 @@ func defaultType(t tipe.Type) tipe.Type {
 		return tipe.Float64 // tipe.Num
 	case tipe.UntypedComplex:
 		return tipe.Complex128 // tipe.Num
+	case tipe.UntypedRune:
+		return tipe.Rune
 	}
 	return t
 }

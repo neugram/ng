@@ -2,13 +2,14 @@ f := func() {
 	panic("first f called")
 }
 
-{
-	four := 3
+four := 3
 
+{
 	methodik obj struct{} {
 		func (a) Read([]byte) (int, error) {
 			func N4() int { return four }
 			four := 6
+			_ = four
 			return N4(), nil
 		}
 	}
@@ -20,7 +21,10 @@ f := func() {
 		four := 5 // check we use the correctly scoped four
 		if v, _ := o.Read([]byte{3, 4}); v == 4 {
 			print("OK")
+		} else {
+			printf("v=%d, want 4\n", v)
 		}
+		_ = four
 	}
 }
 

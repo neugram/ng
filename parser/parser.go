@@ -646,6 +646,7 @@ func (p *Parser) parseMethodik(name string) *stmt.MethodikDecl {
 		Name: name,
 		Type: &tipe.Named{
 			// TODO Spec
+			Name: name,
 			Type: p.parseType(),
 		},
 	}
