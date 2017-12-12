@@ -517,6 +517,18 @@ func (p *printer) expr(e expr.Expr) {
 		p.expr(e.Left)
 		p.print(".")
 		p.expr(e.Right)
+	case *expr.Slice:
+		if e.Low != nil {
+			p.expr(e.Low)
+		}
+		p.buf.WriteString(":")
+		if e.High != nil {
+			p.expr(e.High)
+		}
+		if e.Max != nil {
+			p.buf.WriteString(":")
+			p.expr(e.Max)
+		}
 	case *expr.Shell:
 		if e.ElideError {
 			p.printf("gengo_shell_elide(%s, gengo_shell_params{", format.Debug(e))

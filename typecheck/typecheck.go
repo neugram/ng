@@ -2577,7 +2577,12 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeVar
 			p.typ = lt.Elem
 			return p
-		case *tipe.Slice:
+		case *tipe.Slice, tipe.Basic:
+			if basic, isBasic := lt.(tipe.Basic); isBasic && basic != tipe.String {
+				p.mode = modeInvalid
+				c.errorfmt("cannot index type %s", left.typ)
+				return p
+			}
 			if len(e.Indicies) != 1 {
 				p.mode = modeInvalid
 				c.errorfmt("cannot table slice %s (type %s)", e.Left, left.typ)
@@ -2617,11 +2622,20 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				return ind
 			}
 			p.mode = modeVar
-			p.typ = lt.Elem
+			switch lt := lt.(type) {
+			case *tipe.Slice:
+				p.typ = lt.Elem
+			case tipe.Basic: // tipe.String
+				p.typ = tipe.Uint8
+			}
 			return p
 		case *tipe.Table:
 			p.mode = modeInvalid
 			c.errorfmt("TODO table slicing support")
+			return p
+		default:
+			p.mode = modeInvalid
+			c.errorfmt("TODO index %T", lt)
 			return p
 		}
 		if atTyp := c.memory.Method(lt, "At"); atTyp != nil {

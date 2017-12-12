@@ -1,13 +1,13 @@
+
 // Define a new type, myReader, as a struct with a field and a method.
 methodik myReader struct { Source string } {
 	func (r) Read(b []byte) (int, error) {
-		print("MyReader:", r.Source)
 		n := copy(b, r.Source)
-		/* TODO:
 		r.Source = r.Source[n:]
 		if n == 0 {
-			return 0, io.EOF
-		*/
+			// TODO import "io"
+			//return 0, io.EOF
+		}
 		return n, nil
 	}
 }
@@ -16,7 +16,5 @@ r := &myReader{Source: "OK"}
 
 print("OK")
 
-/* TODO:
-import "io/ioutil"
-print(string(ioutil.ReadAll(r)))
-*/
+// TODO import "io/ioutil"
+//print(string(ioutil.ReadAll(r)))
