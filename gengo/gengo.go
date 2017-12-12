@@ -32,7 +32,6 @@ func GenGo(filename, outGoPkgName string) (result []byte, err error) {
 		c:       typecheck.New(filename), // TODO: extract a pkg name
 		imports: make(map[*tipe.Package]string),
 		eliders: make(map[tipe.Type]string),
-		global:  make(map[string]*typecheck.Obj),
 	}
 
 	abspath, err := filepath.Abs(filename)
@@ -40,7 +39,7 @@ func GenGo(filename, outGoPkgName string) (result []byte, err error) {
 		return nil, err
 	}
 
-	pkg, err := p.c.Check(abspath)
+	p.pkg, err = p.c.Check(abspath)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +75,7 @@ package %s
 		}
 		return true
 	}
-	syntax.Walk(pkg.Syntax, preFn, nil)
+	syntax.Walk(p.pkg.Syntax, preFn, nil)
 
 	// Lift imports to the top-level.
 	importSet := make(map[string]bool)
@@ -140,41 +139,21 @@ package %s
 		p.newline()
 	}
 
-	// Lift export declarations to the top-level.
-	for _, s := range pkg.Syntax.Stmts {
-		switch s := s.(type) {
-		// TODO case *stmt.ConstSet:
-		// TODO case *stmt.Const:
-		// TODO case *stmt.VarSet:
-		// TODO case *stmt.Var:
-		case *stmt.TypeDecl:
-			p.stmt(s)
-			p.newline()
-			p.newline()
-		case *stmt.Assign:
-			if !s.Decl {
-				continue
-			}
-			for _, lhs := range s.Left {
-				id := lhs.(*expr.Ident)
-				if id.Name == "_" {
-					continue
-				}
-				if p.global[id.Name] != nil {
-					continue
-				}
-				obj := p.c.Ident(id)
-				if obj != nil {
-					p.global[id.Name] = obj
-				}
-			}
-		}
-	}
-	for _, obj := range p.global {
+	// Lift package-level declarations to the top-level.
+	for _, obj := range p.pkg.Globals {
 		switch obj.Kind {
+		case typecheck.ObjType:
+			n := obj.Type.(*tipe.Named)
+			if len(n.Methods) > 0 {
+				continue // methodiks are hoisted elsewhere
+			}
+			p.printf("type %s ", obj.Name)
+			p.tipe(n.Type)
 		case typecheck.ObjVar:
 			p.printf("var %s ", obj.Name)
 			p.tipe(obj.Type)
+		case typecheck.ObjConst:
+			p.printf("const %s = %s", obj.Name, obj.Decl)
 		}
 		p.newline()
 		p.newline()
@@ -189,7 +168,7 @@ package %s
 		}
 		return true
 	}
-	syntax.Walk(pkg.Syntax, preFn, nil)
+	syntax.Walk(p.pkg.Syntax, preFn, nil)
 	methodiksFlat := make(map[string]*stmt.MethodikDecl)
 	for name, ms := range methodiks {
 		methodiksFlat[name] = ms[0]
@@ -230,7 +209,7 @@ package %s
 
 	p.print("func init() {")
 	p.indent++
-	for _, s := range pkg.Syntax.Stmts {
+	for _, s := range p.pkg.Syntax.Stmts {
 		switch s.(type) {
 		case *stmt.TypeDecl:
 			// handled above
@@ -283,8 +262,8 @@ type printer struct {
 
 	imports map[*tipe.Package]string // import package -> name
 	c       *typecheck.Checker
+	pkg     *typecheck.Package
 	eliders map[tipe.Type]string
-	global  map[string]*typecheck.Obj
 }
 
 func (p *printer) printShell() {
@@ -635,7 +614,7 @@ func (p *printer) stmt(s stmt.Stmt) {
 		if ident != nil {
 			obj = p.c.Ident(ident)
 		}
-		if !s.Decl || (obj != nil && p.global[obj.Name] == obj) {
+		if !s.Decl || (obj != nil && p.pkg.GlobalNames[obj.Name] == obj) {
 			p.print(" = ")
 		} else {
 			p.print(" := ")
@@ -941,11 +920,10 @@ func (p *printer) tipe(t tipe.Type) {
 		}
 		p.print(t.Name)
 	case *tipe.Array:
-		if t.Ellipsis {
-			p.print("[...]")
-		} else {
-			p.printf("[%d]", t.Len)
-		}
+		// Do not print the ellipsis as we may be printing
+		// a variable declaration for a global without the
+		// initializer.
+		p.printf("[%d]", t.Len)
 		p.tipe(t.Elem)
 	case *tipe.Slice:
 		p.print("[]")

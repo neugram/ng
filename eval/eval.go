@@ -1719,12 +1719,21 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 	s := &Scope{
 		Parent: p.Universe,
 	}
-	for _, name := range e.Type.FreeVars {
+	addVar := func(name string) {
 		if s.VarName != "" {
 			s = &Scope{Parent: s}
 		}
 		s.VarName = name
 		s.Var = p.Cur.Lookup(name)
+	}
+	if e.ReceiverName != "" {
+		addVar(e.ReceiverName)
+	}
+	for _, name := range e.ParamNames {
+		addVar(name)
+	}
+	for _, name := range e.Type.FreeVars {
+		addVar(name)
 	}
 	// TODO for _, mdik := range e.Type.FreeMdik
 

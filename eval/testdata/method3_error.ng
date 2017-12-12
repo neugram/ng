@@ -1,0 +1,15 @@
+fn := func() interface{} {
+	four := 4
+	methodik obj struct{} {
+		func (a) Read([]byte) (int, error) {
+			return four, nil // ERROR: variable four is not defined in the global scope
+		}
+	}
+	return obj{}
+}
+
+// If this code worked, every time we call fn we would
+// generate a new type with a unique method implementation.
+// That would require run time creation of types with methods
+// to compile Neugram to Go, which does not yet exist.
+fn()

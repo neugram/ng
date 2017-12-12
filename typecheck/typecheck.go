@@ -67,6 +67,14 @@ func New(initPkg string) *Checker {
 			Parent: Universe,
 			Objs:   make(map[string]*Obj),
 		},
+		curPkg: &Package{
+			Path: initPkg,
+			Type: &tipe.Package{
+				Path:    initPkg,
+				Exports: make(map[string]tipe.Type),
+			},
+			GlobalNames: make(map[string]*Obj),
+		},
 		importWalk: []string{initPkg},
 		memory:     tipe.NewMemory(),
 	}
@@ -217,7 +225,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Type: p.typ,
 					Decl: s,
 				}
-				c.cur.Objs[name] = obj
+				c.addObj(obj)
 				c.idents[lhs.(*expr.Ident)] = obj
 			}
 		} else {
@@ -248,13 +256,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if p.mode == modeFunc {
 			fn := p.expr.(*expr.FuncLiteral)
 			if fn.Name != "" {
-				obj := &Obj{
+				c.addObj(&Obj{
 					Name: fn.Name,
 					Kind: ObjVar,
 					Type: p.typ,
 					Decl: s,
-				}
-				c.cur.Objs[fn.Name] = obj
+				})
 			}
 		}
 		return p.typ
@@ -322,15 +329,21 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		if s.Decl {
 			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
-				obj := &Obj{Kind: ObjVar, Type: kt}
-				c.cur.Objs[s.Key.(*expr.Ident).Name] = obj
+				obj := &Obj{
+					Name: s.Key.(*expr.Ident).Name,
+					Kind: ObjVar, Type: kt,
+				}
+				c.addObj(obj)
 				c.idents[s.Key.(*expr.Ident)] = obj
 				c.types[s.Key] = kt
 			}
 			if _, exists := c.types[s.Val]; s.Val != nil && !exists {
-				obj := &Obj{Kind: ObjVar, Type: vt}
-				c.cur.Objs[s.Val.(*expr.Ident).Name] = obj
-				c.idents[s.Key.(*expr.Ident)] = obj
+				obj := &Obj{
+					Name: s.Val.(*expr.Ident).Name,
+					Kind: ObjVar, Type: vt,
+				}
+				c.addObj(obj)
+				c.idents[s.Val.(*expr.Ident)] = obj
 				c.types[s.Val] = vt
 			}
 		} else {
@@ -352,13 +365,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		t, _ := c.resolve(s.Type)
 		s.Type = t.(*tipe.Named)
 
-		obj := &Obj{
+		c.addObj(&Obj{
 			Name: s.Name,
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
-		}
-		c.cur.Objs[s.Name] = obj
+		})
 		return nil
 
 	case *stmt.TypeDeclSet:
@@ -378,28 +390,41 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		for _, m := range s.Methods {
 			c.pushScope()
 			if m.ReceiverName != "" {
-				obj := &Obj{
+				c.addObj(&Obj{
+					Name: m.ReceiverName,
 					Kind: ObjVar,
 					Type: s.Type,
-				}
-				c.cur.Objs[m.ReceiverName] = obj
+				})
 			}
 			c.expr(m)
 			// TODO: uses num inside a method
 			c.popScope()
+
+			for _, name := range m.Type.FreeVars {
+				var obj *Obj
+				for scope := c.cur; scope != Universe; scope = scope.Parent {
+					obj = scope.Objs[name]
+					if obj != nil {
+						break
+					}
+				}
+				//obj := c.cur.LookupRec(name)
+				if c.curPkg.GlobalNames[name] != obj {
+					c.errorfmt("variable %s is not defined in the global scope", name)
+				}
+			}
 		}
 
 		if usesNum {
 			s.Type.Spec.Num = tipe.Num
 		}
 
-		obj := &Obj{
+		c.addObj(&Obj{
 			Name: s.Name,
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
-		}
-		c.cur.Objs[s.Name] = obj
+		})
 		return nil
 
 	case *stmt.Return:
@@ -763,13 +788,12 @@ func (c *Checker) checkConst(s *stmt.Const) tipe.Type {
 		if s.Type != nil {
 			typ = s.Type
 		}
-		obj := &Obj{
+		c.addObj(&Obj{
 			Name: name,
 			Kind: ObjConst,
 			Type: typ,
-			Decl: s,
-		}
-		c.cur.Objs[name] = obj
+			Decl: c.consts[s.Values[i]],
+		})
 	}
 	return nil
 }
@@ -857,13 +881,12 @@ func (c *Checker) checkVar(s *stmt.Var) tipe.Type {
 		if s.Type != nil {
 			typ = s.Type
 		}
-		obj := &Obj{
+		c.addObj(&Obj{
 			Name: name,
 			Kind: ObjVar,
 			Type: typ,
 			Decl: s,
-		}
-		c.cur.Objs[name] = obj
+		})
 	}
 	return nil
 }
@@ -1133,15 +1156,12 @@ func (c *Checker) goPkg(path string) (*Package, error) {
 			Path:    gopkg.Path(),
 			Exports: make(map[string]tipe.Type),
 		},
-		Exports: make(map[string]*Obj),
+		GlobalNames: make(map[string]*Obj),
 	}
 	c.pkgs[path] = pkg
 
 	for _, name := range gopkg.Scope().Names() {
 		goobj := gopkg.Scope().Lookup(name)
-		if !goobj.Exported() {
-			continue
-		}
 		obj := &Obj{
 			Name: goobj.Name(), // TODO: use goobj.Id()?
 			Type: c.fromGoType(goobj.Type()),
@@ -1154,9 +1174,11 @@ func (c *Checker) goPkg(path string) (*Package, error) {
 		case *gotypes.TypeName:
 			obj.Kind = ObjType
 		}
-		pkg.Exported = append(pkg.Exported, obj)
-		pkg.Exports[obj.Name] = obj
-		pkg.Type.Exports[obj.Name] = obj.Type
+		pkg.Globals = append(pkg.Globals, obj)
+		pkg.GlobalNames[obj.Name] = obj
+		if goobj.Exported() {
+			pkg.Type.Exports[obj.Name] = obj.Type
+		}
 	}
 	for len(c.goTypesToFill) > 0 {
 		for gotyp, t := range c.goTypesToFill {
@@ -1221,25 +1243,12 @@ func (c *Checker) ngPkg(path string) (*Package, error) {
 			Path:    path,
 			Exports: make(map[string]tipe.Type),
 		},
-		Exports: make(map[string]*Obj),
+		GlobalNames: make(map[string]*Obj),
 	}
 	if err := c.parseFile(path, source); err != nil {
 		return nil, fmt.Errorf("ng import parse: %v", err)
 	}
 	c.pkgs[path] = c.curPkg
-	for scope := c.cur; scope != Universe; scope = scope.Parent {
-		for name, obj := range scope.Objs {
-			if !isExported(name) {
-				continue
-			}
-			if c.curPkg.Exports[name] != nil {
-				continue
-			}
-			c.curPkg.Exported = append(c.curPkg.Exported, obj)
-			c.curPkg.Exports[name] = obj
-			c.curPkg.Type.Exports[name] = obj.Type
-		}
-	}
 	return c.curPkg, nil
 }
 
@@ -1292,12 +1301,12 @@ func (c *Checker) checkImport(s *stmt.Import) {
 			s.Name = pkg.GoPkg.Name()
 		}
 	}
-	obj := &Obj{
+	c.addObj(&Obj{
+		Name: s.Name,
 		Kind: ObjPkg,
 		Type: pkg.Type,
 		Decl: pkg,
-	}
-	c.cur.Objs[s.Name] = obj
+	})
 }
 
 func (c *Checker) expr(e expr.Expr) (p partial) {
@@ -1446,8 +1455,8 @@ func (c *Checker) lookupPkgType(pkgName, sel string) tipe.Type {
 		return nil
 	}
 	pkg := obj.Decl.(*Package)
-	res := pkg.Exports[sel]
-	if res == nil {
+	res := pkg.GlobalNames[sel]
+	if res == nil || !isExported(sel) {
 		c.errorfmt("%s not in package %s", name, pkgName)
 		return nil
 	}
@@ -2038,11 +2047,13 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 						t = &tipe.Slice{Elem: elt.Elem}
 					}
 				}
-				obj := &Obj{
-					Kind: ObjVar,
-					Type: t,
+				if e.ParamNames[i] != "" {
+					c.addObj(&Obj{
+						Name: e.ParamNames[i],
+						Kind: ObjVar,
+						Type: t,
+					})
 				}
-				c.cur.Objs[e.ParamNames[i]] = obj
 			}
 		}
 		if e.Type.Results != nil {
@@ -2051,6 +2062,12 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			}
 		}
 		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
+		for _, pname := range e.ParamNames {
+			delete(c.cur.foundInParent, pname)
+		}
+		if e.ReceiverName != "" {
+			delete(c.cur.foundInParent, e.ReceiverName)
+		}
 		for name := range c.cur.foundInParent {
 			e.Type.FreeVars = append(e.Type.FreeVars, name)
 		}
@@ -2697,13 +2714,12 @@ func (c *Checker) shell(cmd expr.Expr) {
 				// TODO: pull out export in parser and give it a syntax node?
 				for _, p := range cmd.Args[1:] {
 					name := strings.SplitN(p, "=", 2)[0]
-					obj := &Obj{
+					c.addObj(&Obj{
 						Name: name,
 						Kind: ObjVar,
 						Type: tipe.String,
 						Decl: cmd,
-					}
-					c.cur.Objs[name] = obj
+					})
 				}
 				return
 			}
@@ -2713,13 +2729,12 @@ func (c *Checker) shell(cmd expr.Expr) {
 		}
 
 		for _, assign := range cmd.Assign {
-			obj := &Obj{
+			c.addObj(&Obj{
 				Name: assign.Key,
 				Kind: ObjVar,
 				Type: tipe.String,
 				Decl: cmd,
-			}
-			c.cur.Objs[assign.Key] = obj
+			})
 		}
 
 		params, err := shell.Parameters(cmd.Args)
@@ -3333,6 +3348,20 @@ func (c *Checker) Lookup(name string) *Obj {
 	return c.cur.LookupRec(name)
 }
 
+func (c *Checker) addObj(obj *Obj) {
+	c.cur.Objs[obj.Name] = obj
+
+	if c.cur.Parent == Universe {
+		if c.curPkg.GlobalNames[obj.Name] == nil {
+			c.curPkg.Globals = append(c.curPkg.Globals, obj)
+			c.curPkg.GlobalNames[obj.Name] = obj
+			if isExported(obj.Name) {
+				c.curPkg.Type.Exports[obj.Name] = obj.Type
+			}
+		}
+	}
+}
+
 type Scope struct {
 	Parent *Scope
 	Objs   map[string]*Obj
@@ -3349,6 +3378,9 @@ func (s *Scope) LookupRec(name string) *Obj {
 		return o
 	}
 	if s.Parent == nil {
+		return nil
+	}
+	if name == "" {
 		return nil
 	}
 	o := s.Parent.LookupRec(name)
@@ -3428,12 +3460,12 @@ type Obj struct {
 }
 
 type Package struct {
-	GoPkg    *gotypes.Package
-	Path     string
-	Type     *tipe.Package
-	Exported []*Obj
-	Exports  map[string]*Obj
-	Syntax   *syntax.File
+	GoPkg       *gotypes.Package
+	Path        string
+	Type        *tipe.Package
+	Globals     []*Obj
+	GlobalNames map[string]*Obj
+	Syntax      *syntax.File
 }
 
 func isTyped(t tipe.Type) bool {
