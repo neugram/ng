@@ -41,7 +41,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"import8",
 			"op1",
 			"slice1",
-			"array2",
 		}
 		donotrun := false
 		for _, ex := range exclude {
