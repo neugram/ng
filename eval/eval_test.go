@@ -166,6 +166,7 @@ func TestPrograms(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer os.Remove(out.Name())
 
 			shellState := &shell.State{
 				Env:   environ.New(),
