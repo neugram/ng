@@ -417,8 +417,6 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			} else if t := maybePackageType(x); t != nil {
 				t := &expr.Type{Position: pos, Type: t}
 				x = t
-			} else {
-				return x // end of statement
 			}
 		default:
 			return x

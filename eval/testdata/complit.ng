@@ -1,0 +1,9 @@
+type T struct { F string }
+
+s1 := T{}.F
+s2 := T{F: "s2"}.F
+s3 := map[string]string{ "x": "y" }["x"]
+
+if s1 == "" && s2 == "s2" && s3 == "y" {
+	print("OK")
+}
