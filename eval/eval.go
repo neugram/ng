@@ -674,27 +674,12 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				if err != nil {
 					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
 				}
-				if p.tempdir == "" {
-					p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
-					if err != nil {
-						panic(Panic{val: err})
-					}
-				}
-				name := "ng-plugin-" + strings.Replace(s.Path, "/", "_", -1) + ".go"
-				err = ioutil.WriteFile(filepath.Join(p.tempdir, name), src, 0666)
+				path, err := p.pluginFile(s.Path, src)
 				if err != nil {
 					panic(Panic{val: err})
 				}
-				cmd := exec.Command("go", "build", "-buildmode=plugin", "-i", name)
-				cmd.Dir = p.tempdir
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					panic(Panic{val: fmt.Errorf("plugin: building wrapper failed for Go package %q: %v\n%s", s.Name, err, out)})
-				}
-				pluginName := name[:len(name)-3] + ".so"
-				_, err = plugin.Open(filepath.Join(p.tempdir, pluginName))
-				if err != nil {
-					panic(Panic{val: fmt.Errorf("plugin: failed to open Go package %q: %v", s.Name, err)})
+				if _, err = p.pluginOpen(path); err != nil {
+					panic(Panic{val: err})
 				}
 				pkg = gowrap.Pkgs[s.Path]
 				if pkg == nil {
@@ -864,34 +849,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 	case *stmt.TypeDecl, *stmt.TypeDeclSet:
 		return nil
 	case *stmt.MethodikDecl:
-		t := s.Type
-		r := p.reflector
-
-		// Hack. See the file comment in methodpool.go.
-		st, isStruct := t.Type.(*tipe.Struct)
-		if !isStruct {
-			panic("eval only supports methodik on struct types")
-		}
-		var fields []reflect.StructField
-		for i, name := range t.MethodNames {
-			funcType := r.ToRType(t.Methods[i])
-			funcImpl := p.evalFuncLiteral(s.Methods[i], t)
-
-			embType := methodPoolAssign(name, funcType, funcImpl)
-			fields = append(fields, reflect.StructField{
-				Name:      embType.Name(),
-				Type:      embType,
-				Anonymous: true,
-			})
-		}
-		for _, f := range st.Fields {
-			fields = append(fields, reflect.StructField{
-				Name: f.Name,
-				Type: r.ToRType(f.Type),
-			})
-		}
-		rtype := reflect.StructOf(fields)
-		r.fwd[t] = rtype
+		p.methodikDecl(s)
 		return nil
 	case *stmt.Labeled:
 		p.Cur = &Scope{
@@ -1604,6 +1562,7 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			}
 		}
 		v := lhs.MethodByName(e.Right.Name)
+		fmt.Printf("selector methodbyname: %v (name=%q)\n", v, e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr && lhs.CanAddr() {
 			v = lhs.Addr().MethodByName(e.Right.Name)
 		}
@@ -1855,6 +1814,51 @@ func (p *Program) evalSliceLiteral(t reflect.Type, keys, values []expr.Expr) []r
 		}
 		return []reflect.Value{slice}
 	}
+}
+
+func (p *Program) pluginOpen(pathGoFile string) (plg *plugin.Plugin, err error) {
+	name := filepath.Base(pathGoFile)
+	cmd := exec.Command("go", "build", "-buildmode=plugin", name)
+	cmd.Dir = p.tempdir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
+	}
+	pluginName := name[:len(name)-3] + ".so"
+	plg, err = plugin.Open(filepath.Join(p.tempdir, pluginName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open plugin %s: %v", name, err)
+	}
+	return plg, nil
+}
+
+func (p *Program) pluginFile(name string, contents []byte) (path string, err error) {
+	if p.tempdir == "" {
+		p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
+		if err != nil {
+			panic(Panic{val: err})
+		}
+	}
+	name = strings.Replace(name, "/", "_", -1)
+	name = strings.Replace(name, "\\", "_", -1)
+	for i := 0; true; i++ {
+		filename := fmt.Sprintf("ng-plugin-%s-%d.go", name, i)
+		path = filepath.Join(p.tempdir, filename)
+		f, err := os.Create(path)
+		if os.IsExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		_, err = f.Write(contents)
+		f.Close()
+		if err != nil {
+			return "", err
+		}
+		break
+	}
+	return path, nil
 }
 
 type reflector struct {
