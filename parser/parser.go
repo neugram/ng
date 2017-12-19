@@ -739,15 +739,35 @@ func (p *Parser) maybeParseType() tipe.Type {
 		s := &tipe.Struct{}
 		tags := make(map[string]bool)
 		for p.s.Token > 0 && p.s.Token != token.RightBrace {
-			n := p.parseIdent().Name
-			t := p.parseType()
-			if tags[n] {
+			var n string
+			var t tipe.Type
+			var embed bool
+			switch p.s.Token {
+			case token.Mul:
+				t = p.parseType()
+			default:
+				n = p.parseIdent().Name
+			}
+			switch p.s.Token {
+			case token.RightBrace, token.Semicolon:
+				// embedded type field
+				if n != "" {
+					t = &tipe.Unresolved{Name: n}
+				} else {
+					n = t.(*tipe.Pointer).Elem.(*tipe.Unresolved).Name
+				}
+				embed = true
+			default:
+				t = p.parseType()
+			}
+			if n != "" && tags[n] {
 				p.errorf("field %s redeclared in struct %s", n, format.Type(s))
 			} else {
 				tags[n] = true
 				s.Fields = append(s.Fields, tipe.StructField{
-					Name: n,
-					Type: t,
+					Name:     n,
+					Type:     t,
+					Embedded: embed,
 				})
 			}
 			if p.s.Token == token.Comma || p.s.Token == token.Semicolon {
