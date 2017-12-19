@@ -1,0 +1,67 @@
+type T1 struct { Name string }
+type T2 struct { T1 }
+type T3 struct { *T1 }
+
+var v T2
+
+if v.T1.Name != "" {
+	panic("ERROR 1")
+}
+
+v.T1.Name = "1"
+if v.T1.Name != "1" {
+	panic("ERROR 2")
+}
+
+v.Name = "2"
+if v.T1.Name != "2" {
+	panic("ERROR 3")
+}
+if v.Name != "2" {
+	panic("ERROR 4")
+}
+
+var ptr T3
+
+if ptr.T1 != nil {
+	panic("ERROR 5")
+}
+
+ptr.T1 = &T1{Name:""}
+ptr.T1.Name = "1"
+if ptr.T1.Name != "1" {
+	panic("ERROR 6")
+}
+
+ptr.Name = "2"
+if ptr.T1.Name != "2" {
+	panic("ERROR 7")
+}
+if ptr.Name != "2" {
+	panic("ERROR 8")
+}
+
+type T4 struct {
+	T1
+	Name int
+}
+
+var v4 T4
+v4.Name = 42
+v4.T1.Name = "deep"
+
+if v4.Name != 42 {
+	panic("ERROR 9")
+}
+if v4.T1.Name != "deep" {
+	panic("ERROR 10")
+}
+v4.Name = 666
+if v4.T1.Name != "deep" {
+	panic("ERROR 11")
+}
+if v4.Name != 666 {
+	panic("ERROR 12")
+}
+
+print("OK")

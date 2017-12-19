@@ -1977,8 +1977,9 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 		var fields []reflect.StructField
 		for _, f := range t.Fields {
 			fields = append(fields, reflect.StructField{
-				Name: f.Name,
-				Type: r.toRType(f.Type),
+				Name:      f.Name,
+				Type:      r.toRType(f.Type),
+				Anonymous: f.Embedded,
 			})
 		}
 		rtype = reflect.StructOf(fields)

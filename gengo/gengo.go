@@ -932,9 +932,11 @@ func (p *printer) tipe(t tipe.Type) {
 			if name == "" {
 				name = "*ERROR*No*Name*"
 			}
-			p.print(name)
-			for i := len(name); i <= maxlen; i++ {
-				p.print(" ")
+			if !sf.Embedded {
+				p.print(name)
+				for i := len(name); i <= maxlen; i++ {
+					p.print(" ")
+				}
 			}
 			p.tipe(sf.Type)
 		}
