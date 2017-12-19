@@ -1,0 +1,17 @@
+type T1 struct { Name string }
+type T2 struct { T1 T1 }
+
+var v T2
+
+if v.T1.Name != "" {
+	panic("ERROR 1")
+}
+
+v.T1.Name = "1"
+if v.T1.Name != "1" {
+	panic("ERROR 2")
+}
+
+v.Name = "2" // ERROR: v.Name undefined
+
+print("OK")

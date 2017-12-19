@@ -2418,17 +2418,43 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if t, isPtr := lt.(*tipe.Pointer); isPtr {
 			lt = tipe.Underlying(t.Elem)
 		}
+		var found = false
+		var getField func(typ tipe.Type)
+		getField = func(typ tipe.Type) {
+			if found {
+				return
+			}
+			switch typ := typ.(type) {
+			case *tipe.Struct:
+				for _, sf := range typ.Fields {
+					if sf.Name == right {
+						p.mode = modeVar
+						p.typ = sf.Type
+						found = true
+						return
+					}
+				}
+				// try deeper depths after the shallowest ones have been exhausted.
+				for _, sf := range typ.Fields {
+					if !sf.Embedded {
+						continue
+					}
+					typ := tipe.Underlying(sf.Type)
+					if t, isPtr := typ.(*tipe.Pointer); isPtr {
+						typ = tipe.Underlying(t.Elem)
+					}
+					getField(tipe.Underlying(typ))
+					if found {
+						return
+					}
+				}
+				p.mode = modeInvalid
+				c.errorfmt("%s undefined (type %s has no field or method %s)", e, typ, right)
+			}
+		}
 		switch lt := lt.(type) {
 		case *tipe.Struct:
-			for _, sf := range lt.Fields {
-				if sf.Name == right {
-					p.mode = modeVar
-					p.typ = sf.Type
-					return
-				}
-			}
-			p.mode = modeInvalid
-			c.errorfmt("%s undefined (type %s has no field or method %s)", e, lt, right)
+			getField(lt)
 			return p
 		case *tipe.Package:
 			for name, t := range lt.Exports {
