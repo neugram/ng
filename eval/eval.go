@@ -1562,7 +1562,6 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			}
 		}
 		v := lhs.MethodByName(e.Right.Name)
-		fmt.Printf("selector methodbyname: %v (name=%q)\n", v, e.Right.Name)
 		if v == (reflect.Value{}) && lhs.Kind() != reflect.Ptr && lhs.CanAddr() {
 			v = lhs.Addr().MethodByName(e.Right.Name)
 		}
