@@ -2258,6 +2258,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = modeInvalid
 			return p
 		}
+		e.Type = t
 		if c.typeAssert(leftTyp, t) {
 			p.mode = left.mode
 			p.typ = t
