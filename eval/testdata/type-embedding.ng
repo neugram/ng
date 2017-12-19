@@ -1,0 +1,31 @@
+type Person struct {
+	Name string
+}
+
+type T struct { Person }
+
+type P struct { *Person }
+
+var v1 T
+
+if v1.Person.Name != "" {
+	panic("ERROR 1")
+}
+
+v1.Person.Name = "gopher"
+if v1.Person.Name != "gopher" {
+	panic("ERROR 2")
+}
+
+var v2 P
+
+if v2.Person != nil {
+	panic("ERROR 3")
+}
+
+v2.Person = &v1.Person
+if v2.Person.Name != "gopher" {
+	panic("ERROR 3")
+}
+
+print("OK")
