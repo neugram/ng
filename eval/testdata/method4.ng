@@ -1,0 +1,13 @@
+var x []interface{}
+for i := 0; i < 5; i++ {
+	methodik obj struct{} {
+		func (o) F() int { return 4 }
+	}
+	x = append(x, obj{})
+}
+
+import "reflect"
+
+if reflect.TypeOf(x[0]) == reflect.TypeOf(x[1]) {
+	print("OK")
+}
