@@ -1569,7 +1569,9 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			v = lhs.FieldByName(e.Right.Name)
 		}
 		if v == (reflect.Value{}) && lhs.Kind() == reflect.Ptr {
-			if lhs := lhs.Elem(); lhs.Kind() == reflect.Struct {
+			lhs := lhs.Elem()
+			v = lhs.MethodByName(e.Right.Name)
+			if v == (reflect.Value{}) && lhs.Kind() == reflect.Struct {
 				v = lhs.FieldByName(e.Right.Name)
 			}
 		}
@@ -1697,23 +1699,13 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 	s := &Scope{
 		Parent: p.Universe,
 	}
-	addVar := func(name string) {
+	for _, name := range e.Type.FreeVars {
 		if s.VarName != "" {
 			s = &Scope{Parent: s}
 		}
 		s.VarName = name
 		s.Var = p.Cur.Lookup(name)
 	}
-	if e.ReceiverName != "" {
-		addVar(e.ReceiverName)
-	}
-	for _, name := range e.ParamNames {
-		addVar(name)
-	}
-	for _, name := range e.Type.FreeVars {
-		addVar(name)
-	}
-	// TODO for _, mdik := range e.Type.FreeMdik
 
 	funct := *e.Type
 	if recvt != nil {
@@ -1733,7 +1725,7 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 		p.pushScope()
 		defer p.popScope()
 		if recvt != nil {
-			// TODO args[0]
+			p.evalMethRecv(e, recvt, args[0])
 			args = args[1:]
 		}
 		for i, name := range e.ParamNames {

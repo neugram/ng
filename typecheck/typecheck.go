@@ -389,11 +389,15 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 		for _, m := range s.Methods {
 			c.pushScope()
+			st := tipe.Type(s.Type)
+			if m.PointerReceiver {
+				st = &tipe.Pointer{Elem: st}
+			}
 			if m.ReceiverName != "" {
 				c.addObj(&Obj{
 					Name: m.ReceiverName,
 					Kind: ObjVar,
-					Type: s.Type,
+					Type: st,
 				})
 			}
 			c.expr(m)

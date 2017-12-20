@@ -1,0 +1,58 @@
+methodik obj struct{
+	V int
+} {
+	func (*o) F() bool { return o.V == 3 }
+	func (o) G() bool { return o.V == 3 }
+}
+
+o := &obj{V: 3}
+
+if !o.F() {
+	panic("pointer-reciever method failed")
+}
+if !(*o).G() {
+	panic("method call G failed")
+}
+if !o.G() {
+	panic("method promotion of G failed")
+}
+if !(*o).F() {
+	panic("pointer-reciever method promotion failed")
+}
+
+methodik intm int {
+	func (*i) IntP() int { return int(*i) }
+	func (i) Int() int { return int(i) }
+}
+i := intm(7)
+v1 := i.IntP()
+if v1 != 7 {
+	errorf("i.IntP()=%d, want 7", v1)
+}
+v2 := i.IntP()
+if v2 != 7 {
+	errorf("i.Int()=%d, want 7", v2)
+}
+
+type Point struct {
+	X int
+	Y int
+}
+
+methodik Box struct {
+	T Point
+	U Point
+} {
+	func (b) Volume() int {
+		return (b.U.X - b.T.X) * (b.U.Y - b.T.Y)
+	}
+}
+b := Box{
+	T: Point{12, 3},
+	U: Point{15, 9},
+}
+if v := b.Volume(); v != 18 {
+	errorf("b.Volume()=%d, want 18", v)
+}
+
+print("OK")
