@@ -45,6 +45,7 @@ type Checker struct {
 	errs          []error
 	importWalk    []string // in-process pkgs, used to detect cycles
 	memory        *tipe.Memory
+	resolveWalked map[*tipe.Named]bool
 
 	cur    *Scope
 	curPkg *Package
@@ -75,8 +76,9 @@ func New(initPkg string) *Checker {
 			},
 			GlobalNames: make(map[string]*Obj),
 		},
-		importWalk: []string{initPkg},
-		memory:     tipe.NewMemory(),
+		importWalk:    []string{initPkg},
+		memory:        tipe.NewMemory(),
+		resolveWalked: make(map[*tipe.Named]bool),
 	}
 }
 
@@ -362,15 +364,16 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.TypeDecl:
-		t, _ := c.resolve(s.Type)
-		s.Type = t.(*tipe.Named)
-
 		c.addObj(&Obj{
 			Name: s.Name,
 			Kind: ObjType,
 			Type: s.Type,
 			Decl: s,
 		})
+		t, _ := c.resolve(s.Type)
+		if t.(*tipe.Named) != s.Type {
+			panic(fmt.Sprintf("resolve changed type decl: %s", s.Type.Name))
+		}
 		return nil
 
 	case *stmt.TypeDeclSet:
@@ -380,9 +383,18 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.MethodikDecl:
-		var usesNum bool
+		c.addObj(&Obj{
+			Name: s.Name,
+			Kind: ObjType,
+			Type: s.Type,
+			Decl: s,
+		})
 		t, _ := c.resolve(s.Type)
-		s.Type = t.(*tipe.Named)
+		if t.(*tipe.Named) != s.Type {
+			panic(fmt.Sprintf("resolve changed methodik decl: %s", s.Type.Name))
+		}
+
+		var usesNum bool
 		for _, f := range s.Type.Methods {
 			usesNum = usesNum || tipe.UsesNum(f)
 		}
@@ -422,13 +434,6 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if usesNum {
 			s.Type.Spec.Num = tipe.Num
 		}
-
-		c.addObj(&Obj{
-			Name: s.Name,
-			Kind: ObjType,
-			Type: s.Type,
-			Decl: s,
-		})
 		return nil
 
 	case *stmt.Return:
@@ -1374,6 +1379,10 @@ func (c *Checker) resolve(t tipe.Type) (ret tipe.Type, resolved bool) {
 		t.Value, r2 = c.resolve(t.Value)
 		return t, r1 && r2
 	case *tipe.Named:
+		if c.resolveWalked[t] {
+			return t, true
+		}
+		c.resolveWalked[t] = true
 		t.Type, resolved = c.resolve(t.Type)
 		for i, f := range t.Methods {
 			f, r1 := c.resolve(f)

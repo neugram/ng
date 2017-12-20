@@ -11,4 +11,10 @@ type (
 	T7 map[string]T6
 )
 
+type Node struct {
+	Value int
+	Prev  *Node
+	Next  *Node
+}
+
 print("OK")

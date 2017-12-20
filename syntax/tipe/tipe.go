@@ -271,45 +271,54 @@ func IsUntypedNil(t Type) bool {
 }
 
 func UsesNum(t Type) bool {
+	return usesNum(t, make(map[Type]bool))
+}
+
+func usesNum(t Type, path map[Type]bool) bool {
 	t = Unalias(t)
+	if path[t] {
+		return false
+	}
+	path[t] = true
+
 	switch t := t.(type) {
 	case *Func:
 		if t.Params != nil {
 			for _, t := range t.Params.Elems {
-				if UsesNum(t) {
+				if usesNum(t, path) {
 					return true
 				}
 			}
 		}
 		if t.Results != nil {
 			for _, t := range t.Results.Elems {
-				if UsesNum(t) {
+				if usesNum(t, path) {
 					return true
 				}
 			}
 		}
 	case *Struct:
 		for _, sf := range t.Fields {
-			if UsesNum(sf.Type) {
+			if usesNum(sf.Type, path) {
 				return true
 			}
 		}
 	case *Named:
 		for _, t := range t.Methods {
-			if UsesNum(t) {
+			if usesNum(t, path) {
 				return true
 			}
 		}
 	case *Array:
-		if UsesNum(t.Elem) {
+		if usesNum(t.Elem, path) {
 			return true
 		}
 	case *Slice:
-		if UsesNum(t.Elem) {
+		if usesNum(t.Elem, path) {
 			return true
 		}
 	case *Table:
-		if UsesNum(t.Type) {
+		if usesNum(t.Type, path) {
 			return true
 		}
 	case Basic:
