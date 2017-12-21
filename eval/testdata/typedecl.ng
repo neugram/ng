@@ -22,4 +22,10 @@ type T8 struct {
 	B string "xml"
 }
 
+type Padding struct {
+	_ [4]byte
+	N string
+	_ [4]byte
+}
+
 print("OK")

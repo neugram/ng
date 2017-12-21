@@ -770,7 +770,7 @@ func (p *Parser) maybeParseType() tipe.Type {
 				ftag = tipe.StructTag(str)
 				p.next()
 			}
-			if n != "" && tags[n] {
+			if n != "" && n != "_" && tags[n] {
 				p.errorf("field %s redeclared in struct %s", n, format.Type(s))
 			} else {
 				tags[n] = true

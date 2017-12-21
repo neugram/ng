@@ -834,6 +834,29 @@ var stmtTests = []stmtTest{
 			}}},
 		},
 	}},
+	{`type T struct {
+		_ [4]byte
+		N string
+		_ [4]byte
+	}`, &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{
+				{
+					Name: "_",
+					Type: &tipe.Array{Len: 4, Elem: &tipe.Unresolved{Name: "byte"}},
+				},
+				{
+					Name: "N",
+					Type: &tipe.Unresolved{Name: "string"},
+				},
+				{
+					Name: "_",
+					Type: &tipe.Array{Len: 4, Elem: &tipe.Unresolved{Name: "byte"}},
+				},
+			}},
+		},
+	}},
 	{
 		`type (
 			T int64
