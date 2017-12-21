@@ -5,11 +5,6 @@ go:
   - master
 os:
   - linux
-matrix:
- fast_finish: true
- allow_failures:
-   - go: 1.9.x
-
 
 script:
   - ./.ci-test
