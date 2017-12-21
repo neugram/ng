@@ -857,6 +857,26 @@ var stmtTests = []stmtTest{
 			}},
 		},
 	}},
+	{`type T struct { X, Y int }`, &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{
+				{Name: "X", Type: &tipe.Unresolved{Name: "int"}},
+				{Name: "Y", Type: &tipe.Unresolved{Name: "int"}},
+			}},
+		},
+	}},
+	{`type T struct {
+		X, Y int
+	}`, &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{
+				{Name: "X", Type: &tipe.Unresolved{Name: "int"}},
+				{Name: "Y", Type: &tipe.Unresolved{Name: "int"}},
+			}},
+		},
+	}},
 	{
 		`type (
 			T int64

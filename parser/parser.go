@@ -749,26 +749,28 @@ func (p *Parser) maybeParseType() tipe.Type {
 			default:
 				n = p.parseIdent().Name
 			}
-			switch p.s.Token {
-			case token.RightBrace, token.Semicolon:
-				// embedded type field
-				if n != "" {
-					t = &tipe.Unresolved{Name: n}
-				} else {
-					n = t.(*tipe.Pointer).Elem.(*tipe.Unresolved).Name
+			if p.s.Token != token.Comma {
+				switch p.s.Token {
+				case token.RightBrace, token.Semicolon:
+					// embedded type field
+					if n != "" {
+						t = &tipe.Unresolved{Name: n}
+					} else {
+						n = t.(*tipe.Pointer).Elem.(*tipe.Unresolved).Name
+					}
+					embed = true
+				default:
+					t = p.parseType()
 				}
-				embed = true
-			default:
-				t = p.parseType()
-			}
-			if p.s.Token == token.String {
-				str, err := strconv.Unquote(p.s.Literal.(string))
-				if err != nil {
-					p.errorf("error while parsing struct field tag: %v", err)
-					return s
+				if p.s.Token == token.String {
+					str, err := strconv.Unquote(p.s.Literal.(string))
+					if err != nil {
+						p.errorf("error while parsing struct field tag: %v", err)
+						return s
+					}
+					ftag = tipe.StructTag(str)
+					p.next()
 				}
-				ftag = tipe.StructTag(str)
-				p.next()
 			}
 			if n != "" && n != "_" && tags[n] {
 				p.errorf("field %s redeclared in struct %s", n, format.Type(s))
@@ -789,6 +791,17 @@ func (p *Parser) maybeParseType() tipe.Type {
 		}
 		p.expect(token.RightBrace)
 		p.next()
+		// consolidate fields types.
+		// a nil field type is one from e.g.:
+		//  type T struct { x, y int }
+		// x has no type (but we want it to have 'int'.)
+		for i := len(s.Fields) - 1; i > 0; i-- {
+			sf := &s.Fields[i]
+			sfn := &s.Fields[i-1]
+			if sfn.Type == nil {
+				sfn.Type = sf.Type
+			}
+		}
 		return s
 	case token.Interface:
 		p.next()

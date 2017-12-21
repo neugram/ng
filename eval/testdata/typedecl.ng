@@ -28,4 +28,26 @@ type Padding struct {
 	_ [4]byte
 }
 
+type Point struct {
+	X, Y int
+}
+
+var pt Point
+if pt.X != 0 {
+	panic("ERROR 1")
+}
+if pt.Y != 0 {
+	panic("ERROR 2")
+}
+
+pt.X = 24
+pt.Y = 42
+
+if pt.X != 24 {
+	panic("ERROR 3")
+}
+if pt.Y != 42 {
+	panic("ERROR 4")
+}
+
 print("OK")
