@@ -742,6 +742,7 @@ func (p *Parser) maybeParseType() tipe.Type {
 			var n string
 			var t tipe.Type
 			var embed bool
+			var ftag tipe.StructTag
 			switch p.s.Token {
 			case token.Mul:
 				t = p.parseType()
@@ -760,6 +761,15 @@ func (p *Parser) maybeParseType() tipe.Type {
 			default:
 				t = p.parseType()
 			}
+			if p.s.Token == token.String {
+				str, err := strconv.Unquote(p.s.Literal.(string))
+				if err != nil {
+					p.errorf("error while parsing struct field tag: %v", err)
+					return s
+				}
+				ftag = tipe.StructTag(str)
+				p.next()
+			}
 			if n != "" && tags[n] {
 				p.errorf("field %s redeclared in struct %s", n, format.Type(s))
 			} else {
@@ -767,6 +777,7 @@ func (p *Parser) maybeParseType() tipe.Type {
 				s.Fields = append(s.Fields, tipe.StructField{
 					Name:     n,
 					Type:     t,
+					Tag:      ftag,
 					Embedded: embed,
 				})
 			}

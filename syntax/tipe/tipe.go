@@ -35,8 +35,12 @@ type Struct struct {
 type StructField struct {
 	Name     string
 	Type     Type
+	Tag      StructTag
 	Embedded bool
 }
+
+// StructTag is the tag string in a struct field.
+type StructTag string
 
 // Named is a named type.
 // A named type is declared either using a type declaration:
@@ -420,6 +424,9 @@ func (eq *equaler) equal(x, y Type) bool {
 				return false
 			}
 			if !eq.equal(x.Fields[i].Type, y.Fields[i].Type) {
+				return false
+			}
+			if x.Fields[i].Tag != y.Fields[i].Tag {
 				return false
 			}
 		}
