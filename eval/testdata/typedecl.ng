@@ -17,4 +17,9 @@ type Node struct {
 	Next  *Node
 }
 
+type T8 struct {
+	A string `json:"a"`
+	B string "xml"
+}
+
 print("OK")

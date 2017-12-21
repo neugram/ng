@@ -942,6 +942,9 @@ func (p *printer) tipe(t tipe.Type) {
 				}
 			}
 			p.tipe(sf.Type)
+			if sf.Tag != "" {
+				p.printf(" %q", sf.Tag)
+			}
 		}
 		p.indent--
 		p.newline()

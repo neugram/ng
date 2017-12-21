@@ -804,6 +804,36 @@ var stmtTests = []stmtTest{
 			Name: "T",
 		},
 	}},
+	{"type T struct { A string `json` }", &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{
+				Name: "A",
+				Type: &tipe.Unresolved{Name: "string"},
+				Tag:  `json`,
+			}}},
+		},
+	}},
+	{"type T struct { A string \"json\" }", &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{
+				Name: "A",
+				Type: &tipe.Unresolved{Name: "string"},
+				Tag:  "json",
+			}}},
+		},
+	}},
+	{"type T struct { A string `json:\"a\"` }", &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{
+				Name: "A",
+				Type: &tipe.Unresolved{Name: "string"},
+				Tag:  `json:"a"`,
+			}}},
+		},
+	}},
 	{
 		`type (
 			T int64
