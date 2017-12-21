@@ -772,6 +772,38 @@ var stmtTests = []stmtTest{
 			},
 		},
 	},
+	{"type T struct { S }", &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Unresolved{Name: "S"}, Embedded: true}}},
+			Name: "T",
+		},
+	}},
+	{`type T struct {
+		S
+	}`, &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Unresolved{Name: "S"}, Embedded: true}}},
+			Name: "T",
+		},
+	}},
+	{"type T struct { *S }", &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Pointer{Elem: &tipe.Unresolved{Name: "S"}}, Embedded: true}}},
+			Name: "T",
+		},
+	}},
+	{`type T struct {
+		*S
+	}`, &stmt.TypeDecl{
+		Name: "T",
+		Type: &tipe.Named{
+			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Pointer{Elem: &tipe.Unresolved{Name: "S"}}, Embedded: true}}},
+			Name: "T",
+		},
+	}},
 	{
 		`type (
 			T int64
@@ -1454,38 +1486,6 @@ var stmtTests = []stmtTest{
 			Body: &stmt.Block{},
 		},
 	}}},
-	{"type T struct { S }", &stmt.TypeDecl{
-		Name: "T",
-		Type: &tipe.Named{
-			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Unresolved{Name: "S"}, Embedded: true}}},
-			Name: "T",
-		},
-	}},
-	{`type T struct {
-		S
-	}`, &stmt.TypeDecl{
-		Name: "T",
-		Type: &tipe.Named{
-			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Unresolved{Name: "S"}, Embedded: true}}},
-			Name: "T",
-		},
-	}},
-	{"type T struct { *S }", &stmt.TypeDecl{
-		Name: "T",
-		Type: &tipe.Named{
-			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Pointer{Elem: &tipe.Unresolved{Name: "S"}}, Embedded: true}}},
-			Name: "T",
-		},
-	}},
-	{`type T struct {
-		*S
-	}`, &stmt.TypeDecl{
-		Name: "T",
-		Type: &tipe.Named{
-			Type: &tipe.Struct{Fields: []tipe.StructField{{Name: "S", Type: &tipe.Pointer{Elem: &tipe.Unresolved{Name: "S"}}, Embedded: true}}},
-			Name: "T",
-		},
-	}},
 }
 
 func TestParseStmt(t *testing.T) {
