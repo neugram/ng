@@ -1107,9 +1107,9 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 				continue
 			}
 			s.Fields = append(s.Fields, tipe.StructField{
-				Name: f.Name(),
-				Type: ft,
-				// TODO Embedded
+				Name:     f.Name(),
+				Type:     ft,
+				Embedded: f.Anonymous(),
 			})
 		}
 	case *gotypes.Pointer:
