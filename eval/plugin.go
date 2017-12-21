@@ -57,11 +57,11 @@ func (m *pluginManager) create(name string, contents []byte) (*plugin.Plugin, er
 	for i := 0; true; i++ {
 		filename := fmt.Sprintf("ng-plugin-%s-%d.go", name, i)
 		path = filepath.Join(m.tempdir, filename)
-		f, err := os.Create(path)
-		if os.IsExist(err) {
-			continue
-		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0664)
 		if err != nil {
+			if os.IsExist(err) {
+				continue // pick a different name
+			}
 			return nil, err
 		}
 		_, err = f.Write(contents)
