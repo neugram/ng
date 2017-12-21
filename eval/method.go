@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"plugin"
 	"reflect"
 	"unsafe"
 
@@ -47,39 +45,11 @@ func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 	p.reflector.fwd[t] = rtype
 }
 
-func (p *Program) pluginDir(pkgPath string) (adjPkgPath, dir string) {
-	if p.tempdir == "" {
-		var err error
-		p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
-		if err != nil {
-			panic(Panic{val: err})
-		}
-	}
-	gopath := p.tempdir
-	if err := os.MkdirAll(filepath.Join(gopath, "src"), 0775); err != nil {
-		panic(Panic{val: err})
-	}
-
-	adjPkgPath = pkgPath
-	dir = filepath.Join(gopath, "src", adjPkgPath)
-	i := 0
-	for {
-		_, err := os.Stat(dir)
-		if os.IsNotExist(err) {
-			break
-		}
-		i++
-		adjPkgPath = filepath.Join(fmt.Sprintf("p%d", i), pkgPath)
-		dir = filepath.Join(gopath, "src", adjPkgPath)
-	}
-	if err := os.MkdirAll(dir, 0775); err != nil {
-		panic(Panic{val: err})
-	}
-	return adjPkgPath, dir
-}
-
 func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
-	adjPkgPath, dir := p.pluginDir(path.Join("methodik", s.Name))
+	adjPkgPath, dir, err := plugins.dir(path.Join("methodik", s.Name))
+	if err != nil {
+		return nil, err
+	}
 
 	pkgb, mainb, err := gengo.GenNamedType(s, p.Types, adjPkgPath, p.typePlugins)
 	if err != nil {
@@ -98,16 +68,7 @@ func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("go", "build", "-buildmode=plugin", adjPkgPath+"/"+name)
-	cmd.Env = append(os.Environ(), "GOPATH="+p.tempdir)
-	cmd.Dir = p.tempdir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
-	}
-
-	pluginName := name + ".so" // TODO: p%d
-	plg, err := plugin.Open(filepath.Join(p.tempdir, pluginName))
+	plg, err := plugins.open(path.Join(adjPkgPath, name))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open plugin %s: %v", name, err)
 	}

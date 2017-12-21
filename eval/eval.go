@@ -7,12 +7,9 @@ package eval
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"plugin"
 	"reflect"
 	"runtime/debug"
 	"strings"
@@ -76,7 +73,6 @@ type Program struct {
 	// return type.
 	builtinCalled bool
 
-	tempdir     string
 	typePlugins map[*tipe.Named]string // type to package path TODO lock?
 }
 
@@ -676,11 +672,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				if err != nil {
 					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
 				}
-				path, err := p.pluginFile(s.Path, src)
-				if err != nil {
-					panic(Panic{val: err})
-				}
-				if _, err = p.pluginOpen(path); err != nil {
+				if _, err := plugins.create(s.Path, src); err != nil {
 					panic(Panic{val: err})
 				}
 				pkg = gowrap.Pkgs[s.Path]
@@ -1723,7 +1715,6 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 			Types:       p.Types, // TODO race cond, clone type list
 			Cur:         s,
 			reflector:   p.reflector,
-			tempdir:     p.tempdir,
 			typePlugins: p.typePlugins,
 		}
 		p.pushScope()
@@ -1809,52 +1800,6 @@ func (p *Program) evalSliceLiteral(t reflect.Type, keys, values []expr.Expr) []r
 		}
 		return []reflect.Value{slice}
 	}
-}
-
-func (p *Program) pluginOpen(pathGoFile string) (plg *plugin.Plugin, err error) {
-	name := filepath.Base(pathGoFile)
-	cmd := exec.Command("go", "build", "-buildmode=plugin", name)
-	cmd.Dir = p.tempdir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
-	}
-	pluginName := name[:len(name)-3] + ".so"
-	plg, err = plugin.Open(filepath.Join(p.tempdir, pluginName))
-	if err != nil {
-		return nil, fmt.Errorf("failed to open plugin %s: %v", name, err)
-	}
-	return plg, nil
-}
-
-func (p *Program) pluginFile(name string, contents []byte) (path string, err error) {
-	if p.tempdir == "" {
-		p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
-		if err != nil {
-			panic(Panic{val: err})
-		}
-	}
-
-	name = strings.Replace(name, "/", "_", -1)
-	name = strings.Replace(name, "\\", "_", -1)
-	for i := 0; true; i++ {
-		filename := fmt.Sprintf("ng-plugin-%s-%d.go", name, i)
-		path = filepath.Join(p.tempdir, filename)
-		f, err := os.Create(path)
-		if os.IsExist(err) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		_, err = f.Write(contents)
-		f.Close()
-		if err != nil {
-			return "", err
-		}
-		break
-	}
-	return path, nil
 }
 
 type reflector struct {
