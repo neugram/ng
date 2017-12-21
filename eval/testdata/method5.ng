@@ -1,11 +1,11 @@
-methodik obj struct{
+methodik fAndG struct{
 	V int
 } {
 	func (*o) F() bool { return o.V == 3 }
 	func (o) G() bool { return o.V == 3 }
 }
 
-o := &obj{V: 3}
+o := &fAndG{V: 3}
 
 if !o.F() {
 	panic("pointer-reciever method failed")

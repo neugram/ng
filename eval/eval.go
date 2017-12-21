@@ -76,7 +76,8 @@ type Program struct {
 	// return type.
 	builtinCalled bool
 
-	tempdir string
+	tempdir     string
+	typePlugins map[*tipe.Named]string // type to package path TODO lock?
 }
 
 type branchType int
@@ -111,8 +112,9 @@ func New(path string, shellState *shell.State) *Program {
 		Cur: &Scope{
 			Parent: universe,
 		},
-		ShellState: shellState,
-		reflector:  newReflector(),
+		ShellState:  shellState,
+		reflector:   newReflector(),
+		typePlugins: make(map[*tipe.Named]string),
 	}
 	addUniverse := func(name string, val interface{}) {
 		p.Universe = &Scope{
@@ -1717,10 +1719,12 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 	rt := p.reflector.ToRType(&funct)
 	fn := reflect.MakeFunc(rt, func(args []reflect.Value) (res []reflect.Value) {
 		p := &Program{
-			Universe:  p.Universe,
-			Types:     p.Types, // TODO race cond, clone type list
-			Cur:       s,
-			reflector: p.reflector,
+			Universe:    p.Universe,
+			Types:       p.Types, // TODO race cond, clone type list
+			Cur:         s,
+			reflector:   p.reflector,
+			tempdir:     p.tempdir,
+			typePlugins: p.typePlugins,
 		}
 		p.pushScope()
 		defer p.popScope()
@@ -1830,6 +1834,7 @@ func (p *Program) pluginFile(name string, contents []byte) (path string, err err
 			panic(Panic{val: err})
 		}
 	}
+
 	name = strings.Replace(name, "/", "_", -1)
 	name = strings.Replace(name, "\\", "_", -1)
 	for i := 0; true; i++ {

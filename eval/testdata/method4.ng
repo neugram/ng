@@ -1,9 +1,9 @@
 var x []interface{}
 for i := 0; i < 5; i++ {
-	methodik obj struct{} {
+	methodik objloop struct{} {
 		func (o) F() int { return 4 }
 	}
-	x = append(x, obj{})
+	x = append(x, objloop{})
 }
 
 import "reflect"

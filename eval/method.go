@@ -6,6 +6,12 @@ package eval
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"plugin"
 	"reflect"
 	"unsafe"
 
@@ -41,18 +47,69 @@ func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 	p.reflector.fwd[t] = rtype
 }
 
+func (p *Program) pluginDir(pkgPath string) (adjPkgPath, dir string) {
+	if p.tempdir == "" {
+		var err error
+		p.tempdir, err = ioutil.TempDir("", "ng-tmp-")
+		if err != nil {
+			panic(Panic{val: err})
+		}
+	}
+	gopath := p.tempdir
+	if err := os.MkdirAll(filepath.Join(gopath, "src"), 0775); err != nil {
+		panic(Panic{val: err})
+	}
+
+	adjPkgPath = pkgPath
+	dir = filepath.Join(gopath, "src", adjPkgPath)
+	i := 0
+	for {
+		_, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			break
+		}
+		i++
+		adjPkgPath = filepath.Join(fmt.Sprintf("p%d", i), pkgPath)
+		dir = filepath.Join(gopath, "src", adjPkgPath)
+	}
+	if err := os.MkdirAll(dir, 0775); err != nil {
+		panic(Panic{val: err})
+	}
+	return adjPkgPath, dir
+}
+
 func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
-	src, err := gengo.GenNamedType(s, p.Types)
+	adjPkgPath, dir := p.pluginDir(path.Join("methodik", s.Name))
+
+	pkgb, mainb, err := gengo.GenNamedType(s, p.Types, adjPkgPath, p.typePlugins)
 	if err != nil {
 		return nil, err
 	}
-	path, err := p.pluginFile(s.Name, src)
-	if err != nil {
+
+	p.typePlugins[s.Type] = adjPkgPath
+
+	if err := ioutil.WriteFile(filepath.Join(dir, s.Name+".go"), pkgb, 0666); err != nil {
 		return nil, err
 	}
-	plg, err := p.pluginOpen(path)
-	if err != nil {
+	name := s.Name + "-main"
+	mainGo := filepath.Join(dir, name, s.Name+".go")
+	os.Mkdir(filepath.Dir(mainGo), 0775)
+	if err := ioutil.WriteFile(mainGo, mainb, 0666); err != nil {
 		return nil, err
+	}
+
+	cmd := exec.Command("go", "build", "-buildmode=plugin", adjPkgPath+"/"+name)
+	cmd.Env = append(os.Environ(), "GOPATH="+p.tempdir)
+	cmd.Dir = p.tempdir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
+	}
+
+	pluginName := name + ".so" // TODO: p%d
+	plg, err := plugin.Open(filepath.Join(p.tempdir, pluginName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open plugin %s: %v", name, err)
 	}
 
 	v, err := plg.Lookup("Zero")
@@ -68,7 +125,7 @@ func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
 		if err != nil {
 			return nil, err
 		}
-		*v.(*reflect.Value) = funcImpl
+		**v.(**reflect.Value) = funcImpl
 	}
 
 	return t, nil

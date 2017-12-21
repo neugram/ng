@@ -1,0 +1,31 @@
+methodik T struct {
+	V1 int
+} {
+	func (t) F1() int { return t.V1 }
+}
+
+methodik U struct {
+	V2 int
+	T T
+} {
+	func (u) F2() int { return u.T.F1() + u.V2 }
+}
+
+u := U{
+	V2: 3,
+	T: T{
+		V1: 4,
+	},
+}
+
+methodik V struct {
+	Next *V
+} {
+	func (v) IsLast() bool { return v.Next == nil }
+}
+
+v := V{}
+
+if u.F2() == 7 && v.IsLast() {
+	print("OK")
+}
