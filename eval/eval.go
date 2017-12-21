@@ -154,7 +154,14 @@ func New(path string, shellState *shell.State) *Program {
 	})
 	addUniverse("copy", func(dst, src interface{}) int {
 		src = promoteUntyped(src)
-		return reflect.Copy(reflect.ValueOf(dst), reflect.ValueOf(src))
+		vdst, vsrc := reflect.ValueOf(dst), reflect.ValueOf(src)
+		if vsrc.Kind() == reflect.String && vdst.Kind() == reflect.Slice && vdst.Type().Elem().Kind() == reflect.Uint8 {
+			// Go 1.9 does not implement reflect.Copy for
+			// strings, so we do it manually.
+			return copy(vdst.Bytes(), vsrc.String())
+
+		}
+		return reflect.Copy(vdst, vsrc)
 	})
 	addUniverse("append", p.builtinAppend)
 	addUniverse("delete", func(m, k interface{}) {
