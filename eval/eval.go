@@ -847,7 +847,15 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		v := p.evalExprOne(s.Value)
 		ch.Send(v)
 		return nil
-	case *stmt.TypeDecl, *stmt.TypeDeclSet:
+	case *stmt.TypeDeclSet:
+		for _, decl := range s.TypeDecls {
+			p.evalStmt(decl)
+		}
+		return nil
+	case *stmt.TypeDecl:
+		if _, isIface := s.Type.Type.(*tipe.Interface); isIface {
+			p.ifaceDecl(s.Type)
+		}
 		return nil
 	case *stmt.MethodikDecl:
 		p.methodikDecl(s)

@@ -1,0 +1,24 @@
+type Volumer interface {
+	Volume() int
+}
+
+methodik Box struct {
+	W int
+	H int
+} {
+	func (*b) Volume() int {
+		return b.W*b.H
+	}
+}
+b := &Box{
+	W: 2,
+	H: 9,
+}
+
+iface := Volumer(b)
+
+if v := iface.Volume(); v != 18 {
+	errorf("iface.Volume()=%d, want 18", v)
+}
+
+print("OK")

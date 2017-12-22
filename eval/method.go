@@ -20,6 +20,19 @@ import (
 	"neugram.io/ng/syntax/tipe"
 )
 
+func (p *Program) ifaceDecl(t *tipe.Named) {
+	// TODO: lock reflector
+	if _, exists := p.reflector.fwd[t]; exists {
+		return
+	}
+
+	rtype, err := p.reflectNamedType(t, nil)
+	if err != nil {
+		panic(err)
+	}
+	p.reflector.fwd[t] = rtype
+}
+
 func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 	t := s.Type
 	// TODO: lock reflector
@@ -27,7 +40,7 @@ func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 		return
 	}
 
-	embType, err := p.reflectNamedType(s)
+	embType, err := p.reflectNamedType(s.Type, s.Methods)
 	if err != nil {
 		panic(err)
 	}
@@ -45,24 +58,24 @@ func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 	p.reflector.fwd[t] = rtype
 }
 
-func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
-	adjPkgPath, dir, err := plugins.dir(path.Join("methodik", s.Name))
+func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (reflect.Type, error) {
+	adjPkgPath, dir, err := plugins.dir(path.Join("methodik", t.Name))
 	if err != nil {
 		return nil, err
 	}
 
-	pkgb, mainb, err := gengo.GenNamedType(s, p.Types, adjPkgPath, p.typePlugins)
+	pkgb, mainb, err := gengo.GenNamedType(t, methods, adjPkgPath, p.typePlugins)
 	if err != nil {
 		return nil, err
 	}
 
-	p.typePlugins[s.Type] = adjPkgPath
+	p.typePlugins[t] = adjPkgPath
 
-	if err := ioutil.WriteFile(filepath.Join(dir, s.Name+".go"), pkgb, 0666); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(dir, t.Name+".go"), pkgb, 0666); err != nil {
 		return nil, err
 	}
-	name := s.Name + "-main"
-	mainGo := filepath.Join(dir, name, s.Name+".go")
+	name := t.Name + "-main"
+	mainGo := filepath.Join(dir, name, t.Name+".go")
 	os.Mkdir(filepath.Dir(mainGo), 0775)
 	if err := ioutil.WriteFile(mainGo, mainb, 0666); err != nil {
 		return nil, err
@@ -77,10 +90,10 @@ func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
 	if err != nil {
 		return nil, err
 	}
-	t := reflect.TypeOf(v).Elem()
+	rt := reflect.TypeOf(v).Elem()
 
-	for _, m := range s.Methods {
-		funcImpl := p.evalFuncLiteral(m, s.Type)
+	for _, m := range methods {
+		funcImpl := p.evalFuncLiteral(m, t)
 
 		v, err := plg.Lookup("Type_Method_" + m.Name)
 		if err != nil {
@@ -89,7 +102,7 @@ func (p *Program) reflectNamedType(s *stmt.MethodikDecl) (reflect.Type, error) {
 		**v.(**reflect.Value) = funcImpl
 	}
 
-	return t, nil
+	return rt, nil
 }
 
 // evalMethRecv puts the method reciever in the current scope.
