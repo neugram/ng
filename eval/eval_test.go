@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -162,6 +163,12 @@ func TestPrograms(t *testing.T) {
 		// For the file "testdata/name.ng", name the subtest "name".
 		test := file[len("testdata/") : len(file)-3]
 		t.Run(test, func(t *testing.T) {
+			if runtime.GOOS == "darwin" {
+				switch test {
+				case "http1", "import4", "method2":
+					t.Skipf("skipping test %q, issue #185", test)
+				}
+			}
 			out, err := ioutil.TempFile("", test+".stdout.")
 			if err != nil {
 				t.Fatal(err)
