@@ -1,0 +1,31 @@
+n := 0
+
+func f() {
+	n++
+}
+
+func g() {
+	n += 2
+	defer f()
+	n++
+}
+
+n = 0
+g()
+if n != 4 {
+	panic("ERROR 1")
+}
+
+n = 1
+g()
+if n != 5 {
+	panic("ERROR 2")
+}
+
+n = 0
+g()
+if n != 4 {
+	panic("ERROR 3")
+}
+
+print("OK")

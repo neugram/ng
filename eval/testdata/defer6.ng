@@ -1,0 +1,23 @@
+func f() int {
+	i := 0
+	defer func() {
+		i = 1
+	}()
+	return i
+}
+
+if i := f(); i != 0 {
+	panic("ERROR 1")
+}
+
+func g() (i int) {
+	defer func() {
+		i = 1
+	}()
+	return i
+}
+if i := g(); i != 1 {
+	panic("ERROR 2")
+}
+
+print("OK")

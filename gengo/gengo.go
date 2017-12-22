@@ -733,6 +733,9 @@ func (p *printer) stmt(s stmt.Stmt) {
 		p.print("range ")
 		p.expr(s.Expr)
 		p.stmt(s.Body)
+	case *stmt.Defer:
+		p.print("defer ")
+		p.expr(s.Expr)
 	case *stmt.Return:
 		p.print("return")
 		for i, e := range s.Exprs {

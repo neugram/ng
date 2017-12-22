@@ -502,6 +502,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		}
 		return nil
 
+	case *stmt.Defer:
+		if _, ok := s.Expr.(*expr.Call); !ok {
+			c.errorfmt("expression in defer must be function call")
+		}
+		c.expr(s.Expr)
+		return nil
 	case *stmt.ImportSet:
 		for _, imp := range s.Imports {
 			c.checkImport(imp)

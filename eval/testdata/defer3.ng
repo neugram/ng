@@ -1,0 +1,36 @@
+n := 0
+
+func f1() {
+	n++
+}
+
+func f2() {
+	n *= 3
+}
+
+func g() {
+	n += 2
+	defer f1()
+	defer f2()
+	n++
+}
+
+n = 0
+g()
+if n != 10 {
+	panic("ERROR 1")
+}
+
+n = 1
+g()
+if n != 13 {
+	panic("ERROR 2")
+}
+
+n = 0
+g()
+if n != 10 {
+	panic("ERROR 3")
+}
+
+print("OK")

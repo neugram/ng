@@ -1,0 +1,23 @@
+n := 0
+
+func f(i int) {
+	n += i
+}
+
+func h() int {
+	return 10
+}
+
+func g() {
+	n += 2
+	defer f(h())
+	n++
+}
+
+n = 0
+g()
+if n != 13 {
+	panic("ERROR 1")
+}
+
+print("OK")
