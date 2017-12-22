@@ -12,6 +12,7 @@ import (
 	"go/importer"
 	"go/types"
 	"log"
+	"os/exec"
 	"strings"
 	"text/template"
 )
@@ -71,7 +72,18 @@ func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
 	pkgs[pkgPath] = buildDataPkg(pkgPath, pkg)
 	imports := []*types.Package{}
 	if !skipDeps {
-		imports = append(imports, pkg.Imports()...)
+		for _, imp := range pkg.Imports() {
+			// Re-import package to get all exported symbols.
+			out, err := exec.Command("go", "install", imp.Path()).CombinedOutput()
+			if err != nil {
+				return nil, fmt.Errorf("go install %s: %v\n%s", imp.Path(), err, out)
+			}
+			imppkg, err := importer.Default().Import(imp.Path())
+			if err != nil {
+				return nil, err
+			}
+			imports = append(imports, imppkg)
+		}
 	}
 
 importsLoop:
