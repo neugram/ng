@@ -1,0 +1,20 @@
+n := 0
+
+func f() {
+	n++
+	defer func() {
+		n += 2
+	}()
+	defer func() {
+		n *= 3
+	}()
+	n++
+}
+
+n = 0
+f()
+if n != 8 {
+	panic("ERROR")
+}
+
+print("OK")

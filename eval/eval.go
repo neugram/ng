@@ -44,6 +44,9 @@ type Scope struct {
 	Implicit bool
 
 	Label bool
+
+	fct    string     // function name if this is a function scope
+	defers []deferCtx // LIFO-list of defers to run
 }
 
 func (s *Scope) Lookup(name string) reflect.Value {
@@ -53,6 +56,20 @@ func (s *Scope) Lookup(name string) reflect.Value {
 		}
 	}
 	return reflect.Value{}
+}
+
+func (s *Scope) funcScope() *Scope {
+	for scope := s; scope != nil; scope = scope.Parent {
+		if scope.fct != "" {
+			return scope
+		}
+	}
+	return nil
+}
+
+type deferCtx struct {
+	Func reflect.Value
+	Args []reflect.Value
 }
 
 type Program struct {
@@ -106,6 +123,8 @@ func New(path string, shellState *shell.State) *Program {
 		Path:     path,
 		Cur: &Scope{
 			Parent: universe,
+			// FIXME(sbinet): what should this be?
+			// fct: "ng-main",
 		},
 		ShellState:  shellState,
 		reflector:   newReflector(),
@@ -846,6 +865,19 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		p.branchType = brReturn
 		p.branchLabel = ""
 		return res
+	case *stmt.Defer:
+		fscope := p.Cur.funcScope()
+		if fscope == nil {
+			panic(interpPanic{fmt.Errorf("defer outside a function scope")})
+		}
+		call := s.Expr.(*expr.Call)
+		fct, args := p.prepCall(call)
+		fscope.defers = append(fscope.defers, deferCtx{
+			Func: fct,
+			Args: args,
+		})
+		return nil
+
 	case *stmt.Simple:
 		res := p.evalExpr(s.Expr)
 		if fn, isFunc := s.Expr.(*expr.FuncLiteral); isFunc && fn.Name != "" {
@@ -1729,7 +1761,13 @@ func setField(field, value reflect.Value) {
 func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflect.Value {
 	s := &Scope{
 		Parent: p.Universe,
+		fct:    e.Name,
 	}
+	if e.Name == "" {
+		// FIXME(sbinet): generate unique names
+		s.fct = "func-1"
+	}
+	fscope := s
 	for _, name := range e.Type.FreeVars {
 		if s.VarName != "" {
 			s = &Scope{Parent: s}
@@ -1799,9 +1837,18 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 			}
 		}
 
+		if fscope.defers != nil {
+			fscope.defers = fscope.defers[:0]
+		}
+
 		resValues := p.evalStmt(e.Body.(*stmt.Block))
 		for i, v := range resValues {
 			res[i].Set(v)
+		}
+
+		for i := len(fscope.defers) - 1; i >= 0; i-- {
+			d := fscope.defers[i]
+			d.Func.Call(d.Args)
 		}
 		return res
 	})
