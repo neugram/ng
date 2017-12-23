@@ -76,6 +76,7 @@ func (m *pluginManager) create(name string, contents []byte) (*plugin.Plugin, er
 	cmd := exec.Command("go", "build", "-buildmode=plugin", name)
 	cmd.Dir = m.tempdir
 	out, err := cmd.CombinedOutput()
+	os.Remove(path)
 	if err != nil {
 		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
 	}
@@ -127,9 +128,11 @@ func (m *pluginManager) open(mainPkgPath string) (*plugin.Plugin, error) {
 	}
 
 	pluginName := filepath.Base(mainPkgPath) + ".so"
-	plg, err := plugin.Open(filepath.Join(m.tempdir, "src", mainPkgPath, pluginName))
+	filename := filepath.Join(m.tempdir, "src", mainPkgPath, pluginName)
+	plg, err := plugin.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open plugin %s: %v", pluginName, err)
 	}
+	os.Remove(filename)
 	return plg, nil
 }

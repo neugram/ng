@@ -158,6 +158,12 @@ func TestPrograms(t *testing.T) {
 		os.Stdout = origStdout
 		os.Stderr = origStderr
 	}()
+	defer func() {
+		plugins.mu.Lock()
+		defer plugins.mu.Unlock()
+		os.RemoveAll(plugins.tempdir)
+		plugins.tempdir = ""
+	}()
 
 	for _, file := range files {
 		// For the file "testdata/name.ng", name the subtest "name".

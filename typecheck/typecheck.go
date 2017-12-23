@@ -90,6 +90,7 @@ func goTypesImporterInit() {
 		if err != nil {
 			return nil, err
 		}
+		os.Remove(filename)
 		return f, nil
 	})
 }

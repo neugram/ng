@@ -71,7 +71,10 @@ func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (
 
 	p.typePlugins[t] = adjPkgPath
 
-	if err := ioutil.WriteFile(filepath.Join(dir, t.Name+".go"), pkgb, 0666); err != nil {
+	// Do not remove the pkgGo file as future builds that
+	// import this package will need the file to exist.
+	pkgGo := filepath.Join(dir, t.Name+".go")
+	if err := ioutil.WriteFile(pkgGo, pkgb, 0666); err != nil {
 		return nil, err
 	}
 	name := t.Name + "-main"
@@ -80,6 +83,7 @@ func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (
 	if err := ioutil.WriteFile(mainGo, mainb, 0666); err != nil {
 		return nil, err
 	}
+	defer os.Remove(mainGo)
 
 	plg, err := plugins.open(path.Join(adjPkgPath, name))
 	if err != nil {
