@@ -12,9 +12,10 @@ import (
 	"go/importer"
 	"go/types"
 	"log"
-	"os/exec"
 	"strings"
 	"text/template"
+
+	"neugram.io/ng/typecheck"
 )
 
 func quotePkgPath(path string) string {
@@ -74,11 +75,7 @@ func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
 	if !skipDeps {
 		for _, imp := range pkg.Imports() {
 			// Re-import package to get all exported symbols.
-			out, err := exec.Command("go", "install", imp.Path()).CombinedOutput()
-			if err != nil {
-				return nil, fmt.Errorf("go install %s: %v\n%s", imp.Path(), err, out)
-			}
-			imppkg, err := importer.Default().Import(imp.Path())
+			imppkg, err := typecheck.ImportGo(imp.Path())
 			if err != nil {
 				return nil, err
 			}
