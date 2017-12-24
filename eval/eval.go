@@ -528,6 +528,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 					continue
 				}
 				t := p.reflector.ToRType(types[i])
+
 				s := &Scope{
 					Parent:   p.Cur,
 					VarName:  lhs.(*expr.Ident).Name,
@@ -1966,9 +1967,6 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 			rtype = reflect.TypeOf((*error)(nil)).Elem()
 		} else if t.PkgPath != "" {
 			path := t.PkgPath
-			if path == "neugram.io/ng/vendor/mat" {
-				path = "mat" // TODO: remove "mat" exception
-			}
 			v := gowrap.Pkgs[path].Exports[t.Name]
 			if typ, isType := v.Interface().(reflect.Type); isType {
 				rtype = typ

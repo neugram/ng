@@ -1,6 +1,6 @@
 ok := true
 
-import "mat"
+import "./mat.ng"
 
 m1 := mat.New(3, 3)
 m1.Set(0, 0, 1.1) // TODO: m1[0,0] = 1.1
@@ -22,7 +22,6 @@ if m3.Equal(want) == false {
 	printf("%v + %v = %v, want %v", m1, m2, m3, want)
 	ok = false
 }
-
 if ok {
 	print("OK")
 }

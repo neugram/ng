@@ -1150,9 +1150,6 @@ func (c *Checker) goPkg(path string) (*Package, error) {
 		return pkg, nil
 	}
 	goPath := path
-	if path == "mat" {
-		goPath = "neugram.io/ng/vendor/mat" // TODO: remove "mat" exception
-	}
 	gopkg, err := c.ImportGo(goPath)
 	if err != nil {
 		return nil, err
