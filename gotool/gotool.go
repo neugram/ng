@@ -44,11 +44,21 @@ type Manager struct {
 
 func (m *Manager) gocmd(args ...string) error {
 	cmd := exec.Command("go", args...)
+	cmd.Dir = m.tempdir
+	cmd.Env = append(os.Environ(), "GOPATH="+m.gopath())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("gotool: %v: %v\n%s", args, err, out)
 	}
 	return nil
+}
+
+func (m *Manager) gopath() string {
+	usr := os.Getenv("GOPATH")
+	if usr == "" {
+		usr = filepath.Join(os.Getenv("HOME"), "go")
+	}
+	return fmt.Sprintf("%s%c%s", m.tempdir, filepath.ListSeparator, usr)
 }
 
 func (m *Manager) init() error {
@@ -85,8 +95,8 @@ func (m *Manager) importerLookup(path string) (io.ReadCloser, error) {
 	f, err := os.Open(filename)
 	if os.IsNotExist(err) {
 		os.MkdirAll(filepath.Dir(filename), 0775)
-		if out, err := exec.Command("go", "build", "-o="+filename, path).CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("gotool: importer: building package for %s failed: %v\n%s", path, err, out)
+		if err := m.gocmd("build", "-o="+filename, path); err != nil {
+			return nil, err
 		}
 		f, err = os.Open(filename)
 	}
@@ -152,12 +162,8 @@ func (m *Manager) Create(name string, contents []byte) (*plugin.Plugin, error) {
 	}
 
 	name = filepath.Base(path)
-	cmd := exec.Command("go", "build", "-buildmode=plugin", name)
-	cmd.Dir = m.tempdir
-	out, err := cmd.CombinedOutput()
-	os.Remove(path)
-	if err != nil {
-		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", name, err, out)
+	if err := m.gocmd("build", "-buildmode=plugin", name); err != nil {
+		return nil, err
 	}
 	pluginName := name[:len(name)-3] + ".so"
 	plg, err := plugin.Open(filepath.Join(m.tempdir, pluginName))
@@ -198,16 +204,13 @@ func (m *Manager) Open(mainPkgPath string) (*plugin.Plugin, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	cmd := exec.Command("go", "build", "-buildmode=plugin", mainPkgPath)
-	cmd.Env = append(os.Environ(), "GOPATH="+m.tempdir)
-	cmd.Dir = filepath.Join(m.tempdir, "src", mainPkgPath)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("building plugin %s failed: %v\n%s", mainPkgPath, err, out)
-	}
-
 	pluginName := filepath.Base(mainPkgPath) + ".so"
 	filename := filepath.Join(m.tempdir, "src", mainPkgPath, pluginName)
+
+	if err := m.gocmd("build", "-buildmode=plugin", "-o="+filename, mainPkgPath); err != nil {
+		return nil, err
+	}
+
 	plg, err := plugin.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open plugin %s: %v", pluginName, err)
