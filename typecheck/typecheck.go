@@ -53,6 +53,12 @@ type Checker struct {
 func New(initPkg string) *Checker {
 	if initPkg == "" {
 		initPkg = "main"
+	} else if !filepath.IsAbs(initPkg) {
+		var err error
+		initPkg, err = filepath.Abs(initPkg)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	return &Checker{
 		mu:            new(sync.Mutex),
@@ -261,7 +267,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					Name: fn.Name,
 					Kind: ObjVar,
 					Type: p.typ,
-					Decl: s,
+					Decl: fn,
 				})
 			}
 		}
@@ -1201,16 +1207,23 @@ func (c *Checker) Pkg(path string) *Package {
 }
 
 func (c *Checker) ngPkg(path string) (*Package, error) {
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(filepath.Dir(c.importWalk[len(c.importWalk)-1]), path)
+	var filename string
+	if strings.HasPrefix(path, "./") {
+		filename = filepath.Join(filepath.Dir(c.importWalk[len(c.importWalk)-1]), path)
 		var err error
-		path, err = filepath.Abs(path)
+		filename, err = filepath.Abs(filename)
 		if err != nil {
 			return nil, fmt.Errorf("ng package import: %v", err)
 		}
+		path = "rel" + filename
+	} else if filepath.IsAbs(path) {
+		filename = path
+	} else {
+		return nil, fmt.Errorf("TODO: look for .ng package in GOPATH")
 	}
+	path = strings.TrimSuffix(path, ".ng") + "_ng"
 	for i, p := range c.importWalk {
-		if p == path {
+		if p == filename {
 			cycle := c.importWalk[i]
 			for _, p := range c.importWalk[i+1:] {
 				cycle += "-> " + p
@@ -1223,11 +1236,11 @@ func (c *Checker) ngPkg(path string) (*Package, error) {
 		return pkg, nil
 	}
 
-	source, err := ioutil.ReadFile(path)
+	source, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("ng package import: %v", err)
 	}
-	c.importWalk = append(c.importWalk, path)
+	c.importWalk = append(c.importWalk, filename)
 	oldcur := c.cur
 	oldcurPkg := c.curPkg
 	defer func() {
@@ -1250,6 +1263,13 @@ func (c *Checker) ngPkg(path string) (*Package, error) {
 	}
 	if err := c.parseFile(path, source); err != nil {
 		return nil, fmt.Errorf("ng import parse: %v", err)
+	}
+	for _, t := range c.curPkg.Type.Exports {
+		switch t := t.(type) {
+		case *tipe.Named:
+			t.PkgName = filepath.Base(path)
+			t.PkgPath = path
+		}
 	}
 	c.pkgs[path] = c.curPkg
 	return c.curPkg, nil

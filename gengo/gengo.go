@@ -29,7 +29,7 @@ import (
 func GenGo(filename, outGoPkgName string) (result []byte, err error) {
 	p := &printer{
 		buf:     new(bytes.Buffer),
-		c:       typecheck.New(filename), // TODO: extract a pkg name
+		c:       typecheck.New(filepath.Base(filename)), // TODO: extract a pkg name
 		imports: make(map[*tipe.Package]string),
 		eliders: make(map[tipe.Type]string),
 	}
@@ -485,7 +485,12 @@ func (p *printer) expr(e expr.Expr) {
 		p.print("}")
 	case *expr.FuncLiteral:
 		if e.Name != "" {
-			p.printf("%s := ", e.Name)
+			gobj := p.pkg.GlobalNames[e.Name]
+			if gobj != nil && gobj.Decl == e {
+				p.printf("%s = ", e.Name)
+			} else {
+				p.printf("%s := ", e.Name)
+			}
 		}
 		p.funcLiteral(e, "")
 	case *expr.Ident:
@@ -950,7 +955,7 @@ func (p *printer) tipe(t tipe.Type) {
 		p.newline()
 		p.print("}")
 	case *tipe.Named:
-		if t.PkgPath != "" {
+		if t.PkgPath != "" && t.PkgPath != p.pkg.Path {
 			pkg := p.c.Pkg(t.PkgPath)
 			p.print(p.imports[pkg.Type])
 			p.print(".")
@@ -1174,9 +1179,12 @@ func GenNamedType(t *tipe.Named, methods []*expr.FuncLiteral, pkgPath string, ty
 			p.printf("gengo_in[%d] = reflect.ValueOf(%s)", 1+i, name)
 		}
 		p.newline()
-		p.printf("var res interface{}")
-		p.newline()
-		p.printf("gengo_out := Type_Method_%s.Call(gengo_in)", m.Name)
+		if len(m.ResultNames) > 0 {
+			p.printf("var res interface{}")
+			p.newline()
+			p.printf("gengo_out := ")
+		}
+		p.printf("Type_Method_%s.Call(gengo_in)", m.Name)
 		for i, name := range m.ResultNames {
 			p.newline()
 			p.printf("res = gengo_out[%d].Interface()", i)

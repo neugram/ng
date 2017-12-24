@@ -7,6 +7,7 @@ package eval
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	_ "neugram.io/ng/eval/gowrap/wrapbuiltin" // registers with gowrap
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/gengo"
 	"neugram.io/ng/gotool"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
@@ -649,47 +651,49 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 		return nil
 	case *stmt.Import:
 		var pkg *gowrap.Pkg
-		if strings.HasSuffix(s.Path, ".ng") {
-			path := filepath.Join(filepath.Dir(p.Path), s.Path)
-			pkg = p.Pkgs[path]
-			if pkg == nil {
-				typ := p.Types.Pkg(path)
-				if typ == nil {
-					panic(Panic{val: fmt.Errorf("cannot find package typechecking: %v", path)})
-				}
-				oldPath := p.Path
-				oldCur := p.Cur
-				oldTypes := p.Types
-				p.Path = path
-				p.Cur = p.Universe
-				p.Types = oldTypes.NewScope()
-				func() {
-					defer func() {
-						p.Path = oldPath
-						p.Cur = oldCur
-						p.Types = oldTypes
-					}()
-					if err := p.evalFile(); err != nil {
-						panic(Panic{val: fmt.Errorf("%s: %v", p.Path, err)})
-					}
-
-					pkg = &gowrap.Pkg{Exports: make(map[string]reflect.Value)}
-					for p.Cur != p.Universe {
-						pkg.Exports[p.Cur.VarName] = p.Cur.Var
-						p.Cur = p.Cur.Parent
-					}
-				}()
-				p.Pkgs[path] = pkg
+		path := s.Path
+		ngPkg := strings.HasSuffix(path, ".ng")
+		if ngPkg {
+			var filename string
+			if strings.HasPrefix(path, "./") {
+				filename = filepath.Join(filepath.Dir(p.Path), path)
+				filename, _ = filepath.Abs(filename)
+				path = "rel" + filename
+			} else {
+				panic(Panic{val: fmt.Errorf("TODO: look for .ng file in GOPATH")})
 			}
-		} else {
-			pkg = gowrap.Pkgs[s.Path]
+			path = strings.TrimSuffix(path, ".ng") + "_ng"
+			pkg = gowrap.Pkgs[path]
 			if pkg == nil {
-				// TODO: go install pkg before genwrap for update importer?
-				src, err := genwrap.GenGo(s.Path, "main", false)
+				adjPkgPath, dir, err := gotool.M.Dir(path)
+				pkgb, err := gengo.GenGo(filename, filepath.Base(path))
+				if err != nil {
+					panic(Panic{val: err})
+				}
+				if err := ioutil.WriteFile(filepath.Join(dir, filepath.Base(path)+".go"), pkgb, 0666); err != nil {
+					panic(Panic{val: err})
+				}
+				src, err := genwrap.GenGo(adjPkgPath, "main", false)
 				if err != nil {
 					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
 				}
-				if _, err := gotool.M.Create(s.Path, src); err != nil {
+				if _, err := gotool.M.Create(adjPkgPath, src); err != nil {
+					panic(Panic{val: err})
+				}
+				pkg = gowrap.Pkgs[adjPkgPath]
+				if pkg == nil {
+					panic(Panic{val: fmt.Errorf("plugin: contents missing from Go package %q", s.Name)})
+				}
+				gowrap.Pkgs[path] = pkg
+			}
+		} else {
+			pkg = gowrap.Pkgs[path]
+			if pkg == nil {
+				src, err := genwrap.GenGo(path, "main", false)
+				if err != nil {
+					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
+				}
+				if _, err := gotool.M.Create(path, src); err != nil {
 					panic(Panic{val: err})
 				}
 				pkg = gowrap.Pkgs[s.Path]
