@@ -68,11 +68,6 @@ type Program struct {
 	branchLabel     string
 	mostRecentLabel string
 
-	// builtinCalled is set by any builtin function that has
-	// a generic return type. The intepreter has to unbox the
-	// return type.
-	builtinCalled bool
-
 	typePlugins map[*tipe.Named]string // type to package path TODO lock?
 }
 
@@ -163,43 +158,41 @@ func New(path string, shellState *shell.State) *Program {
 		}
 		return reflect.Copy(vdst, vsrc)
 	})
-	addUniverse("append", p.builtinAppend)
+	addUniverse("append", builtinAppend)
 	addUniverse("delete", func(m, k interface{}) {
 		k = promoteUntyped(k)
 		reflect.ValueOf(m).SetMapIndex(reflect.ValueOf(k), reflect.Value{})
 	})
-	addUniverse("make", p.builtinMake)
-	addUniverse("new", p.builtinNew)
-	addUniverse("complex", p.builtinComplex)
+	addUniverse("make", builtinMake)
+	addUniverse("new", builtinNew)
+	addUniverse("complex", builtinComplex)
 	addUniverse("real", func(v interface{}) interface{} {
-		p.builtinCalled = true
 		switch v := v.(type) {
 		case UntypedComplex:
 			// FIXME: return UntypedFloat instead
 			// to handle: imag(1+2i) + float32(2.3)
 			// re := UntypedFloat{big.NewFloat(0).Set(v.Real)}
 			re, _ := v.Real.Float64()
-			return re
+			return builtinResult(re)
 		case complex64:
-			return real(v)
+			return builtinResult(real(v))
 		case complex128:
-			return real(v)
+			return builtinResult(real(v))
 		}
 		panic(fmt.Errorf("invalid type real(%T)", v))
 	})
 	addUniverse("imag", func(v interface{}) interface{} {
-		p.builtinCalled = true
 		switch v := v.(type) {
 		case UntypedComplex:
 			// FIXME: return UntypedFloat instead.
 			// to handle: imag(1+2i) + float32(2.3)
 			// im := UntypedFloat{big.NewFloat(0).Set(v.Imag)}
 			im, _ := v.Imag.Float64()
-			return im
+			return builtinResult(im)
 		case complex64:
-			return imag(v)
+			return builtinResult(imag(v))
 		case complex128:
-			return imag(v)
+			return builtinResult(imag(v))
 		}
 		panic(fmt.Errorf("invalid type imag(%T)", v))
 	})
@@ -263,23 +256,40 @@ func (p *Program) evalFile() error {
 
 }
 
-func (p *Program) builtinAppend(s interface{}, v ...interface{}) interface{} {
-	p.builtinCalled = true
+// builtinResult emulates a run time type parameter for builtins.
+//
+// Several Go built-in functions are defined in a way that cannot
+// be expressed in the Go type system. For example append has the
+// type signature:
+//
+//	func <T> append([]T, ...T) []T
+//
+// Here the return type is some concrete Go type.
+// We cannot return <T>, the closest we can do is interface{}.
+// Which is very close, but not exactly the same.
+// When the interpreter writes the return value from the builtin
+// function into a reflect.Value, it gets the empty interface
+// boxing written into it too, which is incorrect.
+// To avoid this, we deliberately box the return type in a
+// known interface type, which the evaluator looks for and unboxes
+// on sight, acting as communication to the evaluator that the
+// function it just ran is a builtin with special type needs.
+type builtinResult interface{}
+
+func builtinAppend(s interface{}, v ...interface{}) interface{} {
 	res := reflect.ValueOf(s)
 	for _, elem := range v {
 		res = reflect.Append(res, reflect.ValueOf(elem))
 	}
-	return res.Interface()
+	return builtinResult(res.Interface())
 }
 
-func (p *Program) builtinNew(v interface{}) interface{} {
-	p.builtinCalled = true
+func builtinNew(v interface{}) interface{} {
 	t := v.(reflect.Type)
-	return reflect.New(t).Interface()
+	return builtinResult(reflect.New(t).Interface())
 }
 
-func (p *Program) builtinMake(v ...interface{}) interface{} {
-	p.builtinCalled = true
+func builtinMake(v ...interface{}) builtinResult {
 	t := v[0].(reflect.Type)
 	switch t.Kind() {
 	case reflect.Chan:
@@ -287,7 +297,7 @@ func (p *Program) builtinMake(v ...interface{}) interface{} {
 		if len(v) > 1 {
 			size = v[1].(int)
 		}
-		return reflect.MakeChan(t, size).Interface()
+		return builtinResult(reflect.MakeChan(t, size).Interface())
 	case reflect.Slice:
 		var slen, scap int
 		if len(v) > 1 {
@@ -298,55 +308,54 @@ func (p *Program) builtinMake(v ...interface{}) interface{} {
 		} else {
 			scap = slen
 		}
-		return reflect.MakeSlice(t, slen, scap).Interface()
+		return builtinResult(reflect.MakeSlice(t, slen, scap).Interface())
 	case reflect.Map:
-		return reflect.MakeMap(t).Interface()
+		return builtinResult(reflect.MakeMap(t).Interface())
 	}
 	return nil
 }
 
-func (p *Program) builtinComplex(re, im interface{}) interface{} {
-	p.builtinCalled = true
+func builtinComplex(re, im interface{}) interface{} {
 	switch re := re.(type) {
 	case UntypedInt:
 		switch im := im.(type) {
 		case UntypedInt:
-			return complex(float64(re.Int64()), float64(im.Int64()))
+			return builtinResult(complex(float64(re.Int64()), float64(im.Int64())))
 		case UntypedFloat:
 			f, _ := im.Float64()
-			return complex(float64(re.Int64()), f)
+			return builtinResult(complex(float64(re.Int64()), f))
 		case float32:
-			return complex(float32(re.Int64()), im)
+			return builtinResult(complex(float32(re.Int64()), im))
 		case float64:
-			return complex(float64(re.Int64()), im)
+			return builtinResult(complex(float64(re.Int64()), im))
 		}
 	case UntypedFloat:
 		switch im := im.(type) {
 		case UntypedInt:
 			fre, _ := re.Float64()
 			fim := float64(im.Int64())
-			return complex(fre, fim)
+			return builtinResult(complex(fre, fim))
 		case UntypedFloat:
 			fre, _ := re.Float64()
 			fim, _ := im.Float64()
-			return complex(fre, fim)
+			return builtinResult(complex(fre, fim))
 		case float32:
 			fre, _ := re.Float64()
-			return complex(float32(fre), float32(im))
+			return builtinResult(complex(float32(fre), float32(im)))
 		case float64:
 			fre, _ := re.Float64()
-			return complex(fre, im)
+			return builtinResult(complex(fre, im))
 		}
 	case float32:
 		switch im := im.(type) {
 		case UntypedInt:
 			fim := float32(im.Int64())
-			return complex(re, fim)
+			return builtinResult(complex(re, fim))
 		case UntypedFloat:
 			fim, _ := im.Float64()
-			return complex(re, float32(fim))
+			return builtinResult(complex(re, float32(fim)))
 		case float32:
-			return complex(re, im)
+			return builtinResult(complex(re, im))
 		case float64:
 			panic("impossible")
 		}
@@ -354,14 +363,14 @@ func (p *Program) builtinComplex(re, im interface{}) interface{} {
 		switch im := im.(type) {
 		case UntypedInt:
 			fim := float64(im.Int64())
-			return complex(re, fim)
+			return builtinResult(complex(re, fim))
 		case UntypedFloat:
 			fim, _ := im.Float64()
-			return complex(re, fim)
+			return builtinResult(complex(re, fim))
 		case float32:
 			panic("impossible")
 		case float64:
-			return complex(re, im)
+			return builtinResult(complex(re, im))
 		}
 	}
 	panic(fmt.Errorf("invalid types %T,%T", re, im))
@@ -1439,13 +1448,12 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 			return []reflect.Value{typeConv(t, args[0])}
 		}
 		res := fn.Call(args)
-		if p.builtinCalled {
-			p.builtinCalled = false
-			for i := range res {
-				// Necessary to turn the return type of append
-				// from an interface{} into a slice so it can
-				// be set.
-				res[i] = reflect.ValueOf(res[i].Interface())
+		for i := range res {
+			if !res[i].IsValid() {
+				continue
+			}
+			if v, isBuiltin := res[i].Interface().(builtinResult); isBuiltin {
+				res[i] = reflect.ValueOf(v.(interface{}))
 			}
 		}
 		if e.ElideError {
