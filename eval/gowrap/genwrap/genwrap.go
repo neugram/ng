@@ -9,13 +9,12 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
-	"go/importer"
 	"go/types"
 	"log"
 	"strings"
 	"text/template"
 
-	"neugram.io/ng/typecheck"
+	"neugram.io/ng/gotool"
 )
 
 func quotePkgPath(path string) string {
@@ -65,7 +64,7 @@ func buildDataPkg(pkgPath string, pkg *types.Package) DataPkg {
 // Any other packages that pkgPath depends on for defining its
 // exported symbols are also registered, unless skipDeps is set.
 func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
-	pkg, err := importer.Default().Import(pkgPath)
+	pkg, err := gotool.M.ImportGo(pkgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +74,7 @@ func GenGo(pkgPath, outPkgName string, skipDeps bool) ([]byte, error) {
 	if !skipDeps {
 		for _, imp := range pkg.Imports() {
 			// Re-import package to get all exported symbols.
-			imppkg, err := typecheck.ImportGo(imp.Path())
+			imppkg, err := gotool.M.ImportGo(imp.Path())
 			if err != nil {
 				return nil, err
 			}

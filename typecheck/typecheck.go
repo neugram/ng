@@ -8,16 +8,11 @@ package typecheck
 import (
 	"fmt"
 	"go/constant"
-	goimporter "go/importer"
 	gotoken "go/token"
 	gotypes "go/types"
-	"io"
 	"io/ioutil"
 	"math/big"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"neugram.io/ng/format"
+	"neugram.io/ng/gotool"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/syntax"
@@ -54,59 +50,6 @@ type Checker struct {
 	curPkg *Package
 }
 
-var (
-	goTypesImporter       gotypes.Importer
-	goTypesImporterGlobal bool
-	goTypesImporterOnce   sync.Once
-)
-
-func goTypesImporterInit() {
-	defer func() {
-		if r := recover(); r != nil {
-			// Prior to Go 1.10, importer.For did not
-			// support having a lookup function passed
-			// to it, and instead paniced. In that case,
-			// we use the default and always "go install".
-			goTypesImporter = goimporter.For(runtime.Compiler, nil)
-			goTypesImporterGlobal = true
-		}
-	}()
-
-	tempdir, err := ioutil.TempDir("", "ng-importer-tmp-")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	goTypesImporter = goimporter.For(runtime.Compiler, func(path string) (io.ReadCloser, error) {
-		filename := filepath.Join(tempdir, path+".a")
-		f, err := os.Open(filename)
-		if os.IsNotExist(err) {
-			os.MkdirAll(filepath.Dir(filename), 0775)
-			if out, err := exec.Command("go", "build", "-o="+filename, path).CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("go types importer: building package for %s failed: %v\n%s", path, err, out)
-			}
-			f, err = os.Open(filename)
-		}
-		if err != nil {
-			return nil, err
-		}
-		os.Remove(filename)
-		return f, nil
-	})
-}
-
-func ImportGo(path string) (*gotypes.Package, error) {
-	goTypesImporterOnce.Do(goTypesImporterInit)
-	if goTypesImporterGlobal {
-		// Make sure our source '.a' files are fresh.
-		out, err := exec.Command("go", "install", path).CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("go install %s: %v\n%s", path, err, out)
-		}
-	}
-	return goTypesImporter.Import(path)
-}
-
 func New(initPkg string) *Checker {
 	if initPkg == "" {
 		initPkg = "main"
@@ -114,7 +57,7 @@ func New(initPkg string) *Checker {
 	return &Checker{
 		mu:            new(sync.Mutex),
 		types:         make(map[expr.Expr]tipe.Type),
-		ImportGo:      ImportGo,
+		ImportGo:      gotool.M.ImportGo,
 		consts:        make(map[expr.Expr]constant.Value),
 		idents:        make(map[*expr.Ident]*Obj),
 		pkgs:          make(map[string]*Package),

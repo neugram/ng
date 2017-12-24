@@ -15,6 +15,7 @@ import (
 
 	"neugram.io/ng/format"
 	"neugram.io/ng/gengo"
+	"neugram.io/ng/gotool"
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/stmt"
 	"neugram.io/ng/syntax/tipe"
@@ -59,7 +60,7 @@ func (p *Program) methodikDecl(s *stmt.MethodikDecl) {
 }
 
 func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (reflect.Type, error) {
-	adjPkgPath, dir, err := plugins.dir(path.Join("methodik", t.Name))
+	adjPkgPath, dir, err := gotool.M.Dir(path.Join("methodik", t.Name))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (
 	}
 	defer os.Remove(mainGo)
 
-	plg, err := plugins.open(path.Join(adjPkgPath, name))
+	plg, err := gotool.M.Open(path.Join(adjPkgPath, name))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open plugin %s: %v", name, err)
 	}

@@ -21,6 +21,7 @@ import (
 	_ "neugram.io/ng/eval/gowrap/wrapbuiltin" // registers with gowrap
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/gotool"
 	"neugram.io/ng/internal/bigcplx"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/syntax/expr"
@@ -688,7 +689,7 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				if err != nil {
 					panic(Panic{val: fmt.Errorf("plugin: wrapper gen failed for Go package %q: %v", s.Name, err)})
 				}
-				if _, err := plugins.create(s.Path, src); err != nil {
+				if _, err := gotool.M.Create(s.Path, src); err != nil {
 					panic(Panic{val: err})
 				}
 				pkg = gowrap.Pkgs[s.Path]

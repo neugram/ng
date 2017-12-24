@@ -18,6 +18,7 @@ import (
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/gotool"
 	"neugram.io/ng/parser"
 	"neugram.io/ng/syntax/stmt"
 )
@@ -158,12 +159,7 @@ func TestPrograms(t *testing.T) {
 		os.Stdout = origStdout
 		os.Stderr = origStderr
 	}()
-	defer func() {
-		plugins.mu.Lock()
-		defer plugins.mu.Unlock()
-		os.RemoveAll(plugins.tempdir)
-		plugins.tempdir = ""
-	}()
+	defer gotool.M.Cleanup()
 
 	for _, file := range files {
 		// For the file "testdata/name.ng", name the subtest "name".
