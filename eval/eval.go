@@ -15,6 +15,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/gowrap"
@@ -1483,12 +1484,12 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 				for i, elem := range e.Values {
 					name := e.Keys[i].(*expr.Ident).Name
 					v := p.evalExprOne(elem)
-					st.FieldByName(name).Set(v)
+					setField(st.FieldByName(name), v)
 				}
 			} else {
 				for i, expr := range e.Values {
 					v := p.evalExprOne(expr)
-					st.Field(i).Set(v)
+					setField(st.Field(i), v)
 				}
 			}
 			return []reflect.Value{st}
@@ -1716,6 +1717,13 @@ func (p *Program) evalExpr(e expr.Expr) []reflect.Value {
 		return []reflect.Value{convert(v, t)}
 	}
 	panic(interpPanic{fmt.Errorf("TODO evalExpr(%s), %T", format.Expr(e), e)})
+}
+
+// setField sets a struct field to value.
+// It sets the value even if the field is unexported.
+func setField(field, value reflect.Value) {
+	fieldPtr := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr()))
+	fieldPtr.Elem().Set(value)
 }
 
 func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflect.Value {

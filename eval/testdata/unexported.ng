@@ -1,0 +1,21 @@
+// Disabled until https://golang.org/cl/85661 is submitted.
+print("OK")
+
+/*
+type t struct {
+	X string
+	Y int
+}
+
+v := t{
+	X: "string1",
+	Y: 1,
+}
+
+v.X = "string2"
+v.Y = 2
+
+if v == (t{"string2", 2}) {
+	print("OK")
+}
+*/
