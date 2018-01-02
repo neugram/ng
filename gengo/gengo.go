@@ -744,6 +744,12 @@ func (p *printer) stmt(s stmt.Stmt) {
 			p.expr(e)
 		}
 	case *stmt.Simple:
+		// In Neugram it is valid to evaluate and not use an expression.
+		// (Because evaluating it has the standard side effect of
+		// printing its result.)
+		if p.isPure(s.Expr) {
+			p.print("_ = ")
+		}
 		p.expr(s.Expr)
 	case *stmt.Send:
 		p.expr(s.Chan)
@@ -866,6 +872,24 @@ func (p *printer) stmt(s stmt.Stmt) {
 		}
 		p.newline()
 		p.print("}")
+	}
+}
+
+func (p *printer) isPure(e expr.Expr) bool {
+	switch e := e.(type) {
+	case *expr.Binary, *expr.Unary, *expr.Selector, *expr.Slice, *expr.CompLiteral, *expr.MapLiteral, *expr.ArrayLiteral, *expr.SliceLiteral, *expr.TableLiteral, *expr.Ident:
+		return true
+	case *expr.FuncLiteral:
+		return e.Name == ""
+	case *expr.Call:
+		t := p.c.Type(e.Func)
+		switch t {
+		case tipe.ComplexFunc, tipe.Imag, tipe.Real, tipe.New:
+			return true
+		}
+		return false
+	default:
+		return false
 	}
 }
 
