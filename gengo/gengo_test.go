@@ -30,7 +30,6 @@ func TestGeneratedPrograms(t *testing.T) {
 		test := file[len("../eval/testdata/") : len(file)-3]
 		exclude := []string{ // TODO remove this list
 			"import3",
-			"ellipsis",
 			"error6",
 			"error7",
 			"import3_error",
@@ -39,7 +38,6 @@ func TestGeneratedPrograms(t *testing.T) {
 			"import8",
 			"method2",
 			"op1",
-			"slice1",
 		}
 		donotrun := false
 		for _, ex := range exclude {
