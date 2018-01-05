@@ -2084,6 +2084,17 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			for i, t := range e.Type.Results.Elems {
 				e.Type.Results.Elems[i], _ = c.resolve(t)
 			}
+			for i, rname := range e.ResultNames {
+				if rname != "" {
+					t := e.Type.Results.Elems[i]
+					c.addObj(&Obj{
+						Name: rname,
+						Kind: ObjVar,
+						Type: t,
+					})
+					delete(c.cur.foundInParent, rname)
+				}
+			}
 		}
 		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
 		for _, pname := range e.ParamNames {

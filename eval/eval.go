@@ -1774,18 +1774,33 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 				Implicit: true,
 			}
 		}
+		if funct.Results != nil {
+			// Define new result values to hold return
+			// types so any necessary interface boxing
+			// is done. For example:
+			//
+			//	func f(x int) interface{} { return x }
+			//
+			// The int x needs to become an interface{}.
+			res = make([]reflect.Value, len(funct.Results.Elems))
+			for i, et := range funct.Results.Elems {
+				t := p.reflector.ToRType(et)
+				res[i] = reflect.New(t).Elem()
+			}
+		}
+		if n := len(e.ResultNames); n > 0 {
+			for i, name := range e.ResultNames {
+				p.Cur = &Scope{
+					Parent:   p.Cur,
+					VarName:  name,
+					Var:      res[i],
+					Implicit: true,
+				}
+			}
+		}
+
 		resValues := p.evalStmt(e.Body.(*stmt.Block))
-		// Define new result values to hold return
-		// types so any necessary interface boxing
-		// is done. For example:
-		//
-		//	func f(x int) interface{} { return x }
-		//
-		// The int x needs to become an interface{}.
-		res = make([]reflect.Value, len(resValues))
 		for i, v := range resValues {
-			t := p.reflector.ToRType(funct.Results.Elems[i])
-			res[i] = reflect.New(t).Elem()
 			res[i].Set(v)
 		}
 		return res

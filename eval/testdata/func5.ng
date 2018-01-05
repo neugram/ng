@@ -7,7 +7,21 @@ func f(x int) {
 f(42)
 
 if !ok {
-	panic("ERROR")
+	panic("ERROR 1")
+}
+
+i := 3
+func g() (i int) {
+	i = 42
+	return i
+}
+
+if v := g(); v != 42 {
+	panic("ERROR 2")
+}
+
+if i != 3 {
+	panic("ERROR 3")
 }
 
 print("OK")
