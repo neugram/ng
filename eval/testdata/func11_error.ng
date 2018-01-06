@@ -1,0 +1,1 @@
+func f() (i, j, k int) { return 1, 2 } // ERROR: not enough arguments to return
