@@ -1,0 +1,44 @@
+func f1() (i, j int) { return }
+
+if v1, v2 := f1(); v1 != 0 || v2 != 0 {
+	panic("ERROR 1")
+}
+
+func f2() (i, j int) {
+	i = 1
+	j = 2
+	return
+}
+
+if v1, v2 := f2(); v1 != 1 || v2 != 2 {
+	panic("ERROR 2")
+}
+
+func f3(i int) (v int) {
+	if i == 0 {
+		return
+	}
+	if i == 1 {
+		v = 1
+		return
+	}
+	if i == 2 {
+		v = 2
+		return v
+	}
+	return
+}
+
+if v := f3(0); v != 0 {
+	panic("ERROR 3.1")
+}
+
+if v := f3(1); v != 1 {
+	panic("ERROR 3.2")
+}
+
+if v := f3(2); v != 2 {
+	panic("ERROR 3.3")
+}
+
+print("OK")

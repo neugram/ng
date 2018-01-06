@@ -453,13 +453,23 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 			c.errorfmt("too many arguments to return")
 			return nil
 		case len(s.Exprs) < len(retType.Elems):
-			c.errorfmt("not enough arguments to return")
-			return nil
+			if !(len(s.Exprs) == 0 && len(retNames) == len(retType.Elems)) {
+				c.errorfmt("not enough arguments to return")
+				return nil
+			}
 		}
 		var partials []partial
-		for i, e := range s.Exprs {
-			partials = append(partials, c.expr(e))
-			c.constrainUntyped(&partials[i], retType.Elems[i])
+		switch len(s.Exprs) {
+		case 0:
+			partials = make([]partial, len(retType.Elems))
+			for i, t := range retType.Elems {
+				c.constrainUntyped(&partials[i], t)
+			}
+		default:
+			for i, e := range s.Exprs {
+				partials = append(partials, c.expr(e))
+				c.constrainUntyped(&partials[i], retType.Elems[i])
+			}
 		}
 		for _, p := range partials {
 			if p.mode == modeInvalid {
@@ -2086,12 +2096,14 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 		}
+		var retNames []string
 		if e.Type.Results != nil {
 			for i, t := range e.Type.Results.Elems {
 				e.Type.Results.Elems[i], _ = c.resolve(t)
 			}
 			for i, rname := range e.ResultNames {
 				if rname != "" {
+					retNames = append(retNames, rname)
 					t := e.Type.Results.Elems[i]
 					c.addObj(&Obj{
 						Name: rname,
@@ -2102,7 +2114,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 		}
-		c.stmt(e.Body.(*stmt.Block), e.Type.Results, e.ResultNames)
+		c.stmt(e.Body.(*stmt.Block), e.Type.Results, retNames)
 		for _, pname := range e.ParamNames {
 			delete(c.cur.foundInParent, pname)
 		}
