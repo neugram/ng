@@ -144,7 +144,7 @@ func IsError(t tipe.Type) bool {
 	return Universe.Objs["error"].Type == t
 }
 
-func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
+func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe.Type {
 	switch s := s.(type) {
 	case *stmt.ConstSet:
 		for _, v := range s.Consts {
@@ -277,7 +277,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		c.pushScope()
 		defer c.popScope()
 		for _, s := range s.Stmts {
-			c.stmt(s, retType)
+			c.stmt(s, retType, retNames)
 		}
 		return nil
 
@@ -289,12 +289,12 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if s.Init != nil {
 			c.pushScope()
 			defer c.popScope()
-			c.stmt(s.Init, retType)
+			c.stmt(s.Init, retType, retNames)
 		}
 		c.expr(s.Cond)
-		c.stmt(s.Body, retType)
+		c.stmt(s.Body, retType, retNames)
 		if s.Else != nil {
-			c.stmt(s.Else, retType)
+			c.stmt(s.Else, retType, retNames)
 		}
 		return nil
 
@@ -302,15 +302,15 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if s.Init != nil {
 			c.pushScope()
 			defer c.popScope()
-			c.stmt(s.Init, retType)
+			c.stmt(s.Init, retType, retNames)
 		}
 		if s.Cond != nil {
 			c.expr(s.Cond)
 		}
 		if s.Post != nil {
-			c.stmt(s.Post, retType)
+			c.stmt(s.Post, retType, retNames)
 		}
-		c.stmt(s.Body, retType)
+		c.stmt(s.Body, retType, retNames)
 		return nil
 
 	case *stmt.Range:
@@ -365,7 +365,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				c.types[s.Val] = vt
 			}
 		}
-		c.stmt(s.Body, retType)
+		c.stmt(s.Body, retType, retNames)
 		return nil
 
 	case *stmt.TypeDecl:
@@ -383,7 +383,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 
 	case *stmt.TypeDeclSet:
 		for _, s := range s.TypeDecls {
-			c.stmt(s, retType)
+			c.stmt(s, retType, retNames)
 		}
 		return nil
 
@@ -543,14 +543,14 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		return nil
 
 	case *stmt.Labeled:
-		c.stmt(s.Stmt, retType)
+		c.stmt(s.Stmt, retType, retNames)
 		return nil
 
 	case *stmt.Switch:
 		if s.Init != nil {
 			c.pushScope()
 			defer c.popScope()
-			c.stmt(s.Init, retType)
+			c.stmt(s.Init, retType, retNames)
 		}
 		var typ tipe.Type = tipe.Bool
 		if s.Cond != nil {
@@ -595,7 +595,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					c.constrainUntyped(&p, typ)
 				}
 			}
-			c.stmt(cse.Body, retType)
+			c.stmt(cse.Body, retType, retNames)
 		}
 		return nil
 
@@ -603,7 +603,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 		if s.Init != nil {
 			c.pushScope()
 			defer c.popScope()
-			c.stmt(s.Init, retType)
+			c.stmt(s.Init, retType, retNames)
 		}
 		c.pushScope()
 		defer c.popScope()
@@ -611,7 +611,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 			c.errorfmt("type switch needs a type switch guard")
 			return nil
 		}
-		c.stmt(s.Assign, retType)
+		c.stmt(s.Assign, retType, retNames)
 		var (
 			e  *expr.TypeAssert
 			id expr.Expr
@@ -667,7 +667,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 					)
 				}
 			}
-			c.stmt(cse.Body, retType)
+			c.stmt(cse.Body, retType, retNames)
 		}
 		return nil
 
@@ -716,9 +716,9 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple) tipe.Type {
 				if cse.Stmt != nil {
 					c.pushScope()
 					defer c.popScope()
-					c.stmt(cse.Stmt, retType)
+					c.stmt(cse.Stmt, retType, retNames)
 				}
-				c.stmt(cse.Body, retType)
+				c.stmt(cse.Body, retType, retNames)
 			}(&cse)
 		}
 		return nil
@@ -1292,7 +1292,7 @@ func (c *Checker) parseFile(filename string, source []byte) error {
 	c.curPkg.Syntax = f
 
 	for _, s := range f.Stmts {
-		c.stmt(s, nil)
+		c.stmt(s, nil, nil)
 		if len(c.errs) > 0 {
 			return c.errs[0]
 		}
@@ -2102,7 +2102,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 		}
-		c.stmt(e.Body.(*stmt.Block), e.Type.Results)
+		c.stmt(e.Body.(*stmt.Block), e.Type.Results, e.ResultNames)
 		for _, pname := range e.ParamNames {
 			delete(c.cur.foundInParent, pname)
 		}
@@ -3468,7 +3468,7 @@ func round(v constant.Value, t tipe.Basic) constant.Value {
 func (c *Checker) Add(s stmt.Stmt) tipe.Type {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.stmt(s, nil)
+	return c.stmt(s, nil, nil)
 }
 
 func (c *Checker) Lookup(name string) *Obj {
