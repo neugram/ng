@@ -1,0 +1,120 @@
+x := 0.0
+
+// untyped-floats
+
+x = 2.0 + 4.2
+if x != 6.2 {
+	panic("ERROR 1.1")
+}
+
+x = 2 + 4.2
+if x != 6.2 {
+	panic("ERROR 1.2")
+}
+
+x = 2.0 - 4.2
+if x != -2.2 {
+	panic("ERROR 1.3")
+}
+
+x = 2 - 4.2
+if x != -2.2 {
+	panic("ERROR 1.4")
+}
+
+x = 2.0 * 4.2
+if x != 8.4 {
+	panic("ERROR 1.5")
+}
+
+x = 2 * 4.2
+if x != 8.4 {
+	panic("ERROR 1.6")
+}
+
+x = 4.2 / 2.0
+if x != 2.1 {
+	panic("ERROR 1.7")
+}
+
+// TODO
+// x = 4.2 / 2
+// if x != 2.1 {
+// 	panic("ERROR 1.8")
+// }
+
+// typed float64
+
+xa := 2.0
+xb := 4.2
+
+x = xa + xb
+if x != 6.2 {
+	panic("ERROR 2.1")
+}
+
+x = xa - xb
+if x != -2.2 {
+	panic("ERROR 2.2")
+}
+
+x = xa * xb
+if x != 8.4 {
+	panic("ERROR 2.3")
+}
+
+x = xb / xa
+if x != 2.1 {
+	panic("ERROR 2.4")
+}
+
+// untyped-complex
+
+z := 0+0i
+
+z = (1+2i) + (2+4i)
+if z != (3+6i) {
+	panic("ERROR 3.1")
+}
+
+z = (1+2i) - (2+4i)
+if z != (-1-2i) {
+	panic("ERROR 3.2")
+}
+
+z = (1+2i) * (2+4i)
+if z != (-6+8i) {
+	panic("ERROR 3.3")
+}
+
+z = (1+2i) / (2+4i)
+if z != (0.5+0i) {
+	panic("ERROR 3.4")
+}
+
+// typed-complex
+
+za := (1+2i)
+zb := (2+4i)
+
+z = za + zb
+if z != (3+6i) {
+	panic("ERROR 4.1")
+}
+
+z = za - zb
+if z != (-1-2i) {
+	panic("ERROR 4.2")
+}
+
+z = za * zb
+if z != (-6+8i) {
+	panic("ERROR 4.3")
+}
+
+z = za / zb
+if z != (0.5+0i) {
+	panic("ERROR 4.4")
+}
+
+print("OK")

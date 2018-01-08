@@ -389,6 +389,56 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 				z := big.NewFloat(0)
 				return z.Mul(x, y), nil
 			}
+		case UntypedInt:
+			switch y := y.(type) {
+			case UntypedInt:
+				z := big.NewInt(0)
+				return UntypedInt{z.Mul(x.Int, y.Int)}, nil
+			case UntypedFloat:
+				z := big.NewFloat(0)
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				return UntypedFloat{z.Mul(xf, y.Float)}, nil
+			case UntypedComplex:
+				re := big.NewFloat(0)
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				im := big.NewFloat(0)
+				return UntypedComplex{re.Mul(xf, y.Real), im.Mul(xf, y.Imag)}, nil
+			}
+		case UntypedFloat:
+			z := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				yf := big.NewFloat(0)
+				yf.SetInt(y.Int)
+				return UntypedFloat{z.Mul(x.Float, yf)}, nil
+			case UntypedFloat:
+				return UntypedFloat{z.Mul(x.Float, y.Float)}, nil
+			case UntypedComplex:
+				re := big.NewFloat(0)
+				im := big.NewFloat(0)
+				return UntypedComplex{re.Mul(x.Float, y.Real), im.Mul(x.Float, y.Imag)}, nil
+			}
+		case UntypedComplex:
+			re := big.NewFloat(0)
+			im := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				yre := big.NewFloat(0)
+				yre.SetInt(y.Int)
+				return UntypedComplex{re.Mul(x.Real, yre), im.Mul(x.Imag, yre)}, nil
+			case UntypedFloat:
+				return UntypedComplex{re.Mul(x.Real, y.Float), im.Mul(x.Imag, y.Float)}, nil
+			case UntypedComplex:
+				xy := big.NewFloat(0)
+				yx := big.NewFloat(0)
+				xy.Mul(x.Real, y.Real)
+				yx.Mul(x.Imag, y.Imag)
+				re.Sub(xy, yx)
+				xy.Mul(x.Real, y.Imag)
+				yx.Mul(x.Imag, y.Real)
+				im.Add(xy, yx)
+				return UntypedComplex{re, im}, nil
+			}
 		}
 	case token.Div:
 		switch x := x.(type) {
@@ -416,6 +466,99 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			switch y := y.(type) {
 			case complex128:
 				return x / y, nil
+			}
+		case UntypedInt:
+			switch y := y.(type) {
+			case UntypedInt:
+				z := big.NewInt(0)
+				return UntypedInt{z.Quo(x.Int, y.Int)}, nil
+			case UntypedFloat:
+				z := big.NewFloat(0)
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				return UntypedFloat{z.Quo(xf, y.Float)}, nil
+			case UntypedComplex:
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				yre2 := big.NewFloat(0)
+				yre2.Mul(y.Real, y.Real)
+				yim2 := big.NewFloat(0)
+				yim2.Mul(y.Imag, y.Imag)
+				den := big.NewFloat(0)
+				den.Add(yre2, yim2)
+
+				xyre := big.NewFloat(0)
+				xyre.Mul(xf, y.Real)
+
+				re := big.NewFloat(0)
+				re.Quo(xyre, den)
+
+				xyim := big.NewFloat(0)
+				xyim.Mul(xf, y.Imag)
+
+				im := big.NewFloat(0)
+				im.Quo(im.Sub(im, xyim), den)
+				return UntypedComplex{re, im}, nil
+			}
+		case UntypedFloat:
+			z := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				yf := big.NewFloat(0)
+				yf.SetInt(y.Int)
+				return UntypedFloat{z.Quo(x.Float, yf)}, nil
+			case UntypedFloat:
+				return UntypedFloat{z.Quo(x.Float, y.Float)}, nil
+			case UntypedComplex:
+				yre2 := big.NewFloat(0)
+				yre2.Mul(y.Real, y.Real)
+				yim2 := big.NewFloat(0)
+				yim2.Mul(y.Imag, y.Imag)
+				den := big.NewFloat(0)
+				den.Add(yre2, yim2)
+
+				xyre := big.NewFloat(0)
+				xyre.Mul(x.Float, y.Real)
+
+				re := big.NewFloat(0)
+				re.Quo(xyre, den)
+
+				xyim := big.NewFloat(0)
+				xyim.Mul(x.Float, y.Imag)
+
+				im := big.NewFloat(0)
+				im.Quo(im.Sub(im, xyim), den)
+				return UntypedComplex{re, im}, nil
+			}
+		case UntypedComplex:
+			re := big.NewFloat(0)
+			im := big.NewFloat(0)
+			switch y := y.(type) {
+			case UntypedInt:
+				yre := big.NewFloat(0)
+				yre.SetInt(y.Int)
+				return UntypedComplex{re.Quo(x.Real, yre), im.Quo(x.Imag, yre)}, nil
+			case UntypedFloat:
+				return UntypedComplex{re.Quo(x.Real, y.Float), im.Quo(x.Imag, y.Float)}, nil
+			case UntypedComplex:
+				yre2 := big.NewFloat(0)
+				yre2.Mul(y.Real, y.Real)
+				yim2 := big.NewFloat(0)
+				yim2.Mul(y.Imag, y.Imag)
+				den := big.NewFloat(0)
+				den.Add(yre2, yim2)
+
+				xy := big.NewFloat(0)
+				yx := big.NewFloat(0)
+				xy.Mul(x.Real, y.Real)
+				yx.Mul(x.Imag, y.Imag)
+
+				re := big.NewFloat(0)
+				re.Quo(re.Add(xy, yx), den)
+
+				xy.Mul(x.Imag, y.Real)
+				yx.Mul(x.Real, y.Imag)
+				im := big.NewFloat(0)
+				im.Quo(im.Sub(xy, yx), den)
+				return UntypedComplex{re, im}, nil
 			}
 		}
 	case token.Rem:
