@@ -1237,7 +1237,11 @@ type UntypedRune struct{ Rune rune }
 type UntypedBool struct{ Bool bool }
 
 func (uc UntypedComplex) String() string {
-	return uc.Real.String() + "+" + uc.Imag.String() + "i"
+	op := "+"
+	if uc.Imag.Sign() < 0 {
+		op = "" // minus sign will be handled by c.Imag.String()
+	}
+	return "(" + uc.Real.String() + op + uc.Imag.String() + "i)"
 }
 
 func promoteUntyped(x interface{}) interface{} {
