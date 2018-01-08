@@ -31,5 +31,9 @@ func (c *Complex) SetComplex128(x complex128) *Complex {
 }
 
 func (c *Complex) String() string {
-	return c.Real.String() + " + " + c.Imag.String() + "i"
+	op := "+"
+	if c.Imag.Sign() < 0 {
+		op = "" // minus sign will be handled by c.Imag.String()
+	}
+	return "(" + c.Real.String() + op + c.Imag.String() + "i)"
 }
