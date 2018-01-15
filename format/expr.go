@@ -104,10 +104,6 @@ func (p *printer) expr(e expr.Expr) {
 			p.buf.WriteString(" ")
 			p.stmt(e.Body.(*stmt.Block))
 		}
-		/* TODO
-		case *expr.TableLiteral:
-			panic("not implemented")
-		*/
 	case *expr.CompLiteral:
 		p.tipe(e.Type)
 		p.print("{")
@@ -187,6 +183,37 @@ func (p *printer) expr(e expr.Expr) {
 				p.print(": ")
 				p.expr(elem)
 			}
+		}
+		p.print("}")
+	case *expr.TableLiteral:
+		p.tipe(e.Type)
+		p.print("{")
+		if len(e.ColNames) > 0 {
+			p.print("{|")
+			for i, col := range e.ColNames {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.expr(col)
+			}
+			p.print("|}")
+		}
+		if len(e.Rows) > 0 {
+			p.print(", ")
+			for i, row := range e.Rows {
+				if i > 0 {
+					p.print(", ")
+				}
+				p.print("{")
+				for j, r := range row {
+					if j > 0 {
+						p.print(", ")
+					}
+					p.expr(r)
+				}
+				p.print("}")
+			}
+			p.print("}")
 		}
 		p.print("}")
 	case *expr.Type:

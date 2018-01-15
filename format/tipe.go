@@ -69,6 +69,9 @@ func (p *printer) tipe(t tipe.Type) {
 	case *tipe.Slice:
 		p.buf.WriteString("[]")
 		p.tipe(t.Elem)
+	case *tipe.Table:
+		p.buf.WriteString("[|]")
+		p.tipe(t.Type)
 	case *tipe.Interface:
 		if len(t.Methods) == 0 {
 			p.buf.WriteString("interface{}")
