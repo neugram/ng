@@ -261,7 +261,7 @@ func IsNumeric(t Type) bool {
 	switch b {
 	case Num, Integer, Float, Complex,
 		Int, Int8, Int16, Int32, Int64,
-		Uint8, Uint16, Uint32, Uint64,
+		Uint, Uint8, Uint16, Uint32, Uint64,
 		Float32, Float64, Complex64, Complex128,
 		UntypedInteger, UntypedFloat, UntypedComplex:
 		return true
