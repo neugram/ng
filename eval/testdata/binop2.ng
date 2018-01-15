@@ -13,4 +13,8 @@ if a^b != 0x1100 {
 	panic("ERROR 3")
 }
 
+if a%b != 0x0101 {
+	panic("ERROR 4")
+}
+
 print("OK")

@@ -561,7 +561,6 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 				return UntypedComplex{re, im}, nil
 			}
 		}
-	case token.Rem:
 	case token.LogicalAnd, token.LogicalOr:
 		panic("logical ops processed before binOp")
 	case token.Equal:
@@ -904,6 +903,70 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			xv := reflect.ValueOf(x)
 			yv := reflect.ValueOf(y)
 			res := xv.MethodByName("And").Call([]reflect.Value{yv})
+			return res[0].Interface(), nil
+		}
+	case token.Rem:
+		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x % y, nil
+			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x % y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x % y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x % y, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x % y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x % y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x % y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x % y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x % y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
+				return x % y, nil
+			}
+		case UntypedInt:
+			switch y := y.(type) {
+			case UntypedInt:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rem(x.Int, y.Int)}, nil
+			}
+		default:
+			xv := reflect.ValueOf(x)
+			yv := reflect.ValueOf(y)
+			res := xv.MethodByName("Rem").Call([]reflect.Value{yv})
 			return res[0].Interface(), nil
 		}
 	}
