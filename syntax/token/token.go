@@ -236,7 +236,7 @@ func (t Token) Precedence() int {
 		return 3
 	case Add, Sub, Pipe, Pow:
 		return 4
-	case Mul, Div, Rem:
+	case Mul, Div, Ref, Rem:
 		return 5
 	}
 	return 0
