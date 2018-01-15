@@ -651,6 +651,9 @@ func (s *Scanner) Next() {
 		case '=':
 			s.next()
 			s.Token = token.LessEqual
+		case '<':
+			s.next()
+			s.Token = token.TwoLess
 		default:
 			s.Token = token.Less
 		}

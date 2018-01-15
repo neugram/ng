@@ -25,6 +25,7 @@ var scannerBothTests = []scannerTest{
 	{"9", token.Int, big.NewInt(9), true},
 	{"+=", token.AddAssign, nil, false},
 	{"++", token.Inc, nil, true},
+	{"<<", token.TwoLess, nil, false},
 	{"break", token.Break, nil, true},
 	{"/* a block comment */", token.Comment, "/* a block comment */", false},
 	{"(", token.LeftParen, nil, false},

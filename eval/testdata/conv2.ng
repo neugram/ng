@@ -1,0 +1,42 @@
+if int8(1<<7 - 1) != 127 {
+	panic("ERROR 1.1")
+}
+
+if int16(1<<15 - 1) != 32767 {
+	panic("ERROR 1.2")
+}
+
+if int32(1<<31 - 1) != 2147483647 {
+	panic("ERROR 1.3")
+}
+
+if int64(1<<63 - 1) != 9223372036854775807 {
+	panic("ERROR 1.4")
+}
+
+if int(1<<31 - 1) != 2147483647 { // FIXME: 64b or 32b ?
+	panic("ERROR 1.5")
+}
+
+if uint8(1<<8 - 1) != 0xff {
+	panic("ERROR 2.1")
+}
+
+if uint16(1<<16 - 1) != 0xffff {
+	panic("ERROR 2.2")
+}
+
+if uint32(1<<32 - 1) != 0xffffffff {
+	panic("ERROR 2.3")
+}
+
+if uint64(1<<64 - 1) != 0xffffffffffffffff {
+	panic("ERROR 2.4")
+}
+
+if uint(1<<32 - 1) != 0xffffffff { // FIXME: 64b or 32b ?
+	panic("ERROR 2.5")
+}
+
+print("OK")
+
