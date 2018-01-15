@@ -1963,7 +1963,7 @@ type Errors []Error
 
 func (e Errors) Error() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("neugram: parser erorrs:\n")
+	buf.WriteString("neugram: parser errors:\n")
 	for _, err := range e {
 		fmt.Fprintf(buf, "off %5d: %v\n", err.Offset, err.Msg)
 	}
