@@ -64,17 +64,19 @@ const (
 	PowAssign // ^=
 	Define    // :=
 
-	LeftParen    // (
-	LeftBracket  // [
-	LeftBrace    // {
-	RightParen   // )
-	RightBracket // ]
-	RightBrace   // }
-	Comma        // ,
-	Period       // .
-	Semicolon    // ;
-	Colon        // :
-	Pipe         // |
+	LeftParen       // (
+	LeftBracket     // [
+	LeftBrace       // {
+	LeftBraceTable  // {|
+	RightParen      // )
+	RightBracket    // ]
+	RightBrace      // }
+	RightBraceTable // |}
+	Comma           // ,
+	Period          // .
+	Semicolon       // ;
+	Colon           // :
+	Pipe            // |
 
 	// Keywords
 
@@ -160,9 +162,10 @@ var tokens = map[string]Token{
 	"(":            LeftParen,
 	"[":            LeftBracket,
 	"{":            LeftBrace,
+	"{|":           LeftBraceTable,
 	")":            RightParen,
 	"]":            RightBracket,
-	"}":            RightBrace,
+	"|}":           RightBraceTable,
 	",":            Comma,
 	".":            Period,
 	";":            Semicolon,

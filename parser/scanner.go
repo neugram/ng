@@ -521,7 +521,13 @@ func (s *Scanner) Next() {
 		s.semi = true
 		s.Token = token.RightBracket
 	case '{':
-		s.Token = token.LeftBrace
+		switch s.r {
+		case '|':
+			s.next()
+			s.Token = token.LeftBraceTable
+		default:
+			s.Token = token.LeftBrace
+		}
 	case '}':
 		s.semi = true
 		s.Token = token.RightBrace
@@ -670,6 +676,10 @@ func (s *Scanner) Next() {
 		case '|':
 			s.next()
 			s.Token = token.LogicalOr
+		case '}':
+			s.next()
+			s.semi = true
+			s.Token = token.RightBraceTable
 		default:
 			s.Token = token.Pipe
 		}
