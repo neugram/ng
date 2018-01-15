@@ -383,7 +383,7 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 				Args:     args,
 				Ellipsis: ellipsis,
 			}
-		case token.LeftBrace:
+		case token.LeftBraceTable, token.LeftBrace:
 			if tExpr, isType := x.(*expr.Type); isType {
 				switch t := tExpr.Type.(type) {
 				case *tipe.Array:
@@ -1876,14 +1876,13 @@ func (p *Parser) parseTableLiteral(t tipe.Type) *expr.TableLiteral {
 	x := &expr.TableLiteral{Position: p.pos(), Type: t.(*tipe.Table)}
 	p.next()
 	for p.s.Token > 0 && p.s.Token != token.RightBrace {
-		p.expect(token.LeftBrace)
-		p.next()
-		if p.s.Token == token.Pipe {
+		switch p.s.Token {
+		case token.LeftBraceTable:
+			p.next()
 			// column names: {|"x","y"|},
 			if len(x.ColNames) != 0 || len(x.Rows) != 0 {
 				p.errorf("column names can only appear at beginning of table literal")
 			}
-			p.next()
 			for p.s.Token > 0 && p.s.Token != token.Pipe {
 				x.ColNames = append(x.ColNames, p.parseExpr())
 				if p.s.Token != token.Comma {
@@ -1891,9 +1890,10 @@ func (p *Parser) parseTableLiteral(t tipe.Type) *expr.TableLiteral {
 				}
 				p.next()
 			}
-			p.expect(token.Pipe)
+			p.expect(token.RightBraceTable)
 			p.next()
-		} else {
+		case token.LeftBrace:
+			p.next()
 			var row []expr.Expr
 			for p.s.Token > 0 && p.s.Token != token.RightBrace {
 				row = append(row, p.parseExpr())
@@ -1903,9 +1903,9 @@ func (p *Parser) parseTableLiteral(t tipe.Type) *expr.TableLiteral {
 				p.next()
 			}
 			x.Rows = append(x.Rows, row)
+			p.expect(token.RightBrace)
+			p.next()
 		}
-		p.expect(token.RightBrace)
-		p.next()
 		if p.s.Token != token.Comma {
 			break
 		}
