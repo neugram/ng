@@ -25,7 +25,7 @@ func TestWalk(t *testing.T) {
 
 	for _, file := range files {
 		file := file
-		test := file[len("testdata/") : len(file)-3]
+		test := file[len("testdata") : len(file)-3]
 		t.Run(test, func(t *testing.T) {
 			source, err := ioutil.ReadFile(file)
 			if err != nil {
