@@ -17,4 +17,23 @@ if a%b != 0x0101 {
 	panic("ERROR 4")
 }
 
+import "fmt"
+
+var x int8 = 3
+if s := fmt.Sprintf("%08b", x << 0); s != "00000011" {
+	panic(errorf("ERROR 5.1: %q", s))
+}
+
+if s := fmt.Sprintf("%08b", x << 1); s != "00000110" {
+	panic(errorf("ERROR 5.2: %q", s))
+}
+
+if s := fmt.Sprintf("%08b", x << 2); s != "00001100" {
+	panic(errorf("ERROR 5.3: %q", s))
+}
+
+if s := fmt.Sprintf("%08b", x << 3); s != "00011000" {
+	panic(errorf("ERROR 5.4: %q", s))
+}
+
 print("OK")

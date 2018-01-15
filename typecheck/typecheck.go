@@ -2323,6 +2323,9 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			p.mode = sub.mode
 			p.typ = sub.typ
 			p.val = sub.val
+			if e.Op == token.Sub && sub.val != nil {
+				p.val = constant.UnaryOp(gotoken.SUB, sub.val, 0)
+			}
 			return p
 		case token.Ref:
 			sub := c.expr(e.Expr)
@@ -2371,8 +2374,13 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			return right
 		}
 		ltOrig, rtOrig := left.typ, right.typ
-		c.constrainUntyped(&left, right.typ)
-		c.constrainUntyped(&right, left.typ)
+		switch e.Op {
+		case token.TwoGreater, token.TwoLess:
+			// constraints are handled later
+		default:
+			c.constrainUntyped(&left, right.typ)
+			c.constrainUntyped(&right, left.typ)
+		}
 		left.expr = e
 
 		switch e.Op {
@@ -2412,16 +2420,87 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 
 		// TODO check for division by zero
 		if left.mode == modeConst && right.mode == modeConst {
-			left.val = constant.BinaryOp(left.val, convGoOp(e.Op), right.val)
+			switch e.Op {
+			case token.TwoLess:
+				rhs, ok := big.NewInt(0).SetString(right.val.ExactString(), 0)
+				if !ok {
+					c.errorfmt("constant %s is not an integer", right.val.ExactString())
+					left.mode = modeInvalid
+					return left
+				}
+				left.val = constant.Shift(left.val, convGoOp(e.Op), uint(rhs.Uint64()))
+			default:
+				left.val = constant.BinaryOp(left.val, convGoOp(e.Op), right.val)
+			}
 			// TODO check rounding
 			// TODO check for comparison, result is untyped bool
 			return left
 		}
 
-		if !tipe.Equal(left.typ, right.typ) {
-			c.errorfmt("inoperable types %s and %s", left.typ, right.typ)
-			left.mode = modeInvalid
-			return left
+		switch e.Op {
+		case token.TwoLess, token.TwoGreater:
+			c.constrainUntyped(&left, right.typ)
+			// right operand must be an unsigned integer
+			switch typ := rtOrig.(type) {
+			case tipe.Basic:
+				switch typ {
+				case tipe.Uint, tipe.Uint8, tipe.Uint16, tipe.Uint32, tipe.Uint64:
+					// ok
+				case tipe.UntypedInteger:
+					rhs, ok := big.NewInt(0).SetString(right.val.ExactString(), 0)
+					if !ok {
+						c.errorfmt("%s is not an integer", right.val.ExactString())
+						right.mode = modeInvalid
+						return right
+					}
+					if rhs.Sign() < 0 {
+						c.errorfmt("invalid operation: %s is a negative integer", format.Expr(e.Right))
+						right.mode = modeInvalid
+						return right
+					}
+
+				default:
+					c.errorfmt("invalid operation: %s (shift count type %v, must be unsigned integer)",
+						format.Expr(e), format.Type(typ),
+					)
+					right.mode = modeInvalid
+					return right
+				}
+			default:
+				c.errorfmt("invalid operation: %s (shift count type %v, must be unsigned integer)",
+					format.Expr(e), format.Type(typ),
+				)
+				right.mode = modeInvalid
+				return right
+			}
+			// left operand must be an integer
+			switch typ := ltOrig.(type) {
+			case tipe.Basic:
+				switch typ {
+				case tipe.UntypedInteger,
+					tipe.Int, tipe.Int8, tipe.Int16, tipe.Int32, tipe.Int64,
+					tipe.Uint, tipe.Uint8, tipe.Uint16, tipe.Uint32, tipe.Uint64:
+					// ok
+				default:
+					c.errorfmt("invalid operation: %s (shift of type %v)",
+						format.Expr(e), format.Type(typ),
+					)
+					left.mode = modeInvalid
+					return left
+				}
+			default:
+				c.errorfmt("invalid operation: %s (shift of type %v)",
+					format.Expr(e), format.Type(typ),
+				)
+				left.mode = modeInvalid
+				return left
+			}
+		default:
+			if !tipe.Equal(left.typ, right.typ) {
+				c.errorfmt("inoperable types %s and %s", left.typ, right.typ)
+				left.mode = modeInvalid
+				return left
+			}
 		}
 		return left
 	case *expr.Call:
@@ -3315,6 +3394,8 @@ func convGoOp(op token.Token) gotoken.Token {
 		return gotoken.LAND
 	case token.LogicalOr:
 		return gotoken.LOR
+	case token.TwoLess:
+		return gotoken.SHL
 	default:
 		panic(fmt.Sprintf("typecheck: bad op: %s", op))
 	}

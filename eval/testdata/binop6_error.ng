@@ -1,0 +1,2 @@
+a := uint8(1)
+a << float64(2) // ERROR: typecheck: invalid operation: a<<float64(2) (shift count type float64, must be unsigned integer)

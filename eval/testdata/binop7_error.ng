@@ -1,0 +1,2 @@
+a := 4.2
+a << 2 // ERROR: typecheck: invalid operation: a<<2 (shift of type float64)

@@ -49,6 +49,7 @@ const (
 	GreaterAnd   // >&
 	AndGreater   // &>
 	TwoGreater   // >>
+	TwoLess      // <<
 	ChanOp       // <-
 	Ellipsis     // ...
 
@@ -148,6 +149,7 @@ var tokens = map[string]Token{
 	">&":           GreaterAnd,
 	"&>":           AndGreater,
 	">>":           TwoGreater,
+	"<<":           TwoLess,
 	"<-":           ChanOp,
 	"...":          Ellipsis,
 	"++":           Inc,
@@ -236,7 +238,7 @@ func (t Token) Precedence() int {
 		return 3
 	case Add, Sub, Pipe, Pow:
 		return 4
-	case Mul, Div, Ref, Rem:
+	case Mul, Div, Ref, Rem, TwoLess:
 		return 5
 	}
 	return 0
