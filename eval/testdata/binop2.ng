@@ -1,0 +1,17 @@
+a := 0x0101
+b := 0x1001
+
+if a|b != 0x1101 {
+	panic("ERROR 1")
+}
+
+// TODO
+// if a&b != 0x0001 {
+// 	panic("ERROR 2")
+// }
+//
+// if a^b != 0x1100 {
+// 	panic("ERROR 3")
+// }
+
+print("OK")

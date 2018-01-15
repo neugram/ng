@@ -225,6 +225,8 @@ func (t Token) String() string {
 }
 
 func (t Token) Precedence() int {
+	// see:
+	// https://golang.org/ref/spec#Operator_precedence
 	switch t {
 	case LogicalOr:
 		return 1
