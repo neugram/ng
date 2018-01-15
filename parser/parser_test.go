@@ -66,6 +66,14 @@ var parserTests = []parserTest{
 		},
 	},
 	{
+		"x ^ y",
+		&expr.Binary{
+			Op:    token.Pow,
+			Left:  &expr.Ident{Name: "x"},
+			Right: &expr.Ident{Name: "y"},
+		},
+	},
+	{
 		"quit()",
 		&expr.Call{Func: &expr.Ident{Name: "quit"}},
 	},

@@ -234,9 +234,9 @@ func (t Token) Precedence() int {
 		return 2
 	case Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual:
 		return 3
-	case Add, Sub, Pipe:
+	case Add, Sub, Pipe, Pow:
 		return 4
-	case Mul, Div, Rem, Pow:
+	case Mul, Div, Rem:
 		return 5
 	}
 	return 0
