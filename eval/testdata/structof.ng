@@ -1,0 +1,27 @@
+import "reflect"
+
+want := reflect.StructTag(`json:"name"`)
+type T1 struct { N string `json:"name"` }
+
+tag1 := reflect.TypeOf(T1{}).Field(0).Tag
+if tag1 != want {
+	panic("ERROR 1")
+}
+
+type T2 struct {
+	N string `json:"name"`
+}
+
+tag2 := reflect.TypeOf(T2{}).Field(0).Tag
+if tag2 != want {
+	panic("ERROR 2")
+}
+
+var v1 T1
+rt := reflect.TypeOf(v1)
+
+if rt.Field(0).Tag != want {
+	panic("ERROR 3")
+}
+
+print("OK")
