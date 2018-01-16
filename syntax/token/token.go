@@ -32,6 +32,7 @@ const (
 	Rem          // %
 	Pow          // ^
 	Ref          // &
+	RefPow       // &^
 	LogicalAnd   // &&
 	LogicalOr    // ||
 	Equal        // ==
@@ -132,6 +133,7 @@ var tokens = map[string]Token{
 	"%":            Rem,
 	"^":            Pow,
 	"&":            Ref,
+	"&^":           RefPow,
 	"&&":           LogicalAnd,
 	"||":           LogicalOr,
 	"==":           Equal,
@@ -238,7 +240,7 @@ func (t Token) Precedence() int {
 		return 3
 	case Add, Sub, Pipe, Pow:
 		return 4
-	case Mul, Div, Ref, Rem, TwoLess:
+	case Mul, Div, Ref, Rem, TwoLess, RefPow:
 		return 5
 	}
 	return 0

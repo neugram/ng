@@ -90,6 +90,14 @@ var parserTests = []parserTest{
 		},
 	},
 	{
+		"x &^ y",
+		&expr.Binary{
+			Op:    token.RefPow,
+			Left:  &expr.Ident{Name: "x"},
+			Right: &expr.Ident{Name: "y"},
+		},
+	},
+	{
 		"x << y",
 		&expr.Binary{
 			Op:    token.TwoLess,
