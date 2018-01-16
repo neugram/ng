@@ -662,6 +662,9 @@ func (s *Scanner) Next() {
 		case '&':
 			s.next()
 			s.Token = token.LogicalAnd
+		case '^':
+			s.next()
+			s.Token = token.RefPow
 		default:
 			s.Token = token.Ref
 		}

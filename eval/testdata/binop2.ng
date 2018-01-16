@@ -17,6 +17,10 @@ if a%b != 0x0101 {
 	panic("ERROR 4")
 }
 
+if a&^b != 0x0100 {
+	panic("ERROR 5")
+}
+
 import "fmt"
 
 var x int8 = 3
