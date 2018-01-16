@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package ngcore
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -219,17 +220,24 @@ func testCompleteSh(t *testing.T, testName string, files []file, tests []complet
 		}
 	}
 
-	oldShellState := shellState
-	defer func() { shellState = oldShellState }()
+	ng := New()
+	defer ng.Close()
+
+	session, err := ng.NewSession(context.Background(), "test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
 	for _, test := range tests {
-		shellState = &shell.State{
+		session.ShellState = &shell.State{
 			Env:   environ.New(),
 			Alias: environ.New(),
 		}
 		for k, v := range test.env {
-			shellState.Env.Set(k, v)
+			session.ShellState.Env.Set(k, v)
 		}
-		gotPrefix, got, _ := completerSh(test.line, len(test.line))
+		gotPrefix, got, _ := session.completerSh(test.line, len(test.line))
 		if gotPrefix != test.wantPrefix {
 			t.Errorf("%s: %q: gotPrefix=%v, wantPrefix=%v", testName, test.line, gotPrefix, test.wantPrefix)
 		}

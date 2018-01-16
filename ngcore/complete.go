@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package ngcore
 
 import (
 	"fmt"
@@ -16,18 +16,18 @@ import (
 	"neugram.io/ng/syntax/token"
 )
 
-func completer(mode, line string, pos int) (prefix string, completions []string, suffix string) {
+func (s *Session) Completer(mode, line string, pos int) (prefix string, completions []string, suffix string) {
 	switch mode {
 	case "ng":
-		return completerNg(line, pos)
+		return s.completerNg(line, pos)
 	case "sh":
-		return completerSh(line, pos)
+		return s.completerSh(line, pos)
 	default:
-		panic("ng: unknown completer: " + mode)
+		panic("ngcore: unknown completer: " + mode)
 	}
 }
 
-func completerNg(line string, pos int) (prefix string, completions []string, suffix string) {
+func (s *Session) completerNg(line string, pos int) (prefix string, completions []string, suffix string) {
 	if pos != len(line) { // TODO mid-line matching
 		return line, nil, ""
 	}
@@ -41,17 +41,17 @@ func completerNg(line string, pos int) (prefix string, completions []string, suf
 			res = append(res, keyword)
 		}
 	}
-	for scope := prg.Cur; scope != nil; scope = scope.Parent {
+	for scope := s.Program.Cur; scope != nil; scope = scope.Parent {
 		if strings.HasPrefix(scope.VarName, line) {
 			res = append(res, scope.VarName)
 		}
 	}
-	res = append(res, prg.Types.TypesWithPrefix(line)...)
+	res = append(res, s.Program.Types.TypesWithPrefix(line)...)
 
 	return "", res, ""
 }
 
-func completerSh(line string, pos int) (prefix string, completions []string, suffix string) {
+func (s *Session) completerSh(line string, pos int) (prefix string, completions []string, suffix string) {
 	if pos != len(line) { // TODO mid-line matching
 		return line, nil, ""
 	}
@@ -71,17 +71,17 @@ func completerSh(line string, pos int) (prefix string, completions []string, suf
 	prefix, word := line[:i+1], line[i+1:]
 	if word != "" && word[0] == '-' {
 		// TODO: word="--flag=$V" should complete var
-		return prefix, completeFlag(word, line), ""
+		return prefix, s.completeFlag(word, line), ""
 	}
-	resPrefix, completions := completePath(word, mustBeExec)
+	resPrefix, completions := s.completePath(word, mustBeExec)
 	return prefix + resPrefix, completions, ""
 }
 
-func completeFlag(prefix, line string) (res []string) {
+func (s *Session) completeFlag(prefix, line string) (res []string) {
 	return res // TODO
 }
 
-func completePath(prefix string, mustBeExec bool) (resPrefix string, res []string) {
+func (s *Session) completePath(prefix string, mustBeExec bool) (resPrefix string, res []string) {
 	dirPath, filePath := filepath.Split(prefix)
 	dirPrefix := dirPath
 	if dirPath == "" {
@@ -92,13 +92,13 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 		if err != nil {
 			return prefix, []string{}
 		}
-		dirPath, err = shell.ExpandParams(dirPath, shellState.Env)
+		dirPath, err = shell.ExpandParams(dirPath, s.ShellState.Env)
 		if err != nil {
 			return prefix, []string{}
 		}
 	}
 	if len(filePath) > 0 && filePath[0] == '$' {
-		res = shellState.Env.Keys(filePath[1:])
+		res = s.ShellState.Env.Keys(filePath[1:])
 		for i, s := range res {
 			res[i] = "$" + s + " "
 		}
@@ -116,7 +116,7 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 			if err == io.EOF {
 				break
 			}
-			fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+			fmt.Fprintf(s.Stderr, "ng: %v\n", err)
 			return prefix, []string{}
 		}
 		// TODO: can we use directory order to skip some calls?
@@ -130,11 +130,11 @@ func completePath(prefix string, mustBeExec bool) (resPrefix string, res []strin
 			// Follow symlink.
 			info, err := os.Stat(filepath.Join(dirPath, info.Name()))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+				fmt.Fprintf(s.Stderr, "ng: %v\n", err)
 				continue
 			}
 			if info.Name() == "a_file" {
-				fmt.Printf("a_file: mustBeExec=%v, mode=0x%x\n", mustBeExec, info.Mode())
+				fmt.Fprintf(s.Stdout, "a_file: mustBeExec=%v, mode=0x%x\n", mustBeExec, info.Mode())
 			}
 			if mustBeExec && !info.IsDir() && info.Mode()&0111 == 0 {
 				continue

@@ -5,7 +5,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"flag"
@@ -15,40 +14,27 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"time"
 
 	"neugram.io/ng/eval"
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
-	"neugram.io/ng/format"
 	"neugram.io/ng/gengo"
 	"neugram.io/ng/jupyter"
+	"neugram.io/ng/ngcore"
 	"neugram.io/ng/parser"
 
 	"github.com/peterh/liner"
 )
 
 var (
-	origMode liner.ModeApplier
-
-	lineNg        *liner.State // ng-mode line reader
-	historyNgFile = ""
-	historyNg     = make(chan string, 1)
-	historyShFile = ""
-	historySh     = make(chan string, 1)
-	sigint        = make(chan os.Signal)
-
-	p          *parser.Parser
-	prg        *eval.Program
-	shellState *shell.State
+	sigint = make(chan os.Signal)
+	ng     = ngcore.New()
 )
 
 func exit(code int) {
-	if lineNg != nil {
-		lineNg.Close()
-	}
+	ng.Close()
 	fmt.Fprintf(os.Stderr, "\n")
 	os.Exit(code)
 }
@@ -56,14 +42,6 @@ func exit(code int) {
 func exitf(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "ng: "+format+"\n", args...)
 	exit(1)
-}
-
-func mode() liner.ModeApplier {
-	m, err := liner.TerminalMode()
-	if err != nil {
-		exitf("terminal mode: %v", err)
-	}
-	return m
 }
 
 const usageLine = "ng [programfile | -e cmd | -jupyter file] [arguments]"
@@ -106,9 +84,21 @@ func main() {
 		os.Exit(0)
 	}
 	if *flagE != "" {
-		initProgram(filepath.Join(cwd, "ng-arg"))
-		res := p.ParseLine([]byte(*flagE))
-		handleResult(res)
+		ng, err := ng.NewSession(context.Background(), filepath.Join(cwd, "ng-arg"), os.Environ())
+		if err != nil {
+			exitf("%v", err)
+		}
+		defer ng.Close()
+		ng.Stdin = os.Stdin
+		ng.Stdout = os.Stdout
+		ng.Stderr = os.Stderr
+
+		initProgram(ng.Program)
+		vals, err := ng.Exec([]byte(*flagE))
+		if err != nil {
+			exitf("%v", err)
+		}
+		ng.Display(ng.Stdout, vals)
 		return
 	}
 	if args := flag.Args(); len(args) > 0 {
@@ -123,12 +113,22 @@ func main() {
 			exitf("TODO gengo")
 			return
 		}
-		initProgram(path)
+		ng, err := ng.NewSession(context.Background(), path, os.Environ())
+		if err != nil {
+			exitf("%v", err)
+		}
+		defer ng.Close()
+		ng.Stdin = os.Stdin
+		ng.Stdout = os.Stdout
+		ng.Stderr = os.Stderr
+
+		initProgram(ng.Program)
 		f, err := os.Open(path)
 		if err != nil {
 			exitf("%v", err)
 		}
-		state, err := runFile(f)
+		defer f.Close()
+		state, err := ng.RunScript(f)
 		if err != nil {
 			exitf("%v", err)
 		}
@@ -141,10 +141,7 @@ func main() {
 		exitf("-o specified but no program file provided")
 	}
 
-	lineNg = liner.NewLiner()
-	defer lineNg.Close()
-
-	loop(*flagShell)
+	loop(context.Background(), os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" || *flagShell)
 }
 
 func setWindowSize(env map[interface{}]interface{}) {
@@ -227,14 +224,7 @@ func init() {
 	}
 }
 
-func initProgram(path string) {
-	p = parser.New(path)
-	shellState = &shell.State{
-		Env:   environ.NewFrom(os.Environ()),
-		Alias: environ.New(),
-	}
-	prg = eval.New(path, shellState)
-
+func initProgram(prg *eval.Program) {
 	// TODO this env setup could be done in neugram code
 	env := prg.Environ()
 	wd, err := os.Getwd()
@@ -274,68 +264,61 @@ func initProgram(path string) {
 	}()
 }
 
-func runFile(f *os.File) (parser.ParserState, error) {
-	state := parser.StateStmt
-	scanner := bufio.NewScanner(f)
-	for i := 0; scanner.Scan(); i++ {
-		b := scanner.Bytes()
-		if i == 0 && len(b) > 2 && b[0] == '#' && b[1] == '!' { // shebang
-			continue
-		}
-		res := p.ParseLine(b)
-		handleResult(res)
-		state = res.State
-	}
-	if err := scanner.Err(); err != nil {
-		return state, fmt.Errorf("%s: %v", f.Name(), err)
-	}
-	switch state {
-	case parser.StateStmtPartial, parser.StateCmdPartial:
-		return state, fmt.Errorf("%s: ends in a partial statement", f.Name())
-	default:
-		return state, nil
-	}
-}
-
-func loop(startInShell bool) {
+func loop(ctx context.Context, startInShell bool) {
 	path := filepath.Join(cwd, "ng-interactive")
-	initProgram(path)
+	ng, err := ng.NewSession(ctx, path, os.Environ())
+	if err != nil {
+		exitf("%v", err)
+	}
+	defer ng.Close()
+	ng.Stdin = os.Stdin
+	ng.Stdout = os.Stdout
+	ng.Stderr = os.Stderr
+	initProgram(ng.Program)
 
 	state := parser.StateStmt
-	if os.Args[0] == "ngsh" || os.Args[0] == "-ngsh" || startInShell {
+	if startInShell {
 		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
 		if f, err := os.Open(initFile); err == nil {
 			var err error
-			state, err = runFile(f)
+			state, err = ng.RunScript(f)
 			f.Close()
 			if err != nil {
 				exitf("%v", err)
 			}
 		}
 		if state == parser.StateStmt {
-			res := p.ParseLine([]byte("$$"))
-			handleResult(res)
-			state = res.State
+			res, err := ng.Exec([]byte("$$"))
+			if err != nil {
+				exitf("%v", err)
+			}
+			ng.Display(ng.Stdout, res)
+			state = ng.ParserState
 		}
 	}
 
-	lineNg.SetTabCompletionStyle(liner.TabPrints)
-	lineNg.SetWordCompleter(completer)
-	lineNg.SetCtrlCAborts(true)
+	ng.Liner.SetTabCompletionStyle(liner.TabPrints)
+	ng.Liner.SetWordCompleter(ng.Completer)
+	ng.Liner.SetCtrlCAborts(true)
 
-	if f, err := os.Open(historyShFile); err == nil {
-		lineNg.SetMode("sh")
-		lineNg.ReadHistory(f)
+	if home := os.Getenv("HOME"); home != "" {
+		ng.History.Ng.Name = filepath.Join(home, ".ng_history")
+		ng.History.Sh.Name = filepath.Join(home, ".ngsh_history")
+	}
+
+	if f, err := os.Open(ng.History.Sh.Name); err == nil {
+		ng.Liner.SetMode("sh")
+		ng.Liner.ReadHistory(f)
 		f.Close()
 	}
-	go historyWriter(historyShFile, historySh)
+	go historyWriter(ng.History.Sh.Name, ng.History.Sh.Chan)
 
-	if f, err := os.Open(historyNgFile); err == nil {
-		lineNg.SetMode("ng")
-		lineNg.ReadHistory(f)
+	if f, err := os.Open(ng.History.Ng.Name); err == nil {
+		ng.Liner.SetMode("ng")
+		ng.Liner.ReadHistory(f)
 		f.Close()
 	}
-	go historyWriter(historyNgFile, historyNg)
+	go historyWriter(ng.History.Ng.Name, ng.History.Ng.Chan)
 
 	for {
 		var (
@@ -345,20 +328,20 @@ func loop(startInShell bool) {
 		)
 		switch state {
 		case parser.StateUnknown:
-			mode, prompt, history = "ng", "??> ", historyNg
+			mode, prompt, history = "ng", "??> ", ng.History.Ng.Chan
 		case parser.StateStmt:
-			mode, prompt, history = "ng", "ng> ", historyNg
+			mode, prompt, history = "ng", "ng> ", ng.History.Ng.Chan
 		case parser.StateStmtPartial:
-			mode, prompt, history = "ng", "..> ", historyNg
+			mode, prompt, history = "ng", "..> ", ng.History.Ng.Chan
 		case parser.StateCmd:
-			mode, prompt, history = "sh", ps1(prg.Environ()), historySh
+			mode, prompt, history = "sh", ps1(ng.Program.Environ()), ng.History.Sh.Chan
 		case parser.StateCmdPartial:
-			mode, prompt, history = "sh", "..$ ", historySh
+			mode, prompt, history = "sh", "..$ ", ng.History.Sh.Chan
 		default:
 			exitf("unkown parser state: %v", state)
 		}
-		lineNg.SetMode(mode)
-		data, err := lineNg.Prompt(prompt)
+		ng.Liner.SetMode(mode)
+		data, err := ng.Liner.Prompt(prompt)
 		if err == liner.ErrPromptAborted {
 			switch state {
 			case parser.StateStmtPartial:
@@ -375,92 +358,18 @@ func loop(startInShell bool) {
 		if data == "" {
 			continue
 		}
-		lineNg.AppendHistory(mode, data)
+		ng.Liner.AppendHistory(mode, data)
 		history <- data
 		select { // drain sigint
 		case <-sigint:
 		default:
 		}
-		res := p.ParseLine([]byte(data))
-		handleResult(res)
-		state = res.State
-	}
-}
-
-func handleResult(res parser.Result) {
-	// TODO: use ngcore for this
-	for _, s := range res.Stmts {
-		v, err := prg.Eval(s, sigint)
+		res, err := ng.Exec([]byte(data))
 		if err != nil {
-			fmt.Printf("ng: %v\n", err)
-			continue
+			fmt.Printf("%v\n", err)
 		}
-		if len(v) > 1 {
-			fmt.Print("(")
-		}
-		for i, val := range v {
-			if i > 0 {
-				fmt.Print(", ")
-			}
-			if val == (reflect.Value{}) {
-				fmt.Print("<nil>")
-				continue
-			}
-			switch v := val.Interface().(type) {
-			case eval.UntypedInt:
-				fmt.Print(v.String())
-			case eval.UntypedFloat:
-				fmt.Print(v.String())
-			case eval.UntypedComplex:
-				fmt.Print(v.String())
-			case eval.UntypedString:
-				fmt.Print(v.String)
-			case eval.UntypedRune:
-				fmt.Printf("%v", v.Rune)
-			case eval.UntypedBool:
-				fmt.Print(v.Bool)
-			default:
-				fmt.Print(format.Debug(v))
-			}
-		}
-		if len(v) > 1 {
-			fmt.Println(")")
-		} else if len(v) == 1 {
-			fmt.Println("")
-		}
-	}
-	for _, err := range res.Errs {
-		fmt.Println(err.Error())
-	}
-	for _, cmd := range res.Cmds {
-		j := &shell.Job{
-			State:  shellState,
-			Cmd:    cmd,
-			Params: prg,
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		}
-		if err := j.Start(); err != nil {
-			fmt.Println(err)
-			continue
-		}
-		done, err := j.Wait()
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		if !done {
-			break // TODO not right, instead we should just have one cmd, not Cmds here.
-		}
-	}
-	//editMode.ApplyMode()
-}
-
-func init() {
-	if home := os.Getenv("HOME"); home != "" {
-		historyNgFile = filepath.Join(home, ".ng_history")
-		historyShFile = filepath.Join(home, ".ngsh_history")
+		ng.Display(ng.Stdout, res)
+		state = ng.ParserState
 	}
 }
 

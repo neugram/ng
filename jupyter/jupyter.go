@@ -301,7 +301,7 @@ func (s *server) iopubHandler(c *conn) {
 }
 
 func (s *server) session(req *message) *ngcore.Session {
-	return s.neugram.GetOrNewSession(s.ctx, req.Header.Session)
+	return s.neugram.GetOrNewSession(s.ctx, req.Header.Session, os.Environ())
 }
 
 func (s *server) shellRequest(c *conn, req *message) {
