@@ -123,8 +123,7 @@ func New(path string, shellState *shell.State) *Program {
 		Path:     path,
 		Cur: &Scope{
 			Parent: universe,
-			// FIXME(sbinet): what should this be?
-			// fct: "ng-main",
+			fct:    "۰ng-main",
 		},
 		ShellState:  shellState,
 		reflector:   newReflector(),
