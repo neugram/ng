@@ -1,3 +1,7 @@
+// Copyright 2018 The Neugram Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package main_test
 
 import (
@@ -51,14 +55,16 @@ func TestPrintf(t *testing.T) {
 
 func TestExitMsg(t *testing.T) {
 	out, err := exec.Command(testng, "-e", `exit`).CombinedOutput()
-	// TODO: this should return an non-zero exit code
-	if err != nil {
-		t.Errorf("testng failed: %v\n%s", err, out)
+	if err == nil {
+		t.Fatalf("testng failed: got a nil error. want 'Ctrl-D' exit")
 	}
-
-	got := string(out)
-	if !strings.Contains(got, "Ctrl-D") {
+	if got := string(out); !strings.Contains(got, "Ctrl-D") {
 		t.Errorf("exit error does not mention Ctrl-D: %q", got)
+	}
+	switch e := err.(type) {
+	case *exec.ExitError:
+	default:
+		t.Errorf("testng should have failed with a non-zero exit code: %#v", e)
 	}
 }
 
