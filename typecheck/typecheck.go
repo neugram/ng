@@ -1130,6 +1130,7 @@ func (c *Checker) fillGoType(res tipe.Type, t gotypes.Type) {
 			s.Fields = append(s.Fields, tipe.StructField{
 				Name:     f.Name(),
 				Type:     ft,
+				Tag:      tipe.StructTag(t.Tag(i)),
 				Embedded: f.Anonymous(),
 			})
 		}

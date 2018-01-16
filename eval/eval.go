@@ -2035,6 +2035,7 @@ func (r *reflector) toRType(t tipe.Type) reflect.Type {
 			fields = append(fields, reflect.StructField{
 				Name:      f.Name,
 				Type:      r.toRType(f.Type),
+				Tag:       reflect.StructTag(f.Tag),
 				Anonymous: f.Embedded,
 			})
 		}
