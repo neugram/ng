@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/peterh/liner"
 	"neugram.io/ng/eval"
@@ -75,14 +76,8 @@ type Session struct {
 
 	Liner   *liner.State
 	History struct {
-		Ng struct {
-			Name string
-			Chan chan string
-		}
-		Sh struct {
-			Name string
-			Chan chan string
-		}
+		Ng History
+		Sh History
 	}
 	name    string
 	neugram *Neugram
@@ -123,8 +118,8 @@ func (n *Neugram) newSession(ctx context.Context, name string, env []string) *Se
 		name:        name,
 		neugram:     n,
 	}
-	s.History.Ng.Chan = make(chan string, 1)
-	s.History.Sh.Chan = make(chan string, 1)
+	s.History.Ng = newHistory()
+	s.History.Sh = newHistory()
 	return s
 }
 
@@ -317,4 +312,49 @@ func (e Error) Error() string {
 		listStr = fmt.Sprintf("%v (and %d more)", e.List[0].Error(), len(e.List)-1)
 	}
 	return fmt.Sprintf("ng: %s: %v", e.Phase, listStr)
+}
+
+// History represents a shell (POSIX, Neugram) history.
+type History struct {
+	Name string      // path to the shell's history file
+	Chan chan string // channel from which history receives entries to be added to the history file
+}
+
+func newHistory() History {
+	return History{
+		Chan: make(chan string, 1),
+	}
+}
+
+func (h *History) Run(ctx context.Context) {
+	var batch []string
+	ticker := time.Tick(250 * time.Millisecond)
+	for {
+		select {
+		case line := <-h.Chan:
+			batch = append(batch, line)
+		case <-ticker:
+			h.append(h.Name, batch)
+			batch = nil
+		case <-ctx.Done():
+			h.append(h.Name, batch)
+			batch = nil
+			return
+		}
+	}
+}
+
+func (h *History) append(dst string, batch []string) {
+	if len(batch) == 0 || dst == "" {
+		return
+	}
+	// TODO: FcntlFlock
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
+	if err != nil {
+		return
+	}
+	for _, line := range batch {
+		fmt.Fprintf(f, "%s\n", line)
+	}
+	f.Close()
 }

@@ -311,14 +311,14 @@ func loop(ctx context.Context, startInShell bool) {
 		ng.Liner.ReadHistory(f)
 		f.Close()
 	}
-	go historyWriter(ng.History.Sh.Name, ng.History.Sh.Chan)
+	go ng.History.Sh.Run(ctx)
 
 	if f, err := os.Open(ng.History.Ng.Name); err == nil {
 		ng.Liner.SetMode("ng")
 		ng.Liner.ReadHistory(f)
 		f.Close()
 	}
-	go historyWriter(ng.History.Ng.Name, ng.History.Ng.Chan)
+	go ng.History.Ng.Run(ctx)
 
 	for {
 		var (
@@ -370,28 +370,5 @@ func loop(ctx context.Context, startInShell bool) {
 		}
 		ng.Display(ng.Stdout, res)
 		state = ng.ParserState
-	}
-}
-
-func historyWriter(dst string, src <-chan string) {
-	var batch []string
-	ticker := time.Tick(250 * time.Millisecond)
-	for {
-		select {
-		case line := <-src:
-			batch = append(batch, line)
-		case <-ticker:
-			if len(batch) > 0 && dst != "" {
-				// TODO: FcntlFlock
-				f, err := os.OpenFile(dst, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
-				if err == nil {
-					for _, line := range batch {
-						fmt.Fprintf(f, "%s\n", line)
-					}
-					f.Close()
-				}
-			}
-			batch = nil
-		}
 	}
 }
