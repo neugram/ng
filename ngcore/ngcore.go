@@ -11,11 +11,14 @@ package ngcore
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -118,8 +121,6 @@ func (n *Neugram) newSession(ctx context.Context, name string, env []string) *Se
 		name:        name,
 		neugram:     n,
 	}
-	s.History.Ng = newHistory()
-	s.History.Sh = newHistory()
 	return s
 }
 
@@ -283,6 +284,99 @@ func (s *Session) Display(w io.Writer, vals []reflect.Value) {
 	}
 }
 
+func (s *Session) Run(ctx context.Context, startInShell bool, sigint chan os.Signal) error {
+	state := parser.StateStmt
+	if startInShell {
+		initFile := filepath.Join(os.Getenv("HOME"), ".ngshinit")
+		if f, err := os.Open(initFile); err == nil {
+			var err error
+			state, err = s.RunScript(f)
+			f.Close()
+			return err
+		}
+		if state == parser.StateStmt {
+			res, err := s.Exec([]byte("$$"))
+			if err != nil {
+				return err
+			}
+			s.Display(s.Stdout, res)
+			state = s.ParserState
+		}
+	}
+
+	s.Liner.SetTabCompletionStyle(liner.TabPrints)
+	s.Liner.SetWordCompleter(s.Completer)
+	s.Liner.SetCtrlCAborts(true)
+
+	if home := os.Getenv("HOME"); home != "" {
+		if s.History.Ng.Name == "" {
+			s.History.Ng.Name = filepath.Join(home, ".ng_history")
+		}
+		if s.History.Sh.Name == "" {
+			s.History.Sh.Name = filepath.Join(home, ".ngsh_history")
+		}
+	}
+
+	s.History.Sh.init("sh", s.Liner)
+	s.History.Ng.init("ng", s.Liner)
+
+	go s.History.Sh.Run(ctx)
+	go s.History.Ng.Run(ctx)
+
+	for {
+		var (
+			mode    string
+			prompt  string
+			history chan string
+		)
+		switch state {
+		case parser.StateUnknown:
+			mode, prompt, history = "ng", "??> ", s.History.Ng.src
+		case parser.StateStmt:
+			mode, prompt, history = "ng", "ng> ", s.History.Ng.src
+		case parser.StateStmtPartial:
+			mode, prompt, history = "ng", "..> ", s.History.Ng.src
+		case parser.StateCmd:
+			mode, prompt, history = "sh", ps1(s.Program.Environ()), s.History.Sh.src
+		case parser.StateCmdPartial:
+			mode, prompt, history = "sh", "..$ ", s.History.Sh.src
+		default:
+			return fmt.Errorf("unkown parser state: %v", state)
+		}
+		s.Liner.SetMode(mode)
+		data, err := s.Liner.Prompt(prompt)
+		if err == liner.ErrPromptAborted {
+			switch state {
+			case parser.StateStmtPartial:
+				fmt.Printf("TODO interrupt partial statement\n")
+			case parser.StateCmdPartial:
+				fmt.Printf("TODO interrupt partial command\n")
+			}
+		} else if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return fmt.Errorf("error reading input: %v", err)
+		}
+		if data == "" {
+			continue
+		}
+		s.Liner.AppendHistory(mode, data)
+		history <- data
+		select { // drain sigint
+		case <-sigint:
+		default:
+		}
+		res, err := s.Exec([]byte(data))
+		if err != nil {
+			fmt.Fprintf(s.Stderr, "%v\n", err)
+		}
+		s.Display(s.Stdout, res)
+		state = s.ParserState
+	}
+	return nil
+}
+
 func (s *Session) Close() {
 	s.neugram.mu.Lock()
 	delete(s.neugram.sessions, s.name)
@@ -317,13 +411,19 @@ func (e Error) Error() string {
 // History represents a shell (POSIX, Neugram) history.
 type History struct {
 	Name string      // path to the shell's history file
-	Chan chan string // channel from which history receives entries to be added to the history file
+	src  chan string // receives entries to be added to the history file
 }
 
-func newHistory() History {
-	return History{
-		Chan: make(chan string, 1),
+func (h *History) init(mode string, liner *liner.State) {
+	h.src = make(chan string, 1)
+	f, err := os.Open(h.Name)
+	if err != nil {
+		return
 	}
+	defer f.Close()
+	liner.SetMode(mode)
+	liner.ReadHistory(f)
+	f.Close()
 }
 
 func (h *History) Run(ctx context.Context) {
@@ -331,7 +431,7 @@ func (h *History) Run(ctx context.Context) {
 	ticker := time.Tick(250 * time.Millisecond)
 	for {
 		select {
-		case line := <-h.Chan:
+		case line := <-h.src:
 			batch = append(batch, line)
 		case <-ticker:
 			h.append(h.Name, batch)
@@ -357,4 +457,55 @@ func (h *History) append(dst string, batch []string) {
 		fmt.Fprintf(f, "%s\n", line)
 	}
 	f.Close()
+}
+
+func ps1(env *environ.Environ) string {
+	v := env.Get("PS1")
+	if v == "" {
+		return "ng$ "
+	}
+	if strings.IndexByte(v, '\\') == -1 {
+		return v
+	}
+	var buf []byte
+	for {
+		i := strings.IndexByte(v, '\\')
+		if i == -1 || i == len(v)-1 {
+			break
+		}
+		buf = append(buf, v[:i]...)
+		b := v[i+1]
+		v = v[i+2:]
+		switch b {
+		case 'h', 'H':
+			out, err := exec.Command("hostname").CombinedOutput()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ng: %v\n", err)
+				continue
+			}
+			if b == 'h' {
+				if i := bytes.IndexByte(out, '.'); i >= 0 {
+					out = out[:i]
+				}
+			}
+			if len(out) > 0 && out[len(out)-1] == '\n' {
+				out = out[:len(out)-1]
+			}
+			buf = append(buf, out...)
+		case 'n':
+			buf = append(buf, '\n')
+		case 'w', 'W':
+			cwd := env.Get("PWD")
+			if home := env.Get("HOME"); home != "" {
+				cwd = strings.Replace(cwd, home, "~", 1)
+			}
+			if b == 'W' {
+				cwd = filepath.Base(cwd)
+			}
+			buf = append(buf, cwd...)
+		}
+		// TODO: '!', '#', '$', 'nnn', 's', 'j', and more.
+	}
+	buf = append(buf, v...)
+	return string(buf)
 }
