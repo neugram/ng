@@ -30,8 +30,14 @@ func (s *Session) Completer(mode, line string, pos int) (prefix string, completi
 }
 
 func (s *Session) completerNg(line string, pos int) (prefix string, completions []string, suffix string) {
-	if pos != len(line) { // TODO mid-line matching
-		return line, nil, ""
+	if pos != len(line) {
+		// TODO better mid-line matching
+		// e.g.: 'vari = 3'
+		// if the cursor is on the 'r' and a variable with name "variable" exists
+		// in some scope, we will construct a line: 'varri = 3' with the cursor
+		// on the second 'r'...
+		prefix, completions, suffix = s.completerNg(line[:pos], pos)
+		return prefix, completions, suffix + line[pos:]
 	}
 	if strings.TrimSpace(line) == "" {
 		return line, nil, ""
