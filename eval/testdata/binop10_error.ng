@@ -1,0 +1,2 @@
+a := uint8(1)
+a >> int(2) // ERROR: typecheck: invalid operation: a>>int(2) (shift count type int, must be unsigned integer)
