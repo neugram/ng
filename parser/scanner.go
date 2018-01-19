@@ -640,6 +640,9 @@ func (s *Scanner) Next() {
 		case '=':
 			s.next()
 			s.Token = token.GreaterEqual
+		case '>':
+			s.next()
+			s.Token = token.TwoGreater
 		default:
 			s.Token = token.Greater
 		}

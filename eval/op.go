@@ -1159,6 +1159,196 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 			res := xv.MethodByName("Lsh").Call([]reflect.Value{yv})
 			return res[0].Interface(), nil
 		}
+	case token.TwoGreater:
+		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case int8:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint:
+				return x >> y, nil
+			case uint8:
+				return x >> y, nil
+			case uint16:
+				return x >> y, nil
+			case uint32:
+				return x >> y, nil
+			case uint64:
+				return x >> y, nil
+			case UntypedInt:
+				v := uint64(y.Int64())
+				return x >> v, nil
+			}
+		case UntypedInt:
+			switch y := y.(type) {
+			case uint:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rsh(x.Int, y)}, nil
+			case uint8:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rsh(x.Int, uint(y))}, nil
+			case uint16:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rsh(x.Int, uint(y))}, nil
+			case uint32:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rsh(x.Int, uint(y))}, nil
+			case uint64:
+				z := big.NewInt(0)
+				return UntypedInt{z.Rsh(x.Int, uint(y))}, nil
+			case UntypedInt:
+				z := big.NewInt(0)
+				n := uint(y.Int.Int64())
+				return UntypedInt{z.Rsh(x.Int, n)}, nil
+			}
+		default:
+			xv := reflect.ValueOf(x)
+			yv := reflect.ValueOf(y)
+			res := xv.MethodByName("Rsh").Call([]reflect.Value{yv})
+			return res[0].Interface(), nil
+		}
 	case token.RefPow:
 		switch x := x.(type) {
 		case int:

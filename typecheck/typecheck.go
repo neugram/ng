@@ -2421,7 +2421,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		// TODO check for division by zero
 		if left.mode == modeConst && right.mode == modeConst {
 			switch e.Op {
-			case token.TwoLess:
+			case token.TwoLess, token.Greater:
 				rhs, ok := big.NewInt(0).SetString(right.val.ExactString(), 0)
 				if !ok {
 					c.errorfmt("constant %s is not an integer", right.val.ExactString())
@@ -3396,6 +3396,8 @@ func convGoOp(op token.Token) gotoken.Token {
 		return gotoken.LOR
 	case token.TwoLess:
 		return gotoken.SHL
+	case token.TwoGreater:
+		return gotoken.SHR
 	default:
 		panic(fmt.Sprintf("typecheck: bad op: %s", op))
 	}

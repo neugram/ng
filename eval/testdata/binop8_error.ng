@@ -1,0 +1,2 @@
+a := uint8(1)
+a >> -1 // ERROR: typecheck: invalid operation: -1 is a negative integer
