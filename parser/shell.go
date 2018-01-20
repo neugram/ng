@@ -5,167 +5,174 @@
 package parser
 
 import (
+	"bytes"
+	"fmt"
 	"strconv"
-	"unicode"
+	"strings"
+
+	sh "mvdan.cc/sh/syntax"
 
 	"neugram.io/ng/syntax/expr"
 	"neugram.io/ng/syntax/token"
 )
 
 func (p *Parser) parseShellList() *expr.ShellList {
-	andor := p.parseShellAndOr()
-	if andor == nil {
+	shellParser := sh.NewParser(sh.StopAt("$$"), sh.Variant(sh.LangPOSIX))
+	shellSrc := p.s.src[p.s.off:]
+	list := &expr.ShellList{}
+	var end int
+	// parse and translate statements, for as long as we don't reach
+	// any of:
+	//  * a shell parse error
+	//  * EOF / $$
+	//  * a statement ended with no semicolon (e.g. newline)
+	err := shellParser.Stmts(bytes.NewReader(shellSrc), func(stmt *sh.Stmt) bool {
+		list.AndOr = append(list.AndOr, translateAndOr(stmt))
+		end = int(stmt.End().Offset())
+		return stmt.Semicolon != sh.Pos{}
+	})
+	if err != nil {
+		panic(err)
+	}
+	p.s.off += end
+	p.s.next()
+	p.s.skipWhitespace() // trigger needSrc if we found a newline
+	if p.s.r == '$' && p.s.src[p.s.off] == '$' {
+		// we have $$, so get token.Shell to stop
+		p.next()
+		if p.s.r == '\n' {
+			// TODO(mvdan): why is this necessary?
+			p.s.off--
+			p.s.r = ';'
+		}
+	} else {
+		// we don't have a $$ - hand the rune back to
+		// the shell lexer
+		p.s.off -= int(p.s.lastWidth)
+	}
+	if len(list.AndOr) == 0 {
 		return nil
 	}
-	l := &expr.ShellList{
-		AndOr: []*expr.ShellAndOr{andor},
-	}
-	for p.s.Token == token.Ref || p.s.Token == token.Semicolon {
-		if p.s.Token == token.Ref {
-			l.AndOr[len(l.AndOr)-1].Background = true
-		}
-		p.next()
-		if p.s.Token == token.ShellNewline || p.s.Token == token.Shell {
+	return list
+}
+
+func translateAndOr(stmt *sh.Stmt) *expr.ShellAndOr {
+	ao := &expr.ShellAndOr{Background: stmt.Background}
+	for {
+		binCmd, ok := stmt.Cmd.(*sh.BinaryCmd)
+		if !ok || (binCmd.Op != sh.AndStmt && binCmd.Op != sh.OrStmt) {
 			break
 		}
-		l.AndOr = append(l.AndOr, p.parseShellAndOr())
-	}
-	if p.s.Token == token.ShellNewline {
-		if !p.interactive {
-			p.next()
+		stmt = binCmd.X
+		pipeline := translatePipeline(binCmd.Y)
+		sep := token.LogicalAnd
+		if binCmd.Op == sh.OrStmt {
+			sep = token.LogicalOr
 		}
+		// reverse order
+		defer func() {
+			ao.Pipeline = append(ao.Pipeline, pipeline)
+			ao.Sep = append(ao.Sep, sep)
+		}()
 	}
-	return l
+	ao.Pipeline = append(ao.Pipeline, translatePipeline(stmt))
+	return ao
 }
 
-func (p *Parser) parseShellAndOr() *expr.ShellAndOr {
-	pl := p.parseShellPipeline()
-	if pl == nil {
-		return nil
-	}
-	l := &expr.ShellAndOr{
-		Pipeline: []*expr.ShellPipeline{pl},
-	}
-	for p.s.Token == token.LogicalAnd || p.s.Token == token.LogicalOr {
-		l.Sep = append(l.Sep, p.s.Token)
-		p.next()
-		l.Pipeline = append(l.Pipeline, p.parseShellPipeline())
-	}
-	return l
-}
-
-func (p *Parser) parseShellPipeline() *expr.ShellPipeline {
-	bang := false
-	if p.s.Token == token.Not {
-		bang = true
-		p.next()
-	}
-	cmd := p.parseShellCmd()
-	if cmd == nil {
-		return nil
-	}
-	l := &expr.ShellPipeline{
-		Bang: bang,
-		Cmd:  []*expr.ShellCmd{cmd},
-	}
-	for p.s.Token == token.ShellPipe {
-		p.next()
-		l.Cmd = append(l.Cmd, p.parseShellCmd())
-	}
-	return l
-}
-
-func (p *Parser) parseShellCmd() (l *expr.ShellCmd) {
-	if p.s.Token == token.LeftParen {
-		p.next()
-		l = &expr.ShellCmd{
-			Subshell: p.parseShellList(),
-		}
-		p.expect(token.RightParen)
-		p.next()
-	} else {
-		simplecmd := p.parseShellSimpleCmd()
-		if simplecmd != nil {
-			l = &expr.ShellCmd{
-				SimpleCmd: simplecmd,
-			}
-		}
-	}
-	return l
-}
-
-func isAssignment(word string) (k, v string) {
-	for i, r := range word {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-			if r == '=' {
-				return word[:i], word[i+1:]
-			}
-			return "", ""
-		}
-	}
-	return "", ""
-}
-
-func (p *Parser) parseShellSimpleCmd() (l *expr.ShellSimpleCmd) {
+func translatePipeline(stmt *sh.Stmt) *expr.ShellPipeline {
+	p := &expr.ShellPipeline{}
 	for {
-		w, r := p.maybeParseShellRedirect()
-		if r == nil {
-			if w == "" {
-				if p.s.Token == token.ShellWord {
-					w = p.s.Literal.(string)
-					p.next()
-				} else {
-					return l
-				}
-			}
+		binCmd, ok := stmt.Cmd.(*sh.BinaryCmd)
+		if !ok || binCmd.Op != sh.Pipe {
+			break
 		}
-		if l == nil {
-			l = &expr.ShellSimpleCmd{}
-		}
-		if r != nil {
-			l.Redirect = append(l.Redirect, r)
-		} else {
-			if len(l.Args) == 0 {
-				if k, v := isAssignment(w); k != "" {
-					l.Assign = append(l.Assign, expr.ShellAssign{
-						Key:   k,
-						Value: v,
-					})
-					continue
-				}
-			}
-			l.Args = append(l.Args, w)
-		}
+		stmt = binCmd.X
+		cmd := translateCmd(binCmd.Y)
+		// reverse order
+		defer func() { p.Cmd = append(p.Cmd, cmd) }()
 	}
-	return l
+	p.Cmd = append(p.Cmd, translateCmd(stmt))
+	return p
 }
 
-func (p *Parser) maybeParseShellRedirect() (string, *expr.ShellRedirect) {
-	//fmt.Printf("maybeParseShellRedirect p.s.Token=%s\n", p.s.Token)
-	lit := ""
-	number := (*int)(nil)
-	if p.s.Token == token.ShellWord {
-		lit = p.s.Literal.(string)
-		p.next()
-		i, err := strconv.Atoi(lit)
-		if err != nil {
-			return lit, nil
+func translateCmd(stmt *sh.Stmt) *expr.ShellCmd {
+	switch x := stmt.Cmd.(type) {
+	case *sh.CallExpr:
+		return &expr.ShellCmd{SimpleCmd: &expr.ShellSimpleCmd{
+			Assign:   translateAssigns(x.Assigns),
+			Args:     stringifyWords(x.Args),
+			Redirect: translateRedirs(stmt.Redirs),
+		}}
+	case *sh.Subshell:
+		cmd := &expr.ShellCmd{Subshell: &expr.ShellList{}}
+		for _, stmt := range x.Stmts {
+			cmd.Subshell.AndOr = append(cmd.Subshell.AndOr, translateAndOr(stmt))
 		}
-		number = &i
-	}
-	switch p.s.Token {
-	case token.Less, token.Greater, token.GreaterAnd, token.AndGreater, token.TwoGreater: // TODO: <&
+		return cmd
 	default:
-		return lit, nil
+		panic(fmt.Sprintf("TODO: sh.Command type %T", x))
 	}
-	l := &expr.ShellRedirect{
-		Number: number,
-		Token:  p.s.Token,
+}
+
+func translateAssigns(assigns []*sh.Assign) []expr.ShellAssign {
+	if len(assigns) == 0 {
+		return nil
 	}
-	p.next()
-	if p.expect(token.ShellWord) {
-		l.Filename = p.s.Literal.(string)
-		p.next()
+	as := make([]expr.ShellAssign, len(assigns))
+	for i, assign := range assigns {
+		as[i] = expr.ShellAssign{
+			Key:   assign.Name.Value,
+			Value: stringifyWord(assign.Value),
+		}
 	}
-	return "", l
+	return as
+}
+
+func translateRedirs(redirs []*sh.Redirect) []*expr.ShellRedirect {
+	if len(redirs) == 0 {
+		return nil
+	}
+	rs := make([]*expr.ShellRedirect, len(redirs))
+	for i, redir := range redirs {
+		tok := token.Greater
+		switch redir.Op {
+		case sh.AppOut:
+			tok = token.TwoGreater
+		case sh.DplOut:
+			tok = token.GreaterAnd
+		}
+		rs[i] = &expr.ShellRedirect{
+			Token:    tok,
+			Filename: stringifyWord(redir.Word),
+		}
+		if redir.N != nil {
+			if n, _ := strconv.Atoi(redir.N.Value); n > 0 {
+				rs[i].Number = &n
+			}
+		}
+	}
+	return rs
+}
+
+func stringifyWords(words []*sh.Word) []string {
+	strs := make([]string, len(words))
+	for i, word := range words {
+		strs[i] = stringifyWord(word)
+	}
+	return strs
+}
+
+func stringifyWord(word *sh.Word) string {
+	var buf bytes.Buffer
+	printer := sh.NewPrinter()
+	// a bit hacky, to print just one word without any
+	// indentation etc
+	f := &sh.File{}
+	f.Stmts = append(f.Stmts, &sh.Stmt{Cmd: &sh.CallExpr{
+		Args: []*sh.Word{word},
+	}})
+	printer.Print(&buf, f)
+	s := buf.String()
+	s = strings.TrimPrefix(s, "\\\n")
+	return strings.Trim(s, "\n\t ")
 }

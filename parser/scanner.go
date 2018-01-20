@@ -36,13 +36,11 @@ type Scanner struct {
 	lastWidth int16
 
 	// Scanner state
-	src          []byte
-	r            rune
-	off          int
-	semi         bool
-	err          error
-	inShell      bool
-	exitingShell bool // set mid $$ token when we have read ahead too far
+	src  []byte
+	r    rune
+	off  int
+	semi bool
+	err  error
 
 	addSrc  chan []byte
 	needSrc chan struct{}
@@ -112,45 +110,6 @@ func (s *Scanner) scanIdentifier() string {
 		s.next()
 	}
 	return string(s.src[off:s.Offset])
-}
-
-func (s *Scanner) scanShellWord() string {
-	off := s.Offset
-	for {
-		switch s.r {
-		case '\\':
-			s.next()
-			s.next()
-		case '$':
-			s.next()
-			switch s.r {
-			case '$':
-				// At this point we have parsed a shell word
-				// literal, and it has run directly on into
-				// the shell-exiting "$$". For example:
-				//	"ls$$"
-				// We want to return the shell word literal
-				// now, and on the subsequent call to Next
-				// return the final token.Shell. But we have
-				// positioned the scanner after the first '$'
-				// so we need to maintain some state so the
-				// subsequent next knows to interpret the
-				// remaining "$" as "$$".
-				s.exitingShell = true
-
-				return string(s.src[off : s.Offset-1])
-			case '{':
-				for s.r != '}' {
-					s.next()
-				}
-				s.next()
-			}
-		case ' ', '\t', '\n', '\r', '|', '&', ';', '<', '>', '(', ')':
-			return string(s.src[off:s.Offset])
-		default:
-			s.next()
-		}
-	}
 }
 
 func (s *Scanner) scanMantissa() {
@@ -241,24 +200,6 @@ exponent:
 	}
 
 	return tok, value
-}
-
-func (s *Scanner) scanSingleQuotedShellWord() string {
-	off := s.Offset
-	s.next()
-
-	for {
-		r := s.r
-		if r <= 0 {
-			s.errorf("single-quoted string missing terminating `'`")
-			break
-		}
-		s.next()
-		if r == '\'' {
-			break
-		}
-	}
-	return `'` + string(s.src[off:s.Offset])
 }
 
 func (s *Scanner) scanRawString() string {
@@ -365,100 +306,9 @@ func (s *Scanner) scanComment() string {
 	return string(lit)
 }
 
-func (s *Scanner) nextInShell() {
-	if s.exitingShell {
-		if s.r != '$' {
-			panic("exitingShell should only be set mid-$$, s.r=" + string(s.r))
-		}
-		s.next()
-		s.exitingShell = false
-		s.Token = token.Shell
-		s.inShell = false
-		s.semi = true
-		return
-	}
-	switch s.r {
-	case '$':
-		s.next()
-		if s.r == '$' {
-			s.next()
-			s.Token = token.Shell
-			s.inShell = false
-			s.semi = true
-		} else {
-			s.semi = true
-			s.Literal = "$" + s.scanShellWord()
-			s.Token = token.ShellWord
-		}
-	case '"':
-		s.next()
-		s.semi = true
-		str := s.scanString(true)
-		s.Literal = str
-		s.Token = token.ShellWord
-	case '\'':
-		s.next()
-		s.semi = true
-		str := s.scanSingleQuotedShellWord()
-		s.Literal = str
-		s.Token = token.ShellWord
-	case '\n':
-		s.Token = token.ShellNewline
-	case ';':
-		s.next()
-		s.Token = token.Semicolon
-	case '|':
-		s.next()
-		switch s.r {
-		case '|':
-			s.next()
-			s.Token = token.LogicalOr
-		default:
-			s.Token = token.ShellPipe
-		}
-	case '&':
-		s.next()
-		switch s.r {
-		case '&':
-			s.next()
-			s.Token = token.LogicalAnd
-		case '>':
-			s.next()
-			s.Token = token.AndGreater
-		default:
-			s.Token = token.Ref
-		}
-	case '<':
-		s.next()
-		s.Token = token.Less
-	case '>':
-		s.next()
-		switch s.r {
-		case '&':
-			s.next()
-			s.Token = token.GreaterAnd
-		case '>':
-			s.next()
-			s.Token = token.TwoGreater
-		default:
-			s.Token = token.Greater
-		}
-	case '(':
-		s.next()
-		s.Token = token.LeftParen
-	case ')':
-		s.next()
-		s.Token = token.RightParen
-	default:
-		s.semi = true
-		s.Literal = s.scanShellWord()
-		s.Token = token.ShellWord
-	}
-}
-
 func (s *Scanner) Next() {
 	/*defer func() {
-		fmt.Printf("Scanner.Next s.Token=%s, s.inShell=%v", s.Token, s.inShell)
+		fmt.Printf("Scanner.Next s.Token=%s", s.Token)
 		if s.Literal != nil {
 			fmt.Printf(" Literal=%s", s.Literal)
 		}
@@ -472,10 +322,6 @@ func (s *Scanner) Next() {
 	s.Literal = nil
 	r := s.r
 	switch {
-	case s.inShell:
-		//fmt.Printf("inShell, r=%q\n", string(r))
-		s.nextInShell()
-		return
 	case unicode.IsLetter(r) || r == '_':
 		lit := s.scanIdentifier()
 		s.Token = token.Keyword(lit)
@@ -667,7 +513,6 @@ func (s *Scanner) Next() {
 		case '$':
 			s.next()
 			s.Token = token.Shell
-			s.inShell = true
 			//default:
 			//	s.Token = token.?
 		}
