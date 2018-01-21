@@ -1,0 +1,2 @@
+str := "str"
+cap(str) // ERROR: typecheck: invalid argument str (string) for cap

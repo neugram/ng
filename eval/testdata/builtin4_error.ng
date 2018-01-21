@@ -1,0 +1,1 @@
+cap("str") // ERROR: typecheck: invalid argument str (untyped string) for cap

@@ -1,0 +1,5 @@
+if len("str") != 3 {
+	panic("ERROR")
+}
+
+print("OK")
