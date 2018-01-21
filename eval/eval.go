@@ -154,6 +154,9 @@ func New(path string, shellState *shell.State) *Program {
 		if c == nil {
 			return 0
 		}
+		if s, ok := c.(UntypedString); ok {
+			return len(s.String)
+		}
 		return reflect.ValueOf(c).Len()
 	})
 	addUniverse("cap", func(c interface{}) int {

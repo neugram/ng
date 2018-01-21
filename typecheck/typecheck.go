@@ -1722,7 +1722,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 			return p
 		}
 		return p
-	case tipe.Len, tipe.Cap:
+	case tipe.Len:
 		p.typ = tipe.Int
 		if len(e.Args) != 1 {
 			p.mode = modeInvalid
@@ -1734,12 +1734,28 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		case *tipe.Array, *tipe.Slice, *tipe.Map, *tipe.Chan:
 			return p
 		case tipe.Basic:
-			if t == tipe.String {
+			switch t {
+			case tipe.String, tipe.UntypedString:
 				return p
 			}
 		}
 		p.mode = modeInvalid
-		c.errorfmt("invalid argument %s (%s) for %s ", e.Args[0], arg0.typ, p.typ)
+		c.errorfmt("invalid argument %s (%s) for len", e.Args[0], arg0.typ)
+		return p
+	case tipe.Cap:
+		p.typ = tipe.Int
+		if len(e.Args) != 1 {
+			p.mode = modeInvalid
+			c.errorfmt("%s takes exactly 1 argument, got %d", p.typ, len(e.Args))
+			return p
+		}
+		arg0 := c.expr(e.Args[0])
+		switch tipe.Underlying(arg0.typ).(type) {
+		case *tipe.Array, *tipe.Slice, *tipe.Map, *tipe.Chan:
+			return p
+		}
+		p.mode = modeInvalid
+		c.errorfmt("invalid argument %s (%s) for cap", e.Args[0], arg0.typ)
 		return p
 	case tipe.Make:
 		switch len(e.Args) {
