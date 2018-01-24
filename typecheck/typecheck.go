@@ -355,14 +355,18 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 			}
 		} else {
 			if _, exists := c.types[s.Key]; s.Key != nil && !exists {
-				p := c.expr(s.Key)
-				c.assign(&p, kt)
-				c.types[s.Key] = kt
+				if e, ok := s.Key.(*expr.Ident); (ok && e.Name != "_") || !ok {
+					p := c.expr(s.Key)
+					c.assign(&p, kt)
+					c.types[s.Key] = kt
+				}
 			}
 			if _, exists := c.types[s.Val]; s.Val != nil && !exists {
-				p := c.expr(s.Val)
-				c.assign(&p, vt)
-				c.types[s.Val] = vt
+				if e, ok := s.Val.(*expr.Ident); (ok && e.Name != "_") || !ok {
+					p := c.expr(s.Val)
+					c.assign(&p, vt)
+					c.types[s.Val] = vt
+				}
 			}
 		}
 		c.stmt(s.Body, retType, retNames)

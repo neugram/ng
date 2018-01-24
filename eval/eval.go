@@ -762,8 +762,12 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 				}
 			}
 		} else {
-			key = p.evalExprOne(s.Key)
-			val = p.evalExprOne(s.Val)
+			if s.Key != nil && s.Key.(*expr.Ident).Name != "_" {
+				key = p.evalExprOne(s.Key)
+			}
+			if s.Val != nil && s.Val.(*expr.Ident).Name != "_" {
+				val = p.evalExprOne(s.Val)
+			}
 		}
 		src := p.evalExprOne(s.Expr)
 		switch src.Kind() {
@@ -802,9 +806,13 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			keys := src.MapKeys()
 		mapLoop:
 			for _, k := range keys {
-				key.Set(k)
-				v := src.MapIndex(key)
-				val.Set(v)
+				if key != (reflect.Value{}) {
+					key.Set(k)
+				}
+				if val != (reflect.Value{}) {
+					v := src.MapIndex(k)
+					val.Set(v)
+				}
 				p.evalStmt(s.Body)
 				if p.interrupted() {
 					break

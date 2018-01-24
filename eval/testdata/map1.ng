@@ -8,11 +8,65 @@ m["seven"] = 7
 m["ten"] = 10
 delete(m, "two")
 
+if m["seven"] != 7 {
+	panic("ERROR 1")
+}
+
 total := 0
 for _, v := range m {
 	total += v
 }
 
-if m["seven"] == 7 && total == 20 {
-	print("OK")
+if total != 20 {
+	panic("ERROR 2")
 }
+
+total = 0
+for k, _ := range m {
+	total += m[k]
+}
+
+if total != 20 {
+	panic("ERROR 3")
+}
+
+total = 0
+for k := range m {
+	total += m[k]
+}
+
+if total != 20 {
+	panic("ERROR 4")
+}
+
+k := ""
+total = 0
+for k, _ = range m {
+	total += m[k]
+}
+
+if total != 20 {
+	panic("ERROR 5")
+}
+
+k = ""
+total = 0
+for k = range m {
+	total += m[k]
+}
+
+if total != 20 {
+	panic("ERROR 6")
+}
+
+total = 0
+v := 0
+for _, v = range m {
+	total += v
+}
+
+if total != 20 {
+	panic("ERROR 7")
+}
+
+print("OK")
