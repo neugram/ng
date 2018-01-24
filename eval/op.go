@@ -640,6 +640,95 @@ func binOp(op token.Token, x, y interface{}) (interface{}, error) {
 				return x.Cmp(y) == -1, nil
 			}
 		}
+	case token.LessEqual:
+		switch x := x.(type) {
+		case int:
+			switch y := y.(type) {
+			case int:
+				return x <= y, nil
+			}
+		case int8:
+			switch y := y.(type) {
+			case int8:
+				return x <= y, nil
+			}
+		case int16:
+			switch y := y.(type) {
+			case int16:
+				return x <= y, nil
+			}
+		case int32:
+			switch y := y.(type) {
+			case int32:
+				return x <= y, nil
+			}
+		case int64:
+			switch y := y.(type) {
+			case int64:
+				return x <= y, nil
+			}
+		case uint:
+			switch y := y.(type) {
+			case uint:
+				return x <= y, nil
+			}
+		case uint8:
+			switch y := y.(type) {
+			case uint8:
+				return x <= y, nil
+			}
+		case uint16:
+			switch y := y.(type) {
+			case uint16:
+				return x <= y, nil
+			}
+		case uint32:
+			switch y := y.(type) {
+			case uint32:
+				return x <= y, nil
+			}
+		case uint64:
+			switch y := y.(type) {
+			case uint64:
+				return x <= y, nil
+			}
+		case float32:
+			switch y := y.(type) {
+			case float32:
+				return x <= y, nil
+			}
+		case float64:
+			switch y := y.(type) {
+			case float64:
+				return x <= y, nil
+			}
+		case *big.Int:
+			switch y := y.(type) {
+			case *big.Int:
+				return x.Cmp(y) <= 0, nil
+			}
+		case *big.Float:
+			switch y := y.(type) {
+			case *big.Float:
+				return x.Cmp(y) <= 0, nil
+			}
+		case UntypedInt:
+			switch y := y.(type) {
+			case UntypedInt:
+				return x.Cmp(y.Int) <= 0, nil
+			case UntypedFloat:
+				xf := big.NewFloat(float64(x.Int.Int64()))
+				return xf.Cmp(y.Float) <= 0, nil
+			}
+		case UntypedFloat:
+			switch y := y.(type) {
+			case UntypedInt:
+				yf := big.NewFloat(float64(y.Int.Int64()))
+				return x.Cmp(yf) <= 0, nil
+			case UntypedFloat:
+				return x.Cmp(y.Float) <= 0, nil
+			}
+		}
 	case token.Greater:
 		switch x := x.(type) {
 		case int:

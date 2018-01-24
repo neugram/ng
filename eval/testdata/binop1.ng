@@ -43,6 +43,10 @@ if x != 2.1 {
 // 	panic("ERROR 1.8")
 // }
 
+if 4.2 <= 2.0 {
+	panic("ERROR 1.9")
+}
+
 // typed float64
 
 xa := 2.0
@@ -66,6 +70,10 @@ if x != 8.4 {
 x = xb / xa
 if x != 2.1 {
 	panic("ERROR 2.4")
+}
+
+if xb <= xa {
+	panic("ERROR 2.5")
 }
 
 // untyped-complex
@@ -115,6 +123,68 @@ if z != (-6+8i) {
 z = za / zb
 if z != (0.5+0i) {
 	panic("ERROR 4.4")
+}
+
+// untyped-ints
+i := 0
+
+i = 2 + 4
+if i != 6 {
+	panic("ERROR 5.1")
+}
+
+i = 2 - 4
+if i != -2 {
+	panic("ERROR 5.2")
+}
+
+i = 2 * 4
+if i != 8 {
+	panic("ERROR 5.3")
+}
+
+// TODO
+// i = 2 / 3
+// if i != 0 {
+// 	panic("ERROR 5.4")
+// }
+//
+// i = 4 / 2
+// if i != 2 {
+// 	panic("ERROR 5.5")
+// }
+
+if 4 <= 2 {
+	panic("ERROR 5.6")
+}
+
+// typed int
+
+ia := 2
+ib := 4
+
+i = ia + ib
+if i != 6 {
+	panic("ERROR 6.1")
+}
+
+i = ia - ib
+if i != -2 {
+	panic("ERROR 6.2")
+}
+
+i = ia * ib
+if i != 8 {
+	panic("ERROR 6.3")
+}
+
+i = ib / ia
+if i != 2 {
+	panic("ERROR 6.4")
+}
+
+if ib <= ia {
+	panic("ERROR 6.5")
 }
 
 print("OK")
