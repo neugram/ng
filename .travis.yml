@@ -1,14 +1,12 @@
 language: go
 go_import_path: neugram.io/ng
 go:
-  - 1.9.x
+  - 1.10.x
   - master
 os:
   - linux
 matrix:
  fast_finish: true
- allow_failures:
-   - go: 1.9.x
 
 
 script:
