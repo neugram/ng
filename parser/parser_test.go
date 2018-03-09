@@ -307,7 +307,8 @@ var parserTests = []parserTest{
 		Rows:     [][]expr.Expr{{basic(1)}, {basic(2)}},
 	}},
 	*/
-	{"($$ls$$)", &expr.Unary{ // for Issue #50
+	// TODO(mvdan): support non-spaced $$ in "$$ls$$" in sh/syntax?
+	{"($$ ls $$)", &expr.Unary{ // for Issue #50
 		Op: token.LeftParen,
 		Expr: &expr.Shell{
 			Cmds: []*expr.ShellList{{AndOr: []*expr.ShellAndOr{{Pipeline: []*expr.ShellPipeline{{
@@ -642,7 +643,7 @@ func simplesh(args ...string) *expr.Shell {
 
 func TestParseShell(t *testing.T) {
 	for _, test := range shellTests {
-		fmt.Printf("Parsing %q\n", test.input)
+		//fmt.Printf("Parsing %q\n", test.input)
 		s, err := parser.ParseStmt([]byte("($$ " + test.input + " $$)"))
 		if err != nil {
 			t.Errorf("ParseExpr(%q): error: %v", test.input, err)

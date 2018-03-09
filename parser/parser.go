@@ -170,8 +170,8 @@ func (p *Parser) work() {
 		// makes a simple expression behave like an interactive shell.
 		if p.res.State != StateCmd && p.s.Token == token.Shell {
 			p.res.State = StateCmd
-		} else if p.res.State == StateCmd {
 			p.interactive = true
+			p.s.Token = token.ShellWord
 			cmd := p.parseShellList()
 			p.interactive = false
 			if cmd != nil {
@@ -1819,15 +1819,16 @@ func (p *Parser) parseOperand() expr.Expr {
 			Position: p.pos(),
 			TrapOut:  true,
 		}
-		p.next()
+		p.s.Token = token.ShellWord
 		for p.s.Token > 0 && p.s.Token != token.Shell {
 			restore := p.interactive
 			p.interactive = false
 			cmd := p.parseShellList()
 			p.interactive = restore
-			x.Cmds = append(x.Cmds, cmd)
+			if cmd != nil {
+				x.Cmds = append(x.Cmds, cmd)
+			}
 		}
-		p.expect(token.Shell)
 		p.next()
 		return x
 	}
