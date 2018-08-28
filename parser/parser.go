@@ -166,7 +166,7 @@ func (p *Parser) work() {
 		//
 		// The normal parser can take care of this, but we want to return
 		// the parsed output of a top-level $$ before the entire expression
-		// is availble, so the REPL can evaluate as we go. That's what
+		// is available, so the REPL can evaluate as we go. That's what
 		// makes a simple expression behave like an interactive shell.
 		if p.res.State != StateCmd && p.s.Token == token.Shell {
 			p.res.State = StateCmd

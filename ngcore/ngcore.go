@@ -341,7 +341,7 @@ func (s *Session) Run(ctx context.Context, startInShell bool, sigint chan os.Sig
 		case parser.StateCmdPartial:
 			mode, prompt, history = "sh", "..$ ", s.History.Sh.src
 		default:
-			return fmt.Errorf("unkown parser state: %v", state)
+			return fmt.Errorf("unknown parser state: %v", state)
 		}
 		s.Liner.SetMode(mode)
 		data, err := s.Liner.Prompt(prompt)

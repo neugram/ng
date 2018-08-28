@@ -66,7 +66,7 @@ func TestRoundTrip(t *testing.T) {
 		}
 		got := format.Stmt(s)
 		if got != src {
-			t.Errorf("bad ouput: Expr(%q)=%q", src, got)
+			t.Errorf("bad output: Expr(%q)=%q", src, got)
 		}
 	}
 }
@@ -110,7 +110,7 @@ func TestTypes(t *testing.T) {
 		typ := s.(*stmt.TypeDecl).Type.Type
 		got := format.Type(typ)
 		if got != src {
-			t.Errorf("bad ouput: Type(%q)=%q", src, got)
+			t.Errorf("bad output: Type(%q)=%q", src, got)
 		}
 	}
 }

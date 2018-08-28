@@ -934,7 +934,7 @@ func (c *Checker) checkCommaOK(e expr.Expr, partials []partial) []partial {
 			// the general case for a map-index is to only typecheck
 			// for returning the map-value.
 			// in the case of indexing into a map with a comma-ok,
-			// we need to also return the boolean indicating whther
+			// we need to also return the boolean indicating whether
 			// the key was found in the map.
 			// so, replace the original tipe.Type with the tuple:
 			//  (tipe.Type, tipe.Bool)

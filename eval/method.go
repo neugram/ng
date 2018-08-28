@@ -110,7 +110,7 @@ func (p *Program) reflectNamedType(t *tipe.Named, methods []*expr.FuncLiteral) (
 	return rt, nil
 }
 
-// evalMethRecv puts the method reciever in the current scope.
+// evalMethRecv puts the method receiver in the current scope.
 func (p *Program) evalMethRecv(e *expr.FuncLiteral, recvt *tipe.Named, v reflect.Value) {
 	var arg reflect.Value
 
