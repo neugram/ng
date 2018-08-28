@@ -69,6 +69,10 @@ func TestExitMsg(t *testing.T) {
 }
 
 func TestGofmt(t *testing.T) {
+	if v := runtime.Version(); !strings.HasPrefix("go1.11", v) {
+		t.Skipf("Skipping gofmt test for %s.", v)
+	}
+
 	exe, err := exec.LookPath("gofmt")
 
 	if err != nil {
