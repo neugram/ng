@@ -193,7 +193,7 @@ type executeReply struct {
 	Status          string                   `json:"status"` // set to "ok"
 	ExecutionCount  int                      `json:"execution_count,omitempty"`
 	Payload         []map[string]interface{} `json:"payload"` // deprecated
-	UserExpressions map[string]interface{}   `json:"user_expressions`
+	UserExpressions map[string]interface{}   `json:"user_expressions"`
 }
 
 type executeResult struct {

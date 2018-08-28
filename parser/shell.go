@@ -137,7 +137,6 @@ func (p *Parser) parseShellSimpleCmd() (l *expr.ShellSimpleCmd) {
 			l.Args = append(l.Args, w)
 		}
 	}
-	return l
 }
 
 func (p *Parser) maybeParseShellRedirect() (string, *expr.ShellRedirect) {

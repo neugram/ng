@@ -2,12 +2,13 @@ language: go
 go_import_path: neugram.io/ng
 go:
   - 1.10.x
+  - 1.11.x
   - master
 os:
   - linux
+  - osx
 matrix:
  fast_finish: true
-
 
 script:
   - ./.ci-test
