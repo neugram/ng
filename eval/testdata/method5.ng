@@ -8,7 +8,7 @@ methodik obj struct{
 o := &obj{V: 3}
 
 if !o.F() {
-	panic("pointer-reciever method failed")
+	panic("pointer-receiver method failed")
 }
 if !(*o).G() {
 	panic("method call G failed")
@@ -17,7 +17,7 @@ if !o.G() {
 	panic("method promotion of G failed")
 }
 if !(*o).F() {
-	panic("pointer-reciever method promotion failed")
+	panic("pointer-receiver method promotion failed")
 }
 
 methodik intm int {

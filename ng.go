@@ -190,7 +190,7 @@ func initSession(ng *ngcore.Session) {
 				//
 				// Either way, instead of being one of those
 				// obnoxious programs that refuses to respond
-				// to Ctrl-C, be overly agressive and let the
+				// to Ctrl-C, be overly aggressive and let the
 				// entire ng process exit.
 				//
 				// This is bad if you use ng as your primary

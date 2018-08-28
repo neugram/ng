@@ -692,6 +692,9 @@ func (p *Program) evalStmt(s stmt.Stmt) []reflect.Value {
 			pkg = gowrap.Pkgs[path]
 			if pkg == nil {
 				adjPkgPath, dir, err := gotool.M.Dir(path)
+				if err != nil {
+					panic(Panic{val: err})
+				}
 				pkgb, err := gengo.GenGo(filename, filepath.Base(path))
 				if err != nil {
 					panic(Panic{val: err})
