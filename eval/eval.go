@@ -1798,7 +1798,7 @@ func (p *Program) evalFuncLiteral(e *expr.FuncLiteral, recvt *tipe.Named) reflec
 		params := make([]tipe.Type, 1+len(funct.Params.Elems))
 		copy(params[1:], funct.Params.Elems)
 		params[0] = &tipe.Interface{} // not recvt, breaking cycle
-		funct.Params = &tipe.Tuple{params}
+		funct.Params = &tipe.Tuple{Elems: params}
 	}
 	rt := p.reflector.ToRType(&funct)
 	fn := reflect.MakeFunc(rt, func(args []reflect.Value) (res []reflect.Value) {

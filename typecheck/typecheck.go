@@ -539,7 +539,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 		}
 		cht, ok := p.typ.(*tipe.Chan)
 		if !ok {
-			c.errorfmt("cannot send to non-channel type: %s", cht)
+			c.errorfmt("cannot send to non-channel type: %v", cht)
 			return nil
 		}
 		p = c.expr(s.Value)
@@ -548,7 +548,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 		}
 		c.convert(&p, cht.Elem)
 		if p.mode == modeInvalid {
-			c.errorfmt("cannot send %s to %s", p.typ, cht)
+			c.errorfmt("cannot send %s to %v", p.typ, cht)
 		}
 		return nil
 
@@ -1555,7 +1555,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		if ch.Direction == tipe.ChanRecv {
 			p.mode = modeInvalid
-			c.errorfmt("%s: cannot close receive-only channel", e)
+			c.errorfmt("%v: cannot close receive-only channel", e)
 			return p
 		}
 		return p
@@ -1859,7 +1859,6 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 	default:
 		panic(fmt.Sprintf("unknown builtin: %s", p.typ))
 	}
-	panic("TODO builtin")
 }
 
 func (c *Checker) exprPartialCall(e *expr.Call) partial {
@@ -1930,12 +1929,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	if e.Ellipsis {
 		if !funct.Variadic {
 			p.mode = modeInvalid
-			c.errorfmt("cannot use ... with non-variadic function %s", funct)
+			c.errorfmt("cannot use ... with non-variadic function %v", funct)
 			return p
 		}
 		if len(e.Args) == 1 && len(unpacked) > 1 {
 			p.mode = modeInvalid
-			c.errorfmt("cannot use ... with multi-valued function %s", funct)
+			c.errorfmt("cannot use ... with multi-valued function %v", funct)
 			return p
 		}
 	}
@@ -1958,7 +1957,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				continue
 			}
 			p.mode = modeInvalid
-			c.errorfmt("too many arguments to function %s", funct)
+			c.errorfmt("too many arguments to function %v", funct)
 			return p
 		}
 
@@ -2022,7 +2021,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	}
 	if numArgs < len(params) {
 		p.mode = modeInvalid
-		c.errorfmt("too few arguments in call to %s", funct)
+		c.errorfmt("too few arguments in call to %v", funct)
 		return p
 	}
 
@@ -2206,7 +2205,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if t, resolved := c.resolve(e.Type); resolved {
 			t, isArray := t.(*tipe.Array)
 			if !isArray {
-				c.errorfmt("type %s is not an array", t)
+				c.errorfmt("type %v is not an array", t)
 				p.mode = modeInvalid
 				return p
 			}
@@ -2596,7 +2595,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 					}
 				}
 				p.mode = modeInvalid
-				c.errorfmt("%s undefined (type %s has no field or method %s)", e, typ, right)
+				c.errorfmt("%s undefined (type %v has no field or method %s)", e, typ, right)
 			}
 		}
 		switch lt := lt.(type) {
@@ -2728,29 +2727,32 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 			c.errorfmt("TODO index %T", lt)
 			return p
 		}
-		if atTyp := c.memory.Method(lt, "At"); atTyp != nil {
-			want := "At(i, j int) T"
-			if len(e.Indicies) == 1 {
-				want = "At(i int) T"
-			}
-			if dim := len(atTyp.Params.Elems); dim == 0 || dim > 2 || dim != len(e.Indicies) ||
-				atTyp.Params.Elems[0] != tipe.Int || (dim == 2 && atTyp.Params.Elems[1] != tipe.Int) ||
-				len(atTyp.Results.Elems) != 1 {
-				p.mode = modeInvalid
-				c.errorfmt("cannot slice type %s, expecting method %s but type has %s", left.typ, want, atTyp)
+
+		/*
+			if atTyp := c.memory.Method(lt, "At"); atTyp != nil {
+				want := "At(i, j int) T"
+				if len(e.Indicies) == 1 {
+					want = "At(i int) T"
+				}
+				if dim := len(atTyp.Params.Elems); dim == 0 || dim > 2 || dim != len(e.Indicies) ||
+					atTyp.Params.Elems[0] != tipe.Int || (dim == 2 && atTyp.Params.Elems[1] != tipe.Int) ||
+					len(atTyp.Results.Elems) != 1 {
+					p.mode = modeInvalid
+					c.errorfmt("cannot slice type %s, expecting method %s but type has %v", left.typ, want, atTyp)
+					return p
+				}
+				p.mode = modeVar
+				p.typ = atTyp.Results.Elems[0]
 				return p
 			}
-			p.mode = modeVar
-			p.typ = atTyp.Results.Elems[0]
-			return p
-		}
-		if setTyp := c.memory.Method(lt, "Set"); setTyp != nil {
-			p.mode = modeInvalid
-			c.errorfmt("TODO Set index")
-			return p
-		}
+			if setTyp := c.memory.Method(lt, "Set"); setTyp != nil {
+				p.mode = modeInvalid
+				c.errorfmt("TODO Set index")
+				return p
+			}
 
-		panic(fmt.Sprintf("typecheck.expr TODO Index: %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
+			panic(fmt.Sprintf("typecheck.expr TODO Index: %s", format.Debug(e))) //, format.Debug(tipe.Underlying(left.typ))))
+		*/
 	case *expr.Shell:
 		c.pushScope()
 		defer c.popScope()
@@ -3409,7 +3411,6 @@ func convGoOp(op token.Token) gotoken.Token {
 		return gotoken.REM
 	case token.Pow:
 		panic("TODO token.Pow")
-		return gotoken.REM
 	case token.LogicalAnd:
 		return gotoken.LAND
 	case token.LogicalOr:

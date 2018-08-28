@@ -98,7 +98,7 @@ var typeTests = []typeTest{
 		[]string{
 			`a := [|]int64{{|"Col1","Col2"|}, {1, 2}, {3, 4}}`,
 		},
-		[]identType{{"a", &tipe.Table{tipe.Int64}}},
+		[]identType{{"a", &tipe.Table{Type: tipe.Int64}}},
 	},
 	{
 		[]string{

@@ -374,7 +374,6 @@ func (s *Session) Run(ctx context.Context, startInShell bool, sigint chan os.Sig
 		s.Display(s.Stdout, res)
 		state = s.ParserState
 	}
-	return nil
 }
 
 func (s *Session) Close() {

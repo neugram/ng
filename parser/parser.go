@@ -422,8 +422,6 @@ func (p *Parser) parsePrimaryExpr() expr.Expr {
 			return x
 		}
 	}
-
-	return x
 }
 
 func maybePackageType(x expr.Expr) *tipe.Unresolved {
@@ -1494,9 +1492,6 @@ func (p *Parser) parseFor() stmt.Stmt {
 			Body:     body(),
 		}
 	}
-
-	// TODO
-	panic("TODO parseFor range")
 }
 
 func (p *Parser) parseSwitch() stmt.Stmt {
