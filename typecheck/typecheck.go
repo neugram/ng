@@ -539,7 +539,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 		}
 		cht, ok := p.typ.(*tipe.Chan)
 		if !ok {
-			c.errorfmt("cannot send to non-channel type: %s", cht)
+			c.errorfmt("cannot send to non-channel type: %v", cht)
 			return nil
 		}
 		p = c.expr(s.Value)
@@ -548,7 +548,7 @@ func (c *Checker) stmt(s stmt.Stmt, retType *tipe.Tuple, retNames []string) tipe
 		}
 		c.convert(&p, cht.Elem)
 		if p.mode == modeInvalid {
-			c.errorfmt("cannot send %s to %s", p.typ, cht)
+			c.errorfmt("cannot send %s to %v", p.typ, cht)
 		}
 		return nil
 
@@ -1555,7 +1555,7 @@ func (c *Checker) exprBuiltinCall(e *expr.Call) partial {
 		}
 		if ch.Direction == tipe.ChanRecv {
 			p.mode = modeInvalid
-			c.errorfmt("%s: cannot close receive-only channel", e)
+			c.errorfmt("%v: cannot close receive-only channel", e)
 			return p
 		}
 		return p
@@ -1930,12 +1930,12 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	if e.Ellipsis {
 		if !funct.Variadic {
 			p.mode = modeInvalid
-			c.errorfmt("cannot use ... with non-variadic function %s", funct)
+			c.errorfmt("cannot use ... with non-variadic function %v", funct)
 			return p
 		}
 		if len(e.Args) == 1 && len(unpacked) > 1 {
 			p.mode = modeInvalid
-			c.errorfmt("cannot use ... with multi-valued function %s", funct)
+			c.errorfmt("cannot use ... with multi-valued function %v", funct)
 			return p
 		}
 	}
@@ -1958,7 +1958,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 				continue
 			}
 			p.mode = modeInvalid
-			c.errorfmt("too many arguments to function %s", funct)
+			c.errorfmt("too many arguments to function %v", funct)
 			return p
 		}
 
@@ -2022,7 +2022,7 @@ func (c *Checker) exprPartialCall(e *expr.Call) partial {
 	}
 	if numArgs < len(params) {
 		p.mode = modeInvalid
-		c.errorfmt("too few arguments in call to %s", funct)
+		c.errorfmt("too few arguments in call to %v", funct)
 		return p
 	}
 
@@ -2206,7 +2206,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 		if t, resolved := c.resolve(e.Type); resolved {
 			t, isArray := t.(*tipe.Array)
 			if !isArray {
-				c.errorfmt("type %s is not an array", t)
+				c.errorfmt("type %v is not an array", t)
 				p.mode = modeInvalid
 				return p
 			}
@@ -2596,7 +2596,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 					}
 				}
 				p.mode = modeInvalid
-				c.errorfmt("%s undefined (type %s has no field or method %s)", e, typ, right)
+				c.errorfmt("%v undefined (type %v has no field or method %s)", e, typ, right)
 			}
 		}
 		switch lt := lt.(type) {
@@ -2620,11 +2620,11 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				}
 			}
 			p.mode = modeInvalid
-			c.errorfmt("%s not in package %s", e, lt)
+			c.errorfmt("%v not in package %s", e, lt)
 			return p
 		}
 		p.mode = modeInvalid
-		c.errorfmt("%s undefined (type %s is not a struct or package)", e, left.typ)
+		c.errorfmt("%v undefined (type %s is not a struct or package)", e, left.typ)
 		return p
 	case *expr.Index:
 		left := c.expr(e.Left)
@@ -2737,7 +2737,7 @@ func (c *Checker) exprPartial(e expr.Expr, hint typeHint) (p partial) {
 				atTyp.Params.Elems[0] != tipe.Int || (dim == 2 && atTyp.Params.Elems[1] != tipe.Int) ||
 				len(atTyp.Results.Elems) != 1 {
 				p.mode = modeInvalid
-				c.errorfmt("cannot slice type %s, expecting method %s but type has %s", left.typ, want, atTyp)
+				c.errorfmt("cannot slice type %s, expecting method %s but type has %v", left.typ, want, atTyp)
 				return p
 			}
 			p.mode = modeVar

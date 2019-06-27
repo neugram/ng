@@ -53,7 +53,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sideshowdave7/gomq/zmtp"
+	"neugram.io/ng/internal/github.com/sideshowdave7/gomq/zmtp"
 	"neugram.io/ng/ngcore"
 )
 

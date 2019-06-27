@@ -24,11 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/peterh/liner"
 	"neugram.io/ng/eval"
 	"neugram.io/ng/eval/environ"
 	"neugram.io/ng/eval/shell"
 	"neugram.io/ng/format"
+	"neugram.io/ng/internal/github.com/peterh/liner"
 	"neugram.io/ng/parser"
 )
 
